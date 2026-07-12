@@ -1,6 +1,31 @@
 import { NextResponse } from "next/server";
+import { itunesSearch, piSearch } from "@/src/data/catalog/server";
+import type { CatalogSearchResponse } from "@/src/data/catalog/types";
 
-// M1: proxy iTunes Search (primary) -> Podcast Index (secondary).
-export function GET() {
-  return NextResponse.json({ error: "not_implemented" }, { status: 501 });
+// Proxy: iTunes Search (primary) -> Podcast Index (secondary, optional key).
+// Upstream failures degrade to an empty result — never a blocking error.
+export async function GET(request: Request) {
+  const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+  if (!q) {
+    return NextResponse.json({ error: "missing q" }, { status: 400 });
+  }
+
+  const itunes = await itunesSearch(q);
+  if (itunes && itunes.length > 0) {
+    return json({ shows: itunes, degraded: false });
+  }
+
+  // iTunes failed or found nothing — Podcast Index has broader coverage.
+  const pi = await piSearch(q);
+  if (pi) {
+    return json({ shows: pi, degraded: false });
+  }
+
+  return json({ shows: itunes ?? [], degraded: itunes === null });
+}
+
+function json(body: CatalogSearchResponse) {
+  return NextResponse.json(body, {
+    headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" },
+  });
 }
