@@ -7,6 +7,7 @@ import type { CatalogShow } from "@/src/data/catalog/types";
 import { recordEngagement } from "@/src/data/repos/engagementRepo";
 import { bumpImpressions } from "@/src/data/repos/impressionsRepo";
 import { saveShow } from "@/src/data/repos/savedShowsRepo";
+import { RatingBadges } from "@/src/features/show/RatingBadges";
 import { Card, Chip, CoverTile, SettleIn } from "@/src/ui";
 import { useRecommendations } from "./useRecommendations";
 
@@ -103,6 +104,9 @@ function FeedCard({
               {show.categories.slice(0, 3).join(" · ")}
             </p>
           )}
+          <div className="mt-1">
+            <RatingBadges showId={show.id} title={show.title} />
+          </div>
         </div>
         <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
           <Chip onClick={() => void act("save")}>Save</Chip>

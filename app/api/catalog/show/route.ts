@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enrichFromRss } from "@/src/data/catalog/rss";
 import { itunesLookup, piLookup } from "@/src/data/catalog/server";
 
 // Proxy: show lookup by id — iTunes collectionId, or `pi-<feedId>` for
@@ -12,6 +13,16 @@ export async function GET(request: Request) {
   const show = id.startsWith("pi-")
     ? await piLookup(id)
     : ((await itunesLookup(id)) ?? (await piLookup(id)));
+
+  // iTunes lookup has no description; the feed does (best-effort)
+  if (show?.feedUrl && (!show.description || !show.lastEpisodeAt)) {
+    const rss = await enrichFromRss(show.feedUrl);
+    show.description ??= rss.description;
+    show.lastEpisodeAt ??= rss.lastEpisodeAt;
+    if (rss.categories && show.categories.length === 0) {
+      show.categories = rss.categories;
+    }
+  }
 
   return NextResponse.json(
     { show },
