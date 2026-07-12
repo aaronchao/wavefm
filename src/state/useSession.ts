@@ -3,6 +3,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
+import { migrateLocalEngagements } from "@/src/data/repos/engagementRepo";
+import { migrateLocalPrefs } from "@/src/data/repos/prefsRepo";
 import { migrateLocalSaves } from "@/src/data/repos/savedShowsRepo";
 import { getSupabase } from "@/src/data/supabase/client";
 
@@ -27,12 +29,14 @@ export function useSession() {
     const { data: sub } = sb.auth.onAuthStateChange((event, next) => {
       setSession(next);
       if (event === "SIGNED_IN") {
-        void migrateLocalSaves().then(() =>
-          queryClient.invalidateQueries({ queryKey: ["saved"] }),
-        );
+        void Promise.all([
+          migrateLocalSaves(),
+          migrateLocalEngagements(),
+          migrateLocalPrefs(),
+        ]).then(() => queryClient.invalidateQueries());
       }
       if (event === "SIGNED_OUT") {
-        queryClient.invalidateQueries({ queryKey: ["saved"] });
+        void queryClient.invalidateQueries();
       }
     });
     return () => sub.subscription.unsubscribe();
