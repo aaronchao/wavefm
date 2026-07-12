@@ -11,6 +11,8 @@ export type CatalogShow = {
   /** Apple Podcasts web URL (deep-link OUT, used from M6). */
   appleUrl?: string;
   categories: string[];
+  /** ISO date of the latest episode (RSS-enriched; freshness signal). */
+  lastEpisodeAt?: string;
 };
 
 export type CatalogSearchResponse = {

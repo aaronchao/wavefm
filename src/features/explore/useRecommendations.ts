@@ -22,6 +22,7 @@ export function toShowInput(show: CatalogShow): ShowInput {
     title: show.title,
     description: show.description,
     categories: show.categories,
+    lastEpisodeAt: show.lastEpisodeAt,
   };
 }
 
