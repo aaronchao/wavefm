@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { searchShows } from "@/src/data/catalog/client";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
+import { Card, Chip, CoverTile, SettleIn } from "@/src/ui";
 
 export default function SearchPage() {
   const [input, setInput] = useState("");
@@ -82,41 +83,24 @@ function ShowRow({ show }: { show: CatalogShow }) {
   }
 
   return (
-    <li className="flex items-center gap-4 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
-      {show.coverUrl ? (
-        // arbitrary external art hosts; skip Vercel image optimization (Hobby quota)
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={show.coverUrl}
-          alt=""
-          width={64}
-          height={64}
-          loading="lazy"
-          className="h-16 w-16 shrink-0 rounded-xl object-cover"
-        />
-      ) : (
-        <div className="h-16 w-16 shrink-0 rounded-xl bg-zinc-200 dark:bg-zinc-800" />
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">{show.title}</p>
-        <p className="truncate text-sm text-zinc-500">{show.author}</p>
-        {show.categories.length > 0 && (
-          <p className="truncate text-xs text-zinc-400">
-            {show.categories.slice(0, 3).join(" · ")}
-          </p>
-        )}
-      </div>
-      <button
-        onClick={toggleSave}
-        aria-pressed={saved}
-        className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-medium transition-colors ${
-          saved
-            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
-            : "bg-zinc-100 text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200"
-        }`}
-      >
-        {saved ? "Saved ✓" : "Save"}
-      </button>
+    <li>
+      <SettleIn>
+        <Card className="flex items-center gap-4">
+          <CoverTile src={show.coverUrl} size={64} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold">{show.title}</p>
+            <p className="truncate text-sm text-zinc-500">{show.author}</p>
+            {show.categories.length > 0 && (
+              <p className="truncate text-xs text-zinc-400">
+                {show.categories.slice(0, 3).join(" · ")}
+              </p>
+            )}
+          </div>
+          <Chip active={saved} onClick={toggleSave} className="shrink-0">
+            {saved ? "Saved ✓" : "Save"}
+          </Chip>
+        </Card>
+      </SettleIn>
     </li>
   );
 }

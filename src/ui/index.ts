@@ -1,3 +1,3 @@
-// M3: design system — tokens, primitives (Card, CoverTile, Chip,
-// RatingBadge), Framer Motion wrappers.
-export {};
+export { Card, Chip, CoverTile, RatingBadge } from "./primitives";
+export { PopIn, Pressable, SettleIn } from "./motion";
+export { PRESS_SCALE, springs } from "./tokens";
