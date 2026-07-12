@@ -40,6 +40,11 @@ export default function SearchPage() {
         </button>
       </form>
 
+      {!term && !data && (
+        <p className="text-zinc-500">
+          Find any show — try a name, a topic, or 中文.
+        </p>
+      )}
       {isFetching && <p className="text-zinc-500">Searching…</p>}
       {data?.degraded && (
         <p className="text-zinc-500">

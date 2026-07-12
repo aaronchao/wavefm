@@ -4,11 +4,13 @@ import type { RatingResult } from "./provider";
 export async function getRatings(
   showId: string,
   title: string,
+  sources?: string[],
 ): Promise<RatingResult[]> {
+  if (sources && sources.length === 0) return [];
   try {
-    const res = await fetch(
-      `/api/ratings?showId=${encodeURIComponent(showId)}&title=${encodeURIComponent(title)}`,
-    );
+    const params = new URLSearchParams({ showId, title });
+    if (sources) params.set("sources", sources.join(","));
+    const res = await fetch(`/api/ratings?${params.toString()}`);
     if (!res.ok) return [];
     const json = (await res.json()) as { ratings?: RatingResult[] };
     return json.ratings ?? [];

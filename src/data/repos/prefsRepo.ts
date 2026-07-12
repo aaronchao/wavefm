@@ -66,6 +66,22 @@ export async function setInterests(interests: string[]): Promise<void> {
   });
 }
 
+export async function setRatingSources(
+  rating_sources: Prefs["rating_sources"],
+): Promise<void> {
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (!sb || !userId) {
+    writeLocal({ ...readLocal(), rating_sources });
+    return;
+  }
+  await sb.from("prefs").upsert({
+    user_id: userId,
+    rating_sources,
+    updated_at: new Date().toISOString(),
+  });
+}
+
 /** Copies signed-out prefs to Supabase after sign-in (if none exist yet). */
 export async function migrateLocalPrefs(): Promise<void> {
   const sb = getSupabase();

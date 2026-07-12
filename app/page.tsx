@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Feed } from "@/src/features/explore/Feed";
 import { InterestPicker } from "@/src/features/explore/InterestPicker";
 import { useRecommendations } from "@/src/features/explore/useRecommendations";
+import { SavedShows } from "@/src/features/saved/SavedShows";
 
 export default function Home() {
   const { needsOnboarding, isLoading } = useRecommendations();
@@ -18,7 +19,17 @@ export default function Home() {
         </Link>
         .
       </p>
-      {!isLoading && needsOnboarding ? <InterestPicker onDone={() => {}} /> : <Feed />}
+      {!isLoading && needsOnboarding ? (
+        <InterestPicker onDone={() => {}} />
+      ) : (
+        <>
+          <Feed />
+          <section className="mt-10">
+            <h2 className="mb-3 text-lg font-semibold">Your saved shows</h2>
+            <SavedShows />
+          </section>
+        </>
+      )}
     </main>
   );
 }
