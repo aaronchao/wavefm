@@ -82,7 +82,7 @@ export async function saveShow(show: CatalogShow): Promise<void> {
   await sb
     .from("saved_shows")
     .upsert({ user_id: userId, show_id: show.id }, { ignoreDuplicates: true });
-  void recordEngagement(show.id, "save");
+  void recordEngagement(show, "save");
 }
 
 export async function unsaveShow(showId: string): Promise<void> {
