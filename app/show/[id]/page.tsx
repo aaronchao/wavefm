@@ -9,6 +9,7 @@ import type { CatalogShow } from "@/src/data/catalog/types";
 import { recordEngagement } from "@/src/data/repos/engagementRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { RatingBadges } from "@/src/features/show/RatingBadges";
+import { SimilarContent } from "@/src/features/show/SimilarContent";
 import { Chip, CoverTile, SettleIn } from "@/src/ui";
 
 export default function ShowPage() {
@@ -134,6 +135,8 @@ function ShowDetail({ show }: { show: CatalogShow }) {
           </p>
         </section>
       )}
+
+      <SimilarContent showId={show.id} />
     </SettleIn>
   );
 }

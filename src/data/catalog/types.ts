@@ -13,6 +13,24 @@ export type CatalogShow = {
   categories: string[];
   /** ISO date of the latest episode (RSS-enriched; freshness signal). */
   lastEpisodeAt?: string;
+  /** Total episodes published (iTunes trackCount; longevity signal). */
+  episodeCount?: number;
+};
+
+/** A single episode as returned by the catalog proxy (similar-content only). */
+export type CatalogEpisode = {
+  /** iTunes trackId as string. */
+  id: string;
+  title: string;
+  /** Parent show (iTunes collectionId / name), when known. */
+  showId?: string;
+  showTitle?: string;
+  description?: string;
+  coverUrl?: string;
+  /** Apple Podcasts episode web URL (deep-link OUT). */
+  appleUrl?: string;
+  categories: string[];
+  publishedAt?: string;
 };
 
 export type CatalogSearchResponse = {
@@ -23,4 +41,15 @@ export type CatalogSearchResponse = {
 
 export type CatalogShowResponse = {
   show: CatalogShow | null;
+};
+
+export type SimilarShow = CatalogShow & { why: string };
+export type SimilarEpisode = CatalogEpisode & { why: string };
+
+/** Response of /api/catalog/similar — ranked top to bottom. */
+export type SimilarResponse = {
+  shows: SimilarShow[];
+  episodes: SimilarEpisode[];
+  /** True when every upstream provider failed (never a thrown error). */
+  degraded: boolean;
 };

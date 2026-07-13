@@ -19,6 +19,8 @@ export { tasteVector } from "./taste";
 export { cosine, scoreCandidate, DEFAULT_RATING_WEIGHT } from "./score";
 export { cluster, SEED_CLUSTERS, seedVectors } from "./cluster";
 export { diversify } from "./diversify";
+export { rankSimilar, queryTermsForShow } from "./similar";
+export type { SimilarItemInput, RankedSimilar } from "./similar";
 
 export type RecommendInput = {
   /** Shows to rank (from catalog search / trending / seeds). */

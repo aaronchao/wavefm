@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CatalogShow } from "./types";
+import type { CatalogEpisode, CatalogShow } from "./types";
 
 /**
  * Server-side catalog providers: iTunes Search (primary, no key) with
@@ -18,8 +18,32 @@ type ItunesResult = {
   collectionViewUrl?: string;
   artworkUrl600?: string;
   artworkUrl100?: string;
-  genres?: string[];
+  artworkUrl160?: string;
+  /** Strings on podcast collections; {name} objects on episode results. */
+  genres?: (string | { name?: string })[];
+  /** Latest release date of the collection (or the episode's own date). */
+  releaseDate?: string;
+  /** Episode count for podcast collections. */
+  trackCount?: number;
+  /** Episode fields (entity=podcastEpisode). */
+  trackId?: number;
+  trackName?: string;
+  trackViewUrl?: string;
+  description?: string;
+  shortDescription?: string;
 };
+
+function isoOrUndefined(date?: string): string | undefined {
+  return date && !Number.isNaN(Date.parse(date))
+    ? new Date(date).toISOString()
+    : undefined;
+}
+
+function itunesGenres(genres?: (string | { name?: string })[]): string[] {
+  return (genres ?? [])
+    .map((g) => (typeof g === "string" ? g : (g.name ?? "")))
+    .filter((g) => g && g !== "Podcasts");
+}
 
 function mapItunes(r: ItunesResult): CatalogShow | null {
   if (!r.collectionId || !r.collectionName) return null;
@@ -31,7 +55,24 @@ function mapItunes(r: ItunesResult): CatalogShow | null {
     coverUrl: r.artworkUrl600 ?? r.artworkUrl100,
     feedUrl: r.feedUrl,
     appleUrl: r.collectionViewUrl,
-    categories: (r.genres ?? []).filter((g) => g !== "Podcasts"),
+    categories: itunesGenres(r.genres),
+    lastEpisodeAt: isoOrUndefined(r.releaseDate),
+    episodeCount: r.trackCount,
+  };
+}
+
+function mapItunesEpisode(r: ItunesResult): CatalogEpisode | null {
+  if (!r.trackId || !r.trackName) return null;
+  return {
+    id: String(r.trackId),
+    title: r.trackName,
+    showId: r.collectionId ? String(r.collectionId) : undefined,
+    showTitle: r.collectionName,
+    description: r.description ?? r.shortDescription,
+    coverUrl: r.artworkUrl600 ?? r.artworkUrl160 ?? r.artworkUrl100,
+    appleUrl: r.trackViewUrl,
+    categories: itunesGenres(r.genres),
+    publishedAt: isoOrUndefined(r.releaseDate),
   };
 }
 
@@ -61,6 +102,44 @@ export async function itunesLookup(id: string): Promise<CatalogShow | null> {
   return results?.map(mapItunes).find((s) => s !== null) ?? null;
 }
 
+export async function itunesEpisodeSearch(
+  q: string,
+): Promise<CatalogEpisode[] | null> {
+  const url = `https://itunes.apple.com/search?media=podcast&entity=podcastEpisode&limit=25&term=${encodeURIComponent(q)}`;
+  const results = await itunesFetch(url);
+  if (results === null) return null;
+  return results
+    .map(mapItunesEpisode)
+    .filter((e): e is CatalogEpisode => e !== null);
+}
+
+const CHART_REVALIDATE_SECONDS = 6 * 60 * 60; // charts move slowly
+
+/**
+ * Apple's top-podcasts chart (free RSS, no key). Returns collectionId ->
+ * 1-based chart rank, or null when unreachable — a popularity proxy,
+ * since real listen counts aren't public on any free API.
+ */
+export async function itunesTopChartRanks(): Promise<Map<string, number> | null> {
+  try {
+    const res = await fetch(
+      "https://rss.marketingtools.apple.com/api/v2/us/podcasts/top/100/podcasts.json",
+      { next: { revalidate: CHART_REVALIDATE_SECONDS } },
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      feed?: { results?: { id?: string }[] };
+    };
+    const ranks = new Map<string, number>();
+    (json.feed?.results ?? []).forEach((entry, i) => {
+      if (entry.id) ranks.set(String(entry.id), i + 1);
+    });
+    return ranks;
+  } catch {
+    return null;
+  }
+}
+
 type PiFeed = {
   id?: number;
   itunesId?: number | null;
@@ -72,6 +151,9 @@ type PiFeed = {
   url?: string;
   link?: string;
   categories?: Record<string, string> | null;
+  /** Unix seconds of the newest item, when the endpoint provides it. */
+  newestItemPubdate?: number;
+  episodeCount?: number;
 };
 
 function mapPi(f: PiFeed): CatalogShow | null {
@@ -85,6 +167,11 @@ function mapPi(f: PiFeed): CatalogShow | null {
     coverUrl: f.image || f.artwork,
     feedUrl: f.url,
     categories: f.categories ? Object.values(f.categories) : [],
+    lastEpisodeAt:
+      f.newestItemPubdate && f.newestItemPubdate > 0
+        ? new Date(f.newestItemPubdate * 1000).toISOString()
+        : undefined,
+    episodeCount: f.episodeCount,
   };
 }
 
@@ -127,6 +214,22 @@ export async function piSearch(q: string): Promise<CatalogShow[] | null> {
   const feeds = await piFetch(`/search/byterm?max=25&q=${encodeURIComponent(q)}`);
   if (feeds === null) return null;
   return feeds.map(mapPi).filter((s): s is CatalogShow => s !== null);
+}
+
+/**
+ * Podcast Index trending list (free key). Returns show id -> 1-based
+ * trending rank (keyed the same way mapPi keys ids), or null when the
+ * keys aren't configured or the API is unreachable.
+ */
+export async function piTrendingRanks(): Promise<Map<string, number> | null> {
+  const feeds = await piFetch(`/podcasts/trending?max=100`);
+  if (feeds === null) return null;
+  const ranks = new Map<string, number>();
+  feeds.forEach((f, i) => {
+    if (!f.id) return;
+    ranks.set(f.itunesId ? String(f.itunesId) : `pi-${f.id}`, i + 1);
+  });
+  return ranks;
 }
 
 export async function piLookup(id: string): Promise<CatalogShow | null> {
