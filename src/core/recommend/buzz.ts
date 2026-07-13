@@ -16,6 +16,8 @@ export type BuzzInput = {
   subscribers?: number;
   plays?: number;
   comments?: number;
+  /** Listen Notes' Listen Score: 0–100 global popularity percentile. */
+  listenScore?: number;
 };
 
 const XYZRANK_SIZE = 200;
@@ -43,6 +45,9 @@ export function buzzScore(b: BuzzInput | undefined): number | null {
   if (b.subscribers != null) parts.push(logScale(b.subscribers, 6)); // 1M -> 1
   if (b.plays != null) parts.push(logScale(b.plays, 7));
   if (b.comments != null) parts.push(logScale(b.comments, 4));
+  if (b.listenScore != null) {
+    parts.push(Math.min(Math.max(b.listenScore, 0), 100) / 100);
+  }
   if (parts.length === 0) return null;
   return parts.reduce((s, x) => s + x, 0) / parts.length;
 }
@@ -52,6 +57,9 @@ export function buzzWhy(b: BuzzInput | undefined): string | null {
   if (!b) return null;
   if (b.xyzrankRank != null && b.xyzrankRank <= 50) {
     return `#${b.xyzrankRank} on 中文播客榜`;
+  }
+  if ((b.listenScore ?? 0) >= 60) {
+    return `Popular podcast (Listen Score ${b.listenScore})`;
   }
   if ((b.redditPosts ?? 0) >= 5) {
     return `Talked about on Reddit (${b.redditPosts} threads)`;

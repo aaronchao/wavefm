@@ -4,6 +4,7 @@ import {
   topPicks,
   type SimilarItemInput,
 } from "@/src/core/recommend";
+import { listenNotesBuzz } from "@/src/data/buzz/listennotes";
 import { redditBuzz } from "@/src/data/buzz/reddit";
 import { mergeBuzz, xiaoyuzhouBuzz } from "@/src/data/buzz/xiaoyuzhou";
 import { xyzrankBuzz } from "@/src/data/buzz/xyzrank";
@@ -83,11 +84,12 @@ export async function GET(request: Request) {
   const shortlist = topPicks({ saved: seedInputs, candidates, limit: 15 });
   const enriched: SimilarItemInput[] = await Promise.all(
     shortlist.map(async (p) => {
-      const [reddit, xyz] = await Promise.all([
+      const [reddit, xyz, listen] = await Promise.all([
         redditBuzz(p.item.title),
         xiaoyuzhouBuzz(p.item.title),
+        listenNotesBuzz(p.item.title),
       ]);
-      return { ...p.item, buzz: mergeBuzz(p.item.buzz, xyz, reddit) };
+      return { ...p.item, buzz: mergeBuzz(p.item.buzz, listen, xyz, reddit) };
     }),
   );
   const finalists = topPicks({ saved: seedInputs, candidates: enriched, limit: 10 });

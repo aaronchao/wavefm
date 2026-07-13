@@ -29,6 +29,13 @@ describe("buzzScore", () => {
     expect(buzzScore({ xyzrankRank: 200 })!).toBeLessThan(0.01);
   });
 
+  it("uses Listen Notes' Listen Score (0..100)", () => {
+    expect(buzzScore({ listenScore: 90 })!).toBeCloseTo(0.9);
+    expect(buzzScore({ listenScore: 0 })!).toBe(0);
+    expect(buzzWhy({ listenScore: 72 })).toBe("Popular podcast (Listen Score 72)");
+    expect(buzzWhy({ listenScore: 20 })).toBeNull();
+  });
+
   it("writes human why phrases per source", () => {
     expect(buzzWhy({ xyzrankRank: 12 })).toBe("#12 on 中文播客榜");
     expect(buzzWhy({ redditPosts: 9 })).toContain("Reddit");

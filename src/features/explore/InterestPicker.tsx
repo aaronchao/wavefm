@@ -2,18 +2,16 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { SEED_CLUSTERS } from "@/src/core/recommend";
+import { defaultTopics } from "@/src/core/recommend";
 import { setInterests } from "@/src/data/repos/prefsRepo";
 import { Chip, SettleIn } from "@/src/ui";
-
-const EXTRA_TOPICS = ["music culture", "commentary", "business & coaching"];
 
 /** First-run onboarding: pick interests so day one already recommends well. */
 export function InterestPicker({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
   const [picked, setPicked] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const topics = [...SEED_CLUSTERS.map((s) => s.label), ...EXTRA_TOPICS];
+  const topics = defaultTopics();
 
   function toggle(topic: string) {
     setPicked((p) =>

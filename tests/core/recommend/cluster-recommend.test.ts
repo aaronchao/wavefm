@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   cluster,
+  defaultTopics,
   diversify,
   recommend,
   vectorizeShow,
   buildIdf,
+  SEED_CLUSTERS,
   type Cluster,
   type ScoredCandidate,
 } from "@/src/core/recommend";
@@ -62,6 +64,21 @@ describe("cluster", () => {
     const clusters = cluster([scored("c-zane")]);
     expect(clusters[0].label).toBe("music culture");
     expect(clusters[0].why).toBe("More music culture");
+  });
+});
+
+describe("defaultTopics", () => {
+  it("hides personal niche seeds but keeps them in the engine", () => {
+    const topics = defaultTopics();
+    expect(topics).not.toContain("Asian gay podcasts");
+    expect(topics).not.toContain("gay travel stories");
+    // still present as seed clusters the recommender can match against
+    expect(SEED_CLUSTERS.some((s) => s.id === "asian-gay")).toBe(true);
+  });
+
+  it("leads with trending mainstream topics", () => {
+    expect(defaultTopics().slice(0, 4)).toContain("news & politics");
+    expect(defaultTopics()).toContain("true crime");
   });
 });
 
