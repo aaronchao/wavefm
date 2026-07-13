@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   cluster,
+  defaultTopics,
   diversify,
   recommend,
   vectorizeShow,
   buildIdf,
+  SEED_CLUSTERS,
   type Cluster,
   type ScoredCandidate,
 } from "@/src/core/recommend";
@@ -34,15 +36,49 @@ describe("cluster", () => {
   });
 
   it("labels highly rated discoveries with the rating source", () => {
-    const item = { ...scored("c-highlyrated"), rating: { source: "douban", rating: 9.2 } };
-    const clusters = cluster([item]);
+    // a show off every seed topic, so the rating rung gets its turn
+    const offSeed = {
+      show: {
+        id: "c-knitting",
+        title: "Pure Knitting",
+        description: "Yarn patterns and needlework chat.",
+        categories: ["Hobbies"],
+      },
+      vector: vectorizeShow(
+        {
+          id: "c-knitting",
+          title: "Pure Knitting",
+          description: "Yarn patterns and needlework chat.",
+          categories: ["Hobbies"],
+        },
+        idf,
+      ),
+      score: 1,
+      rating: { source: "douban", rating: 9.2 },
+    };
+    const clusters = cluster([offSeed]);
     expect(clusters[0].why).toBe("Highly rated on Douban");
   });
 
-  it("falls back to the top category", () => {
+  it("assigns music shows to the generic music-culture seed", () => {
     const clusters = cluster([scored("c-zane")]);
-    expect(clusters[0].label).toBe("Music");
-    expect(clusters[0].why).toBe("More Music");
+    expect(clusters[0].label).toBe("music culture");
+    expect(clusters[0].why).toBe("More music culture");
+  });
+});
+
+describe("defaultTopics", () => {
+  it("hides personal niche seeds but keeps them in the engine", () => {
+    const topics = defaultTopics();
+    expect(topics).not.toContain("Asian gay podcasts");
+    expect(topics).not.toContain("gay travel stories");
+    // still present as seed clusters the recommender can match against
+    expect(SEED_CLUSTERS.some((s) => s.id === "asian-gay")).toBe(true);
+  });
+
+  it("leads with trending mainstream topics", () => {
+    expect(defaultTopics().slice(0, 4)).toContain("news & politics");
+    expect(defaultTopics()).toContain("true crime");
   });
 });
 

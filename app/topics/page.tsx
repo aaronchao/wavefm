@@ -2,13 +2,11 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { SEED_CLUSTERS } from "@/src/core/recommend";
+import { defaultTopics } from "@/src/core/recommend";
 import { getPrefs, setInterests } from "@/src/data/repos/prefsRepo";
 import { useSession } from "@/src/state/useSession";
 import { Card, Chip, CoverTile } from "@/src/ui";
 import { useRecommendations } from "@/src/features/explore/useRecommendations";
-
-const EXTRA_TOPICS = ["music culture", "commentary", "business & coaching"];
 
 export default function TopicsPage() {
   const { session } = useSession();
@@ -30,12 +28,11 @@ export default function TopicsPage() {
     await queryClient.invalidateQueries({ queryKey: ["prefs"] });
   }
 
-  const known = new Set([...SEED_CLUSTERS.map((s) => s.label), ...EXTRA_TOPICS]);
-  const topics = [
-    ...SEED_CLUSTERS.map((s) => s.label),
-    ...EXTRA_TOPICS,
-    ...picked.filter((t) => !known.has(t)),
-  ];
+  // trending/mainstream chips + any custom interests the user already picked
+  // (which can include hidden personal seeds — those stay if chosen before)
+  const defaults = defaultTopics();
+  const known = new Set(defaults);
+  const topics = [...defaults, ...picked.filter((t) => !known.has(t))];
 
   return (
     <main className="mx-auto w-full max-w-2xl p-4 sm:p-8">

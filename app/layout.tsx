@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { PreviewPlayer } from "@/src/features/player/PreviewPlayer";
 import { Providers } from "@/src/state/providers";
 import "./globals.css";
 
@@ -42,12 +43,16 @@ export default function RootLayout({
               <Link href="/topics" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Topics
               </Link>
+              <Link href="/library" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                Library
+              </Link>
               <Link href="/settings" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Settings
               </Link>
             </nav>
           </header>
           {children}
+          <PreviewPlayer />
         </Providers>
       </body>
     </html>

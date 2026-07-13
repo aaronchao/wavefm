@@ -9,6 +9,7 @@ import type { CatalogShow } from "@/src/data/catalog/types";
 import { recordEngagement } from "@/src/data/repos/engagementRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { RatingBadges } from "@/src/features/show/RatingBadges";
+import { SimilarContent } from "@/src/features/show/SimilarContent";
 import { Chip, CoverTile, SettleIn } from "@/src/ui";
 
 export default function ShowPage() {
@@ -19,7 +20,7 @@ export default function ShowPage() {
   });
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 sm:p-8">
+    <main className="mx-auto w-full max-w-2xl p-4 pb-40 sm:p-8 sm:pb-40">
       {isLoading && <p className="text-zinc-500">Loading…</p>}
       {!isLoading && !show && (
         <p className="text-zinc-500">
@@ -134,6 +135,8 @@ function ShowDetail({ show }: { show: CatalogShow }) {
           </p>
         </section>
       )}
+
+      <SimilarContent showId={show.id} />
     </SettleIn>
   );
 }

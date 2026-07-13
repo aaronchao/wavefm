@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Feed } from "@/src/features/explore/Feed";
 import { InterestPicker } from "@/src/features/explore/InterestPicker";
+import { TopPicks } from "@/src/features/explore/TopPicks";
 import { useRecommendations } from "@/src/features/explore/useRecommendations";
 import { SavedShows } from "@/src/features/saved/SavedShows";
 
@@ -10,7 +11,7 @@ export default function Home() {
   const { needsOnboarding, isLoading } = useRecommendations();
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 sm:p-8">
+    <main className="mx-auto w-full max-w-2xl p-4 pb-40 sm:p-8 sm:pb-40">
       <h1 className="mb-1 text-2xl font-bold">What next?</h1>
       <p className="mb-6 text-zinc-500">
         Shows worth your time, and why —{" "}
@@ -28,6 +29,7 @@ export default function Home() {
             <h2 className="mb-3 text-lg font-semibold">Your saved shows</h2>
             <SavedShows />
           </section>
+          <TopPicks />
         </>
       )}
     </main>

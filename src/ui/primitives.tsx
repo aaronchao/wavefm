@@ -6,13 +6,12 @@ import { Pressable } from "./motion";
 export function Card({
   children,
   className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+  ...rest
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={`rounded-card border border-surface-border bg-background p-3 shadow-sm ${className}`}
+      {...rest}
     >
       {children}
     </div>
@@ -61,7 +60,8 @@ export function Chip({
 }: {
   children: React.ReactNode;
   active?: boolean;
-  onClick?: () => void;
+  /** Receives the event so rows-inside-clickable-cards can stopPropagation. */
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   className?: string;
 }) {
   return (

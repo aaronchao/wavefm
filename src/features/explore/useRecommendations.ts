@@ -3,8 +3,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import {
+  defaultTopics,
   recommend,
-  SEED_CLUSTERS,
   type Cluster,
   type ShowInput,
 } from "@/src/core/recommend";
@@ -32,7 +32,10 @@ export function toShowInput(show: CatalogShow): ShowInput {
  * engine itself runs locally per Section 8.7.
  */
 async function fetchCandidates(interests: string[]): Promise<CatalogShow[]> {
-  const queries = interests.length > 0 ? interests : SEED_CLUSTERS.map((s) => s.label);
+  // cold start: search the first few trending topics (personal seeds are
+  // hidden from defaultTopics, so the cold feed leads with mainstream)
+  const queries =
+    interests.length > 0 ? interests : defaultTopics().slice(0, 8);
   const results = await Promise.all(queries.map((q) => searchShows(q)));
   const byId = new Map<string, CatalogShow>();
   for (const r of results) {
@@ -113,7 +116,7 @@ export function useRecommendations(): Recommendations {
     engagementQ.isSuccess &&
     savedQ.isSuccess &&
     interests.length === 0 &&
-    (engagementQ.data?.engagements.length ?? 0) === 0 &&
+    (engagementQ.data?.engagements?.length ?? 0) === 0 &&
     (savedQ.data?.length ?? 0) === 0;
 
   return {

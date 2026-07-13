@@ -5,6 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { migrateLocalEngagements } from "@/src/data/repos/engagementRepo";
 import { migrateLocalPrefs } from "@/src/data/repos/prefsRepo";
+import { migrateLocalEpisodes } from "@/src/data/repos/savedEpisodesRepo";
 import { migrateLocalSaves } from "@/src/data/repos/savedShowsRepo";
 import { getSupabase } from "@/src/data/supabase/client";
 
@@ -33,6 +34,7 @@ export function useSession() {
           migrateLocalSaves(),
           migrateLocalEngagements(),
           migrateLocalPrefs(),
+          migrateLocalEpisodes(),
         ]).then(() => queryClient.invalidateQueries());
       }
       if (event === "SIGNED_OUT") {

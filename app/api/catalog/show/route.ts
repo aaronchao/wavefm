@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { enrichFromRss } from "@/src/data/catalog/rss";
-import { itunesLookup, piLookup } from "@/src/data/catalog/server";
+import { lookupShowEnriched } from "@/src/data/catalog/lookup";
 
 // Proxy: show lookup by id — iTunes collectionId, or `pi-<feedId>` for
 // Podcast-Index-only shows. Missing/unreachable -> { show: null }, never 5xx.
@@ -10,19 +9,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "missing id" }, { status: 400 });
   }
 
-  const show = id.startsWith("pi-")
-    ? await piLookup(id)
-    : ((await itunesLookup(id)) ?? (await piLookup(id)));
-
-  // iTunes lookup has no description; the feed does (best-effort)
-  if (show?.feedUrl && (!show.description || !show.lastEpisodeAt)) {
-    const rss = await enrichFromRss(show.feedUrl);
-    show.description ??= rss.description;
-    show.lastEpisodeAt ??= rss.lastEpisodeAt;
-    if (rss.categories && show.categories.length === 0) {
-      show.categories = rss.categories;
-    }
-  }
+  const show = await lookupShowEnriched(id);
 
   return NextResponse.json(
     { show },

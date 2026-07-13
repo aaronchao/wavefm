@@ -3,17 +3,63 @@ import { tokenize } from "./tokenize";
 import { l2Normalize } from "./vectorize";
 import type { Cluster, ScoredCandidate, ShowInput, SparseVector } from "./types";
 
-/** Cold-start seed clusters (Section 8.6). */
-export const SEED_CLUSTERS: { id: string; label: string; seedText: string }[] = [
+export type SeedCluster = {
+  id: string;
+  label: string;
+  seedText: string;
+  /** Hidden from the topic/interest pickers, but still used by the engine
+   *  so niche taste is learned from what the user actually saves/likes. */
+  hidden?: boolean;
+};
+
+/**
+ * Seed clusters: trending / mainstream topics lead the pickers, followed
+ * by broad exploration tags. Niche personal seeds live at the end marked
+ * `hidden` — the recommender still clusters against them, but they don't
+ * clutter the default topic chips.
+ */
+export const SEED_CLUSTERS: SeedCluster[] = [
+  // trending / mainstream — these lead the pickers and cold-start
   {
-    id: "asian-gay",
-    label: "Asian gay podcasts",
-    seedText: "asian gay lgbtq queer chinese taiwanese 同志 同性 亚洲",
+    id: "news-politics",
+    label: "news & politics",
+    seedText: "news politics current events commentary analysis daily 新闻 时事",
   },
   {
-    id: "gay-travel",
-    label: "gay travel stories",
-    seedText: "gay lgbtq travel travels trip journey destination abroad stories",
+    id: "true-crime",
+    label: "true crime",
+    seedText: "true crime murder investigation detective mystery case 悬疑 罪案",
+  },
+  {
+    id: "comedy",
+    label: "comedy",
+    seedText: "comedy funny humor improv laugh stand-up jokes 喜剧 搞笑",
+  },
+  {
+    id: "technology",
+    label: "technology",
+    seedText: "technology tech software ai internet startup gadgets 科技",
+  },
+  {
+    id: "business",
+    label: "business & finance",
+    seedText:
+      "business finance money investing economics entrepreneur coaching leadership 商业 投资",
+  },
+  {
+    id: "health",
+    label: "health & wellness",
+    seedText: "health wellness fitness nutrition sleep meditation mindfulness 健康",
+  },
+  {
+    id: "science",
+    label: "science",
+    seedText: "science physics biology space astronomy research discoveries 科学",
+  },
+  {
+    id: "history",
+    label: "history",
+    seedText: "history historical ancient war civilization empire 历史",
   },
   {
     id: "storytelling",
@@ -21,17 +67,60 @@ export const SEED_CLUSTERS: { id: string; label: string; seedText: string }[] = 
     seedText: "storytelling story stories narrative personal candid life talk 故事",
   },
   {
-    id: "psych-cases",
-    label: "psychological case studies",
-    seedText:
-      "psychology psychological case study studies therapy therapist mental health counseling",
+    id: "society-culture",
+    label: "society & culture",
+    seedText: "society culture social interview conversation life ideas 文化 社会",
   },
   {
     id: "books",
     label: "book discussions",
     seedText: "book books reading literature author novel discussion club 读书",
   },
+  {
+    id: "music-culture",
+    label: "music culture",
+    seedText: "music culture artists albums hip hop rock interviews 音乐",
+  },
+  {
+    id: "film-tv",
+    label: "film & TV",
+    seedText: "film movies cinema tv television series review criticism 电影 影视",
+  },
+  {
+    id: "food",
+    label: "food & cooking",
+    seedText: "food cooking recipes restaurants chef eating cuisine 美食",
+  },
+  {
+    id: "sports",
+    label: "sports",
+    seedText: "sports football basketball soccer nba training games 体育",
+  },
+  {
+    id: "psych-cases",
+    label: "psychological case studies",
+    seedText:
+      "psychology psychological case study studies therapy therapist mental health counseling",
+  },
+  // niche personal seeds — engine-only, not shown as default chips
+  {
+    id: "asian-gay",
+    label: "Asian gay podcasts",
+    seedText: "asian gay lgbtq queer chinese taiwanese 同志 同性 亚洲",
+    hidden: true,
+  },
+  {
+    id: "gay-travel",
+    label: "gay travel stories",
+    seedText: "gay lgbtq travel travels trip journey destination abroad stories",
+    hidden: true,
+  },
 ];
+
+/** Topic labels shown in the pickers (excludes hidden personal seeds). */
+export function defaultTopics(): string[] {
+  return SEED_CLUSTERS.filter((s) => !s.hidden).map((s) => s.label);
+}
 
 const SEED_MATCH_THRESHOLD = 0.08;
 const SAVED_SIMILARITY_THRESHOLD = 0.35;
