@@ -2,6 +2,8 @@ import type {
   CatalogSearchResponse,
   CatalogShow,
   CatalogShowResponse,
+  PreviewEpisode,
+  PreviewResponse,
   SimilarResponse,
 } from "./types";
 
@@ -25,6 +27,17 @@ export async function getShow(id: string): Promise<CatalogShow | null> {
     return json.show;
   } catch {
     return null;
+  }
+}
+
+export async function getPreviewEpisodes(id: string): Promise<PreviewEpisode[]> {
+  try {
+    const res = await fetch(`/api/catalog/preview?id=${encodeURIComponent(id)}`);
+    if (!res.ok) return [];
+    const json = (await res.json()) as PreviewResponse;
+    return json.episodes ?? [];
+  } catch {
+    return [];
   }
 }
 

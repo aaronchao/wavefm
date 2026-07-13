@@ -31,6 +31,20 @@ export type CatalogEpisode = {
   appleUrl?: string;
   categories: string[];
   publishedAt?: string;
+  /** Direct audio URL (iTunes episodeUrl) — enables 30-sec previews. */
+  audioUrl?: string;
+  durationSec?: number;
+};
+
+/** One playable episode of a show, for preview clips. */
+export type PreviewEpisode = {
+  title: string;
+  audioUrl: string;
+  durationSec?: number;
+};
+
+export type PreviewResponse = {
+  episodes: PreviewEpisode[];
 };
 
 export type CatalogSearchResponse = {

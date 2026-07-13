@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { PreviewPlayer } from "@/src/features/player/PreviewPlayer";
 import { Providers } from "@/src/state/providers";
 import "./globals.css";
 
@@ -48,6 +49,7 @@ export default function RootLayout({
             </nav>
           </header>
           {children}
+          <PreviewPlayer />
         </Providers>
       </body>
     </html>

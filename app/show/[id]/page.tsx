@@ -20,7 +20,7 @@ export default function ShowPage() {
   });
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 sm:p-8">
+    <main className="mx-auto w-full max-w-2xl p-4 pb-40 sm:p-8 sm:pb-40">
       {isLoading && <p className="text-zinc-500">Loading…</p>}
       {!isLoading && !show && (
         <p className="text-zinc-500">

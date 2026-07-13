@@ -6,14 +6,23 @@ import { useEffect, useState } from "react";
 import { getSimilar } from "@/src/data/catalog/client";
 import type { SimilarEpisode, SimilarShow } from "@/src/data/catalog/types";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
+import { previewEpisode, previewShow } from "@/src/features/player/preview";
 import { Card, Chip, CoverTile, SettleIn } from "@/src/ui";
 
 /**
- * "More like this" on the show detail page: similar shows AND similar
- * episodes, ranked top to bottom by similarity + popularity metrics.
- * Lazy, cached for hours, and silently absent when providers are down.
+ * "More like this": similar shows AND similar episodes, ranked top to
+ * bottom by similarity + popularity metrics. Clicking a row plays a
+ * 30-second clip; Details/show links navigate. Lazy, cached for hours,
+ * and silently absent when providers are down.
  */
-export function SimilarContent({ showId }: { showId: string }) {
+export function SimilarContent({
+  showId,
+  seedTitle,
+}: {
+  showId: string;
+  /** When set, the heading names the seed ("More like Dear Therapist"). */
+  seedTitle?: string;
+}) {
   const [tab, setTab] = useState<"shows" | "episodes">("shows");
   const { data, isLoading } = useQuery({
     queryKey: ["catalog", "similar", showId],
@@ -34,7 +43,7 @@ export function SimilarContent({ showId }: { showId: string }) {
   return (
     <section>
       <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
-        More like this
+        {seedTitle ? `More like ${seedTitle}` : "More like this"}
       </h2>
       <div className="mb-3 flex gap-2">
         <Chip active={tab === "shows"} onClick={() => setTab("shows")}>
@@ -71,6 +80,13 @@ function Rank({ n }: { n: number }) {
   );
 }
 
+function rowKeyDown(e: React.KeyboardEvent, action: () => void) {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    action();
+  }
+}
+
 function SimilarShowRow({ show, rank }: { show: SimilarShow; rank: number }) {
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
@@ -97,20 +113,36 @@ function SimilarShowRow({ show, rank }: { show: SimilarShow; rank: number }) {
   return (
     <li>
       <SettleIn>
-        <Card className="flex items-center gap-3">
+        {/* card click = 30-sec preview clip; Details -> show page */}
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => previewShow(show)}
+          onKeyDown={(e) => rowKeyDown(e, () => previewShow(show))}
+          className="flex cursor-pointer items-center gap-3"
+        >
           <Rank n={rank} />
+          <CoverTile src={show.coverUrl} size={56} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold">{show.title}</p>
+            <p className="truncate text-sm text-zinc-500">{show.author}</p>
+            <p className="truncate text-xs text-zinc-400">▶ {show.why}</p>
+          </div>
           <Link
             href={`/show/${show.id}`}
-            className="flex min-w-0 flex-1 items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
           >
-            <CoverTile src={show.coverUrl} size={56} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold">{show.title}</p>
-              <p className="truncate text-sm text-zinc-500">{show.author}</p>
-              <p className="truncate text-xs text-zinc-400">{show.why}</p>
-            </div>
+            Details →
           </Link>
-          <Chip active={saved} onClick={toggleSave} className="shrink-0">
+          <Chip
+            active={saved}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleSave();
+            }}
+            className="shrink-0"
+          >
             {saved ? "Saved ✓" : "Save"}
           </Chip>
         </Card>
@@ -129,7 +161,14 @@ function SimilarEpisodeRow({
   return (
     <li>
       <SettleIn>
-        <Card className="flex items-center gap-3">
+        {/* card click = 30-sec preview clip of this episode */}
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => previewEpisode(episode)}
+          onKeyDown={(e) => rowKeyDown(e, () => previewEpisode(episode))}
+          className="flex cursor-pointer items-center gap-3"
+        >
           <Rank n={rank} />
           <CoverTile src={episode.coverUrl} size={56} />
           <div className="min-w-0 flex-1">
@@ -137,7 +176,11 @@ function SimilarEpisodeRow({
             {episode.showTitle && (
               <p className="truncate text-sm text-zinc-500">
                 {episode.showId ? (
-                  <Link href={`/show/${episode.showId}`} className="hover:underline">
+                  <Link
+                    href={`/show/${episode.showId}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="hover:underline"
+                  >
                     {episode.showTitle}
                   </Link>
                 ) : (
@@ -145,16 +188,17 @@ function SimilarEpisodeRow({
                 )}
               </p>
             )}
-            <p className="truncate text-xs text-zinc-400">{episode.why}</p>
+            <p className="truncate text-xs text-zinc-400">▶ {episode.why}</p>
           </div>
           {episode.appleUrl ? (
             <a
               href={episode.appleUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
               className="shrink-0 rounded-pill bg-surface px-3 py-1.5 text-sm font-medium hover:opacity-80"
             >
-              Play ↗
+              Full ↗
             </a>
           ) : (
             // missing platform = dimmed chip, never an error (Section 6)
@@ -162,7 +206,7 @@ function SimilarEpisodeRow({
               aria-disabled
               className="shrink-0 cursor-not-allowed rounded-pill bg-surface px-3 py-1.5 text-sm font-medium opacity-40"
             >
-              Play
+              Full
             </span>
           )}
         </Card>

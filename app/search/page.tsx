@@ -1,57 +1,65 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { searchShows } from "@/src/data/catalog/client";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
+import { previewShow } from "@/src/features/player/preview";
+import { SimilarContent } from "@/src/features/show/SimilarContent";
 import { Card, Chip, CoverTile, SettleIn } from "@/src/ui";
+
+const DEBOUNCE_MS = 350;
+const MIN_QUERY_LENGTH = 2;
 
 export default function SearchPage() {
   const [input, setInput] = useState("");
   const [term, setTerm] = useState("");
 
+  // live search: results appear as you type, no Search click needed
+  useEffect(() => {
+    const next = input.trim();
+    const timer = setTimeout(
+      () => setTerm(next.length >= MIN_QUERY_LENGTH ? next : ""),
+      DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [input]);
+
   const { data, isFetching } = useQuery({
     queryKey: ["catalog", "search", term],
     queryFn: () => searchShows(term),
-    enabled: term.length > 0,
+    enabled: term.length >= MIN_QUERY_LENGTH,
+    placeholderData: (prev) => prev, // keep old results while retyping
   });
 
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setTerm(input.trim());
-  }
+  const topResult = data?.shows[0];
 
   return (
-    <main className="mx-auto max-w-2xl p-4 sm:p-8">
+    <main className="mx-auto w-full max-w-2xl p-4 pb-40 sm:p-8 sm:pb-40">
       <h1 className="mb-4 text-2xl font-bold">Search</h1>
-      <form onSubmit={onSubmit} className="mb-6 flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Find a podcast…"
-          className="w-full rounded-xl border border-zinc-300 px-4 py-2 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
-        />
-        <button
-          type="submit"
-          className="rounded-xl bg-zinc-900 px-4 py-2 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          Search
-        </button>
-      </form>
+      <input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        placeholder="Find a podcast… results appear as you type"
+        autoFocus
+        className="mb-6 w-full rounded-xl border border-zinc-300 px-4 py-2 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+      />
 
-      {!term && !data && (
+      {!term && (
         <p className="text-zinc-500">
-          Find any show — try a name, a topic, or 中文.
+          Find any show — try a name, a topic, or 中文. Click a result to hear
+          a 30-second clip.
         </p>
       )}
-      {isFetching && <p className="text-zinc-500">Searching…</p>}
+      {isFetching && <p className="mb-3 text-sm text-zinc-400">Searching…</p>}
       {data?.degraded && (
         <p className="text-zinc-500">
           Search is unavailable right now — try again in a bit.
         </p>
       )}
-      {data && !data.degraded && data.shows.length === 0 && (
+      {term && data && !data.degraded && data.shows.length === 0 && (
         <p className="text-zinc-500">No shows found for “{term}”.</p>
       )}
 
@@ -60,6 +68,12 @@ export default function SearchPage() {
           <ShowRow key={show.id} show={show} />
         ))}
       </ul>
+
+      {topResult && !data?.degraded && (
+        <div className="mt-10">
+          <SimilarContent showId={topResult.id} seedTitle={topResult.title} />
+        </div>
+      )}
     </main>
   );
 }
@@ -90,18 +104,44 @@ function ShowRow({ show }: { show: CatalogShow }) {
   return (
     <li>
       <SettleIn>
-        <Card className="flex items-center gap-4">
+        {/* card click = 30-sec preview clip; Details -> show page */}
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => previewShow(show)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              previewShow(show);
+            }
+          }}
+          className="flex cursor-pointer items-center gap-4"
+        >
           <CoverTile src={show.coverUrl} size={64} />
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold">{show.title}</p>
             <p className="truncate text-sm text-zinc-500">{show.author}</p>
-            {show.categories.length > 0 && (
-              <p className="truncate text-xs text-zinc-400">
-                {show.categories.slice(0, 3).join(" · ")}
-              </p>
-            )}
+            <p className="truncate text-xs text-zinc-400">
+              ▶ Click for a 30s clip
+              {show.categories.length > 0 &&
+                ` · ${show.categories.slice(0, 3).join(" · ")}`}
+            </p>
           </div>
-          <Chip active={saved} onClick={toggleSave} className="shrink-0">
+          <Link
+            href={`/show/${show.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            Details →
+          </Link>
+          <Chip
+            active={saved}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleSave();
+            }}
+            className="shrink-0"
+          >
             {saved ? "Saved ✓" : "Save"}
           </Chip>
         </Card>

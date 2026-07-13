@@ -31,6 +31,9 @@ type ItunesResult = {
   trackViewUrl?: string;
   description?: string;
   shortDescription?: string;
+  /** Direct audio URL on episode results. */
+  episodeUrl?: string;
+  trackTimeMillis?: number;
 };
 
 function isoOrUndefined(date?: string): string | undefined {
@@ -73,6 +76,11 @@ function mapItunesEpisode(r: ItunesResult): CatalogEpisode | null {
     appleUrl: r.trackViewUrl,
     categories: itunesGenres(r.genres),
     publishedAt: isoOrUndefined(r.releaseDate),
+    audioUrl: r.episodeUrl,
+    durationSec:
+      r.trackTimeMillis && r.trackTimeMillis > 0
+        ? Math.floor(r.trackTimeMillis / 1000)
+        : undefined,
   };
 }
 
