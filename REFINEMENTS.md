@@ -64,16 +64,37 @@ Last updated: 2026-07-13.
 
 ## 2. Data sources & signals
 
+> **Live signal audit — 2026-07-17.** Tested the key-gated providers with
+> real credentials from the Mac (not the sandbox):
+> - **小宇宙 direct token:** access **and** refresh tokens both return
+>   `401` from the `openresty` gateway. The tokens are almost certainly
+>   device-bound to the ultrazg/xyz session that minted them (our
+>   hardcoded `x-jike-device-id` doesn't match) and/or the gateway needs
+>   request-signing we don't do. **Verdict: not usable as-is.** Redundant
+>   anyway — xyzrank already supplies 小宇宙 data free.
+> - **Listen Notes:** key returns `401` on the production host — the key
+>   isn't accepted (test-only key, unactivated, or mis-copied). Needs a
+>   valid FREE-tier production key, or drop the provider.
+> - **Working, no auth needed:** Apple charts, 中文播客榜 (xyzrank),
+>   episode recency/count, Douban ratings. These carry the quality signal
+>   today. Reddit still unverified on Vercel (see below).
+>
+> Net: the app's ranking/buzz works on the free no-auth sources; the
+> key-gated providers are optional bonuses that are currently no-ops
+> (silently skipped — no bug, no error).
+
 - [ ] **P1 — Reddit blocks datacenter IPs.** `reddit.com/search.json`
   frequently 403s from Vercel's IPs, so the Reddit buzz signal may be
   quietly absent in production. Verify in prod; if blocked, either drop it
   or route through a lightweight allowed proxy / use the OAuth app API.
-- [ ] **P1 — Verify the 小宇宙 app-API contract.** Endpoints, headers, and
-  the refresh flow in `src/data/buzz/xiaoyuzhou.ts` are modeled on
-  ultrazg/xyz and were **not** testable in the build sandbox. Confirm
-  `/v1/search/create`, `/app_auth_tokens.refresh`, and the response shape
-  against the live API; adjust field names (subscriptionCount/playCount/
-  commentCount) to what's actually returned.
+- [ ] **P1 — 小宇宙 direct token confirmed non-functional (see audit).**
+  Both tokens 401 at the gateway. Options: (a) **recommended** — drop the
+  direct-token provider entirely and rely on xyzrank; (b) match the
+  device-id + request-signing ultrazg/xyz uses and re-mint tokens. Until
+  decided, remove the stale `XIAOYUZHOU_*` env vars so they don't mislead.
+- [ ] **P1 — Listen Notes key rejected (401, see audit).** Either obtain a
+  valid free-tier production key and re-add `LISTEN_NOTES_API_KEY`, or drop
+  `listenNotesBuzz`. The Listen Score is nice-to-have, not load-bearing.
 - [ ] **P2 — Token refresh doesn't persist.** The refreshed 小宇宙 access
   token is cached in module memory, so it's lost on each serverless cold
   start (re-refresh every time). Consider stashing the latest access token
@@ -192,6 +213,11 @@ sharing, snapshot capture, native apps. See GitHub issues #8–#15.
 
 ## Changelog of shipped refinements
 
+- 2026-07-17 — Live signal audit (see §2): 小宇宙 tokens and Listen Notes
+  key both return 401 against their live APIs. Documented; the app's
+  ranking runs on the free no-auth sources (Apple charts, xyzrank, Douban)
+  and silently skips the key-gated ones. Env vars set in Vercel Production
+  (Supabase migration also applied + advisors clean).
 - 2026-07-13 — Preview clips now robust to CDNs without HTTP Range: the
   30s window anchors to actual playback start, so no-Range feeds play a
   clean 0:00 clip ("from the start") and Range feeds keep the random
