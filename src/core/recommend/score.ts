@@ -1,4 +1,5 @@
 import type { SparseVector } from "./types";
+import { WEIGHTS } from "./weights";
 
 export function cosine(a: SparseVector, b: SparseVector): number {
   // both vectors are L2-normalized, so cosine reduces to a dot product
@@ -22,11 +23,11 @@ export type ScoreOptions = {
   recentImpressions?: number;
 };
 
-export const DEFAULT_RATING_WEIGHT = 0.15;
-const FRESH_WEEK_BONUS = 0.1;
-const FRESH_MONTH_BONUS = 0.05;
-const FATIGUE_PER_IMPRESSION = 0.05;
-const FATIGUE_CAP = 5;
+export const DEFAULT_RATING_WEIGHT = WEIGHTS.rating;
+const FRESH_WEEK_BONUS = WEIGHTS.freshWeekBonus;
+const FRESH_MONTH_BONUS = WEIGHTS.freshMonthBonus;
+const FATIGUE_PER_IMPRESSION = WEIGHTS.fatiguePerImpression;
+const FATIGUE_CAP = WEIGHTS.fatigueCap;
 
 /** score = cosine(taste, show) + λ·normRating + freshnessBonus − fatiguePenalty */
 export function scoreCandidate(

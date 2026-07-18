@@ -2,6 +2,7 @@ import { buzzScore, buzzWhy, type BuzzInput } from "./buzz";
 import { cosine } from "./score";
 import { buildIdf, termWeights, vectorizeShow } from "./vectorize";
 import type { ShowInput } from "./types";
+import { WEIGHTS } from "./weights";
 
 /**
  * "More like this": rank candidates (shows OR episodes) against a seed
@@ -43,8 +44,8 @@ export type RankedSimilar = {
   why: string;
 };
 
-const SIMILARITY_WEIGHT = 0.7;
-const POPULARITY_WEIGHT = 0.3;
+const SIMILARITY_WEIGHT = WEIGHTS.similarity;
+const POPULARITY_WEIGHT = WEIGHTS.popularity;
 const CHART_SIZE = 100; // both charts are top-100 lists
 const NEUTRAL_POPULARITY = 0.5;
 

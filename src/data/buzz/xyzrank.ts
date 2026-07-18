@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { normalizeForMatch } from "./match";
 
 /**
  * 中文播客榜 (xyzrank.com) — free JSON API built on 小宇宙 + Apple data,
@@ -16,7 +17,7 @@ type XyzEntry = {
   comments?: number;
 };
 
-const normalizeTitle = (t: string) => t.trim().toLowerCase();
+const normalizeTitle = normalizeForMatch;
 
 function asNumber(v: unknown): number | undefined {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;

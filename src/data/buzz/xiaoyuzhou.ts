@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { titlesMatch } from "./match";
 
 /**
  * 小宇宙 stats via its (unofficial) app API — the API that ultrazg/xyz
@@ -66,8 +67,14 @@ async function search(title: string, token: string): Promise<Response> {
 }
 
 export async function xiaoyuzhouBuzz(title: string): Promise<BuzzInput | null> {
-  const token = liveAccess ?? envAccess();
-  if (!token) return null; // not configured — skip, never an error
+  // refresh-first: a valid refresh token is enough even with no/expired
+  // access token (the access token is short-lived and often absent).
+  let token = liveAccess ?? envAccess();
+  if (!token) {
+    token = await refreshAccess();
+    if (!token) return null; // not configured / refresh failed — skip
+    liveAccess = token;
+  }
   try {
     let res = await search(title, token);
     // token expired -> refresh once and retry
@@ -79,9 +86,7 @@ export async function xiaoyuzhouBuzz(title: string): Promise<BuzzInput | null> {
     }
     if (!res.ok) return null;
     const json = (await res.json()) as { data?: XyzPodcast[] };
-    const hit = (json.data ?? []).find(
-      (p) => p.title?.trim().toLowerCase() === title.trim().toLowerCase(),
-    );
+    const hit = (json.data ?? []).find((p) => p.title && titlesMatch(p.title, title));
     if (!hit) return null;
     return {
       subscribers: hit.subscriptionCount,

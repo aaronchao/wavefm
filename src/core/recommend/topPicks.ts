@@ -2,6 +2,7 @@ import { cosine } from "./score";
 import { qualityOf, type SimilarItemInput } from "./similar";
 import { buildIdf, l2Normalize, vectorizeShow } from "./vectorize";
 import type { ShowInput, SparseVector } from "./types";
+import { WEIGHTS } from "./weights";
 
 /**
  * Top Picks — PURE. Curates highly rated / high-buzz shows, biased
@@ -19,8 +20,8 @@ export type TopPick = {
   why: string;
 };
 
-const QUALITY_WEIGHT = 0.55;
-const AFFINITY_WEIGHT = 0.45;
+const QUALITY_WEIGHT = WEIGHTS.quality;
+const AFFINITY_WEIGHT = WEIGHTS.affinity;
 /** Quality prior for candidates with no signals at all. */
 const UNKNOWN_QUALITY = 0.35;
 /** Affinity is neutral when the user has saved nothing yet. */
