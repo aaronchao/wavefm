@@ -5,8 +5,8 @@
   --foreground: #171717;
   --surface: #f4f4f5;
   --surface-border: #e4e4e7;
-  --accent: #7c3aed; /* wavr violet */
-  --accent-soft: #ede9fe;
+  --accent: #ff3b30; /* Signal Red — the single Wavr accent */
+  --accent-soft: #ffeae8;
 }
 
 @theme inline {
@@ -30,8 +30,8 @@
     --foreground: #ededed;
     --surface: #18181b;
     --surface-border: #27272a;
-    --accent: #a78bfa;
-    --accent-soft: #2e1065;
+    --accent: #ff453a; /* Signal Red, brightened for dark surfaces */
+    --accent-soft: #3a0f0c;
   }
 }
 

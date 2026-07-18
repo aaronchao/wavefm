@@ -37,6 +37,9 @@ export default function RootLayout({
               Wavr
             </Link>
             <nav className="flex gap-4 text-sm text-zinc-500">
+              <Link href="/discover" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                Discover
+              </Link>
               <Link href="/search" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Search
               </Link>

@@ -25,6 +25,18 @@ export function clipStart(
   return Math.floor(edgePad + r * usable);
 }
 
+/**
+ * Where to start a "random section of the middle" clip, as a fraction of
+ * the episode's true duration. Biased to the central fifth ([0.40, 0.60))
+ * so a one-click preview lands on real content — never the cold open,
+ * sponsor read, or sign-off. The player resolves this against the CDN's
+ * real duration on load, so it's correct even when RSS omits a length.
+ */
+export function middleFraction(rand: number): number {
+  const r = Math.min(Math.max(rand, 0), 1);
+  return 0.4 + r * 0.2;
+}
+
 /** Pick an index in [0, count) from a 0..1 random number. */
 export function pickIndex(count: number, rand: number): number {
   if (count <= 0) return 0;

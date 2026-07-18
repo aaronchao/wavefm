@@ -1,8 +1,12 @@
 "use client";
 
-import { clipStart, pickIndex } from "@/src/core/preview";
-import { getPreviewEpisodes } from "@/src/data/catalog/client";
-import type { CatalogEpisode, CatalogShow } from "@/src/data/catalog/types";
+import { clipStart, middleFraction, pickIndex } from "@/src/core/preview";
+import { getPreviewEpisodes, getRankedEpisodes } from "@/src/data/catalog/client";
+import type {
+  CatalogEpisode,
+  CatalogShow,
+  RankedEpisodeItem,
+} from "@/src/data/catalog/types";
 import { player, type PreviewMeta } from "@/src/state/player";
 
 /**
@@ -29,6 +33,53 @@ export function previewShow(show: Pick<CatalogShow, "id" | "title" | "coverUrl" 
       clipStart(episode.durationSec, Math.random()),
     );
   });
+}
+
+/**
+ * One-click "play the middle of the top episode" for a recommended show.
+ * Fetches the show's discussion-first episode ranking and samples a random
+ * middle section of the #1 episode — the discovery page's headline action.
+ * A blocked feed keeps the bar up with "listen in full" links.
+ */
+export function previewShowTopEpisodeMiddle(
+  show: Pick<CatalogShow, "id" | "title" | "coverUrl" | "appleUrl">,
+) {
+  const meta: PreviewMeta = {
+    title: show.title,
+    coverUrl: show.coverUrl,
+    searchTitle: show.title,
+    appleUrl: show.appleUrl,
+  };
+  player.startLoading(meta);
+  void getRankedEpisodes(show.id).then((eps) => {
+    const top = eps.find((e) => e.audioUrl);
+    if (!top?.audioUrl) return player.fail(meta);
+    playMiddle({ ...meta, title: top.title, showTitle: show.title }, top);
+  });
+}
+
+/** Play a random middle section of one already-ranked episode. */
+export function previewRankedEpisode(
+  item: RankedEpisodeItem,
+  show: Pick<CatalogShow, "title" | "coverUrl" | "appleUrl">,
+) {
+  const meta: PreviewMeta = {
+    title: item.title,
+    showTitle: show.title,
+    coverUrl: show.coverUrl,
+    searchTitle: item.title,
+    appleUrl: show.appleUrl,
+  };
+  if (!item.audioUrl) return player.fail(meta);
+  playMiddle(meta, item);
+}
+
+/** Shared: seek to a random middle fraction; seconds are a CDN fallback. */
+function playMiddle(meta: PreviewMeta, item: Pick<RankedEpisodeItem, "audioUrl" | "durationSec">) {
+  if (!item.audioUrl) return player.fail(meta);
+  const fraction = middleFraction(Math.random());
+  const startAt = item.durationSec ? Math.floor(item.durationSec * fraction) : 0;
+  player.play(meta, item.audioUrl, startAt, fraction);
 }
 
 export function previewEpisode(episode: CatalogEpisode) {

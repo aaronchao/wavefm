@@ -84,3 +84,43 @@ test("degraded Top Picks hides the section but the home page still renders", asy
   await expect(page.getByText("What next?")).toBeVisible();
   await expect(page.getByText("Top picks for you")).toHaveCount(0);
 });
+
+test("discover ranks recommendations and opens a show's episodes", async ({ page }) => {
+  const RANKED_PICKS = {
+    picks: [
+      show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"], {
+        why: "Highly discussed on Reddit",
+      }),
+      show("333", "Where Should We Begin", "Esther Perel", ["Society & Culture"], {
+        why: "Because you saved similar shows",
+      }),
+    ],
+    degraded: false,
+  };
+  const RANKED_EPS = {
+    episodes: [
+      {
+        id: "https://cdn/ep1.mp3",
+        title: "The one everyone argues about",
+        audioUrl: "https://cdn/ep1.mp3",
+        durationSec: 2400,
+        basis: "discussion",
+        why: "Most discussed · 40 Reddit threads",
+      },
+    ],
+    degraded: false,
+  };
+  await stub(page, { topPicks: RANKED_PICKS });
+  await page.route("**/api/catalog/episodes-ranked**", (r) => r.fulfill({ json: RANKED_EPS }));
+
+  await page.goto("/discover");
+  // hero (#1) and a ranked row (#2) are present, in order
+  await expect(page.getByRole("heading", { name: "Psychology In Seattle" })).toBeVisible();
+  await expect(page.getByText("Where Should We Begin")).toBeVisible();
+  await expect(page.getByText("Play the talked-about bit")).toBeVisible();
+
+  // opening a show reveals its discussion-first episode ranking
+  await page.getByRole("button", { name: /Top episodes/ }).first().click();
+  await expect(page.getByText("The one everyone argues about")).toBeVisible();
+  await expect(page.getByText("Most discussed · 40 Reddit threads")).toBeVisible();
+});
