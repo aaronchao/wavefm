@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { SEED_CLUSTERS } from "@/src/core/recommend";
+import { defaultTopics } from "@/src/core/recommend";
 import {
   getPrefs,
   setInterests,
@@ -12,7 +12,6 @@ import { getSupabase } from "@/src/data/supabase/client";
 import { useSession } from "@/src/state/useSession";
 import { Chip } from "@/src/ui";
 
-const EXTRA_TOPICS = ["music culture", "commentary", "business & coaching"];
 const RATING_SOURCES = [
   { id: "douban" as const, label: "Douban" },
   { id: "xiaoyuzhou" as const, label: "小宇宙 Xiaoyuzhou" },
@@ -58,41 +57,66 @@ function usePrefs() {
 function InterestsSection() {
   const { prefsQ, invalidate } = usePrefs();
   const [edited, setEdited] = useState<string[] | null>(null);
+  const [custom, setCustom] = useState("");
   const picked = edited ?? prefsQ.data?.interests ?? [];
 
-  const known = new Set([...SEED_CLUSTERS.map((s) => s.label), ...EXTRA_TOPICS]);
-  const topics = [
-    ...SEED_CLUSTERS.map((s) => s.label),
-    ...EXTRA_TOPICS,
-    ...picked.filter((t) => !known.has(t)),
-  ];
+  const defaults = defaultTopics();
+  // trending chips + any custom interests the user already added
+  const topics = [...defaults, ...picked.filter((t) => !defaults.includes(t))];
 
-  async function toggle(topic: string) {
-    const next = picked.includes(topic)
-      ? picked.filter((t) => t !== topic)
-      : [...picked, topic];
+  async function commit(next: string[]) {
     setEdited(next);
     await setInterests(next);
     await invalidate();
+  }
+
+  function toggle(topic: string) {
+    void commit(
+      picked.includes(topic)
+        ? picked.filter((t) => t !== topic)
+        : [...picked, topic],
+    );
+  }
+
+  function addCustom(e: FormEvent) {
+    e.preventDefault();
+    const t = custom.trim();
+    setCustom("");
+    if (t && !picked.includes(t)) void commit([...picked, t]);
   }
 
   return (
     <section className="rounded-card border border-surface-border p-4">
       <h2 className="mb-1 font-semibold">Interests</h2>
       <p className="mb-3 text-sm text-zinc-500">
-        Feeds the recommendation engine — same toggles as Topics.
+        Feeds the recommendation engine — same toggles as Topics, plus add
+        your own.
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-2">
         {topics.map((topic) => (
           <Chip
             key={topic}
             active={picked.includes(topic)}
-            onClick={() => void toggle(topic)}
+            onClick={() => toggle(topic)}
           >
             {topic}
           </Chip>
         ))}
       </div>
+      <form onSubmit={addCustom} className="flex gap-2">
+        <input
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          placeholder="Add an interest… (e.g. jazz, 创业, ghost stories)"
+          className="w-full rounded-pill border border-surface-border bg-background px-4 py-1.5 text-sm outline-none focus:border-accent"
+        />
+        <button
+          type="submit"
+          className="shrink-0 rounded-pill bg-surface px-3 py-1.5 text-sm font-medium hover:opacity-80"
+        >
+          Add
+        </button>
+      </form>
     </section>
   );
 }
