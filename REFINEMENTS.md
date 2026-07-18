@@ -39,11 +39,11 @@ Last updated: 2026-07-13.
 
 ## 1. Recommendation quality
 
-- [ ] **P2 — Fuzzy title matching for buzz sources.** `xyzrankBuzz`,
-  `redditBuzz`, `listenNotesBuzz`, and `xiaoyuzhouBuzz` all match by exact
-  lowercased title. Shows with punctuation/subtitle differences ("Show —
-  The Podcast" vs "Show") miss their buzz. Add light normalization
-  (strip punctuation, drop "podcast/radio/FM" suffixes) before matching.
+- [x] **P2 — Fuzzy title matching for buzz sources.** Done 2026-07-17.
+  Shared `normalizeForMatch` / `titlesMatch` (`src/data/buzz/match.ts`,
+  unit-tested) strips punctuation, drops podcast/radio/fm/播客/电台
+  suffixes + a dangling article, preserves CJK; wired into xyzrank,
+  listennotes, xiaoyuzhou matching.
 - [ ] **P2 — Weight tuning is untested against real taste.** The
   `0.7 similarity / 0.3 popularity` (similar) and `0.55 / 0.45` (top
   picks) splits, plus buzz sub-weights, are reasoned guesses. Once there's
@@ -96,10 +96,9 @@ Last updated: 2026-07-13.
   Listen-Score / 小宇宙 "why". If a stored value was truncated on entry,
   re-paste it in the dashboard (paste is mangle-proof; the CLI/`source`
   path is not).
-- [ ] **P2 — Make 小宇宙 refresh-first.** `xiaoyuzhouBuzz` returns null if
-  `XIAOYUZHOU_ACCESS_TOKEN` is unset, even when a valid refresh token
-  exists. Refresh up front when only the refresh token is present, so a
-  stale/missing access token isn't a hard requirement.
+- [x] **P2 — Make 小宇宙 refresh-first.** Done 2026-07-17. `xiaoyuzhouBuzz`
+  now refreshes up front when no access token is present, so a valid
+  refresh token alone is enough.
 - [ ] **P2 — Token refresh doesn't persist.** The refreshed 小宇宙 access
   token is cached in module memory, so it's lost on each serverless cold
   start (re-refresh every time). Consider stashing the latest access token
@@ -147,10 +146,8 @@ Last updated: 2026-07-13.
   (play preview) with a `Link` and `Chip`s inside that `stopPropagation`.
   It works but is an a11y smell (interactive-in-interactive). Consider a
   dedicated play button + separate navigation target, and run an axe pass.
-- [ ] **P2 — Custom error boundary.** We fixed the first-run crash, but the
-  fallback is Next's bare "This page couldn't load." Add a friendly
-  per-route `error.tsx` with a retry, so any future runtime error degrades
-  kindly.
+- [x] **P2 — Custom error boundary.** Done 2026-07-17. `app/error.tsx`
+  gives a friendly "Something hiccuped" fallback with Try again / Go home.
 - [ ] **P3 — Responsive audit for new surfaces.** Library, Top Picks, and
   the preview bar were built desktop-first with `pb-40` spacing. Do a real
   mobile pass (small screens, the fixed player bar overlapping content,

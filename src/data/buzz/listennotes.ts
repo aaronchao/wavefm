@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { normalizeForMatch } from "./match";
 
 /**
  * Listen Notes — the largest free podcast search API. Its Listen Score
@@ -20,7 +21,7 @@ type LnResult = {
   listen_score?: number | null;
 };
 
-const normalize = (t: string) => t.trim().toLowerCase();
+const normalize = normalizeForMatch;
 
 export async function listenNotesBuzz(title: string): Promise<BuzzInput | null> {
   const key = apiKey();
