@@ -143,10 +143,13 @@ Last updated: 2026-07-13.
 
 ## 4. UX & accessibility
 
-- [ ] **P2 — Nested interactive elements.** Cards are `role="button"`
-  (play preview) with a `Link` and `Chip`s inside that `stopPropagation`.
-  It works but is an a11y smell (interactive-in-interactive). Consider a
-  dedicated play button + separate navigation target, and run an axe pass.
+- [x] **P2 — Nested interactive elements.** Done 2026-07-17. New
+  `PlayableCard` primitive: the play action is a transparent full-card
+  `<button>` sibling (keyboard-focusable, aria-labelled), with secondary
+  controls (Save/Details/+Later/Full) raised above it via `relative z-10`
+  — no more interactive-in-interactive. Click-anywhere-to-play preserved.
+  Applied to search, similar (shows+episodes), Top Picks, and Library
+  rows. Verified: cover/title→play, Save→save-only, Details→navigate.
 - [x] **P2 — Custom error boundary.** Done 2026-07-17. `app/error.tsx`
   gives a friendly "Something hiccuped" fallback with Try again / Go home.
 - [ ] **P3 — Responsive audit for new surfaces.** Library, Top Picks, and

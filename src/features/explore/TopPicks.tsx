@@ -13,7 +13,7 @@ import {
 } from "@/src/data/repos/savedShowsRepo";
 import { previewShow } from "@/src/features/player/preview";
 import { useSession } from "@/src/state/useSession";
-import { Card, Chip, CoverTile, SettleIn } from "@/src/ui";
+import { Chip, CoverTile, PlayableCard } from "@/src/ui";
 
 /**
  * Top Picks: the "you can trust these" shelf at the bottom of Home —
@@ -75,48 +75,34 @@ function TopPickRow({ pick, rank }: { pick: SimilarShow; rank: number }) {
 
   return (
     <li>
-      <SettleIn>
-        {/* card click = 30-sec preview clip; Details -> show page */}
-        <Card
-          role="button"
-          tabIndex={0}
-          onClick={() => previewShow(pick)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              previewShow(pick);
-            }
-          }}
-          className="flex cursor-pointer items-center gap-3"
+      <PlayableCard
+        onPlay={() => previewShow(pick)}
+        playLabel={`Preview ${pick.title}`}
+        className="cursor-pointer"
+      >
+        <span className="w-6 shrink-0 text-center text-sm font-bold tabular-nums text-zinc-400">
+          {rank}
+        </span>
+        <CoverTile src={pick.coverUrl} size={56} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{pick.title}</p>
+          <p className="truncate text-sm text-zinc-500">{pick.author}</p>
+          <p className="truncate text-xs text-zinc-400">▶ {pick.why}</p>
+        </div>
+        <Link
+          href={`/show/${pick.id}`}
+          className="relative z-10 shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
         >
-          <span className="w-6 shrink-0 text-center text-sm font-bold tabular-nums text-zinc-400">
-            {rank}
-          </span>
-          <CoverTile src={pick.coverUrl} size={56} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold">{pick.title}</p>
-            <p className="truncate text-sm text-zinc-500">{pick.author}</p>
-            <p className="truncate text-xs text-zinc-400">▶ {pick.why}</p>
-          </div>
-          <Link
-            href={`/show/${pick.id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          >
-            Details →
-          </Link>
-          <Chip
-            active={saved}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleSave();
-            }}
-            className="shrink-0"
-          >
-            {saved ? "Saved ✓" : "Save"}
-          </Chip>
-        </Card>
-      </SettleIn>
+          Details →
+        </Link>
+        <Chip
+          active={saved}
+          onClick={() => toggleSave()}
+          className="relative z-10 shrink-0"
+        >
+          {saved ? "Saved ✓" : "Save"}
+        </Chip>
+      </PlayableCard>
     </li>
   );
 }

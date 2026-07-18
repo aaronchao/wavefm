@@ -13,7 +13,7 @@ import {
 import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { previewEpisode, previewShow } from "@/src/features/player/preview";
 import { useSession } from "@/src/state/useSession";
-import { Card, Chip, CoverTile, SettleIn } from "@/src/ui";
+import { Chip, CoverTile, PlayableCard } from "@/src/ui";
 
 /**
  * Library: the collection system. Shows tab tracks what you follow (with
@@ -83,56 +83,45 @@ function ShowsTab() {
         const hasNew = Boolean(latest && Date.parse(latest) > Date.parse(savedAt));
         return (
           <li key={show.id}>
-            <SettleIn>
-              <Card
-                role="button"
-                tabIndex={0}
-                onClick={() => previewShow(show)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    previewShow(show);
-                  }
-                }}
-                className="flex cursor-pointer items-center gap-3"
-              >
-                <CoverTile src={show.coverUrl} size={56} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">
-                    {show.title}
-                    {hasNew && (
-                      <span className="ml-2 rounded-pill bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
-                        New episode
-                      </span>
-                    )}
-                  </p>
-                  <p className="truncate text-sm text-zinc-500">{show.author}</p>
-                  {latest && (
-                    <p className="truncate text-xs text-zinc-400">
-                      Latest: {new Date(latest).toLocaleDateString()}
-                    </p>
+            <PlayableCard
+              onPlay={() => previewShow(show)}
+              playLabel={`Preview ${show.title}`}
+              className="cursor-pointer"
+            >
+              <CoverTile src={show.coverUrl} size={56} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">
+                  {show.title}
+                  {hasNew && (
+                    <span className="ml-2 rounded-pill bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
+                      New episode
+                    </span>
                   )}
-                </div>
-                <Link
-                  href={`/show/${show.id}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-                >
-                  Details →
-                </Link>
-                <Chip
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void unsaveShow(show.id).then(() =>
-                      queryClient.invalidateQueries({ queryKey: ["saved"] }),
-                    );
-                  }}
-                  className="shrink-0"
-                >
-                  Remove
-                </Chip>
-              </Card>
-            </SettleIn>
+                </p>
+                <p className="truncate text-sm text-zinc-500">{show.author}</p>
+                {latest && (
+                  <p className="truncate text-xs text-zinc-400">
+                    Latest: {new Date(latest).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+              <Link
+                href={`/show/${show.id}`}
+                className="relative z-10 shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                Details →
+              </Link>
+              <Chip
+                onClick={() =>
+                  void unsaveShow(show.id).then(() =>
+                    queryClient.invalidateQueries({ queryKey: ["saved"] }),
+                  )
+                }
+                className="relative z-10 shrink-0"
+              >
+                Remove
+              </Chip>
+            </PlayableCard>
           </li>
         );
       })}
@@ -194,72 +183,61 @@ function EpisodeRow({
 
   return (
     <li>
-      <SettleIn>
-        <Card
-          role="button"
-          tabIndex={0}
-          onClick={() =>
-            previewEpisode({
-              id: episode.episodeId,
-              title: episode.title,
-              showId: episode.showId,
-              showTitle: episode.showTitle,
-              coverUrl: episode.coverUrl,
-              appleUrl: episode.appleUrl,
-              audioUrl: episode.audioUrl,
-              durationSec: episode.durationSec,
-              categories: [],
-            })
-          }
-          onKeyDown={() => {}}
-          className={`flex cursor-pointer items-center gap-3 ${finished ? "opacity-60" : ""}`}
-        >
-          <CoverTile src={episode.coverUrl} size={56} />
-          <div className="min-w-0 flex-1">
-            <p className={`truncate font-semibold ${finished ? "line-through" : ""}`}>
-              {episode.title}
-            </p>
-            {episode.showTitle && (
-              <p className="truncate text-sm text-zinc-500">{episode.showTitle}</p>
-            )}
-            <p className="truncate text-xs text-zinc-400">
-              {finished ? "Finished" : episode.status === "in_progress" ? "In progress" : "Queued"}
-              {resume ? ` · ${resume}` : ""}
-              {episode.appleUrl ? "" : " · preview only"}
-            </p>
-          </div>
-          {episode.appleUrl && (
-            <a
-              href={episode.appleUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="shrink-0 rounded-pill bg-surface px-3 py-1.5 text-sm font-medium hover:opacity-80"
-            >
-              Full ↗
-            </a>
+      <PlayableCard
+        onPlay={() =>
+          previewEpisode({
+            id: episode.episodeId,
+            title: episode.title,
+            showId: episode.showId,
+            showTitle: episode.showTitle,
+            coverUrl: episode.coverUrl,
+            appleUrl: episode.appleUrl,
+            audioUrl: episode.audioUrl,
+            durationSec: episode.durationSec,
+            categories: [],
+          })
+        }
+        playLabel={`Preview ${episode.title}`}
+        className={`cursor-pointer ${finished ? "opacity-60" : ""}`}
+      >
+        <CoverTile src={episode.coverUrl} size={56} />
+        <div className="min-w-0 flex-1">
+          <p className={`truncate font-semibold ${finished ? "line-through" : ""}`}>
+            {episode.title}
+          </p>
+          {episode.showTitle && (
+            <p className="truncate text-sm text-zinc-500">{episode.showTitle}</p>
           )}
-          <Chip
-            active={finished}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleFinished();
-            }}
-            className="shrink-0"
+          <p className="truncate text-xs text-zinc-400">
+            {finished ? "Finished" : episode.status === "in_progress" ? "In progress" : "Queued"}
+            {resume ? ` · ${resume}` : ""}
+            {episode.appleUrl ? "" : " · preview only"}
+          </p>
+        </div>
+        {episode.appleUrl && (
+          <a
+            href={episode.appleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative z-10 shrink-0 rounded-pill bg-surface px-3 py-1.5 text-sm font-medium hover:opacity-80"
           >
-            {finished ? "Finished ✓" : "Done?"}
-          </Chip>
-          <Chip
-            onClick={(e) => {
-              e.stopPropagation();
-              void removeEpisode(episode.episodeId).then(onChanged);
-            }}
-            className="shrink-0"
-          >
-            ✕
-          </Chip>
-        </Card>
-      </SettleIn>
+            Full ↗
+          </a>
+        )}
+        <Chip
+          active={finished}
+          onClick={() => toggleFinished()}
+          className="relative z-10 shrink-0"
+        >
+          {finished ? "Finished ✓" : "Done?"}
+        </Chip>
+        <Chip
+          onClick={() => void removeEpisode(episode.episodeId).then(onChanged)}
+          className="relative z-10 shrink-0"
+        >
+          ✕
+        </Chip>
+      </PlayableCard>
     </li>
   );
 }

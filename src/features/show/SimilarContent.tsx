@@ -12,7 +12,7 @@ import {
 } from "@/src/data/repos/savedEpisodesRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { previewEpisode, previewShow } from "@/src/features/player/preview";
-import { Card, Chip, CoverTile, SettleIn } from "@/src/ui";
+import { Chip, CoverTile, PlayableCard } from "@/src/ui";
 
 /**
  * "More like this": similar shows AND similar episodes, ranked top to
@@ -85,12 +85,6 @@ function Rank({ n }: { n: number }) {
   );
 }
 
-function rowKeyDown(e: React.KeyboardEvent, action: () => void) {
-  if (e.key === "Enter" || e.key === " ") {
-    e.preventDefault();
-    action();
-  }
-}
 
 function SimilarShowRow({ show, rank }: { show: SimilarShow; rank: number }) {
   const queryClient = useQueryClient();
@@ -117,41 +111,32 @@ function SimilarShowRow({ show, rank }: { show: SimilarShow; rank: number }) {
 
   return (
     <li>
-      <SettleIn>
-        {/* card click = 30-sec preview clip; Details -> show page */}
-        <Card
-          role="button"
-          tabIndex={0}
-          onClick={() => previewShow(show)}
-          onKeyDown={(e) => rowKeyDown(e, () => previewShow(show))}
-          className="flex cursor-pointer items-center gap-3"
+      <PlayableCard
+        onPlay={() => previewShow(show)}
+        playLabel={`Preview ${show.title}`}
+        className="cursor-pointer"
+      >
+        <Rank n={rank} />
+        <CoverTile src={show.coverUrl} size={56} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{show.title}</p>
+          <p className="truncate text-sm text-zinc-500">{show.author}</p>
+          <p className="truncate text-xs text-zinc-400">▶ {show.why}</p>
+        </div>
+        <Link
+          href={`/show/${show.id}`}
+          className="relative z-10 shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
         >
-          <Rank n={rank} />
-          <CoverTile src={show.coverUrl} size={56} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold">{show.title}</p>
-            <p className="truncate text-sm text-zinc-500">{show.author}</p>
-            <p className="truncate text-xs text-zinc-400">▶ {show.why}</p>
-          </div>
-          <Link
-            href={`/show/${show.id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          >
-            Details →
-          </Link>
-          <Chip
-            active={saved}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleSave();
-            }}
-            className="shrink-0"
-          >
-            {saved ? "Saved ✓" : "Save"}
-          </Chip>
-        </Card>
-      </SettleIn>
+          Details →
+        </Link>
+        <Chip
+          active={saved}
+          onClick={() => toggleSave()}
+          className="relative z-10 shrink-0"
+        >
+          {saved ? "Saved ✓" : "Save"}
+        </Chip>
+      </PlayableCard>
     </li>
   );
 }
@@ -187,67 +172,57 @@ function SimilarEpisodeRow({
 
   return (
     <li>
-      <SettleIn>
-        {/* card click = 30-sec preview clip of this episode */}
-        <Card
-          role="button"
-          tabIndex={0}
-          onClick={() => previewEpisode(episode)}
-          onKeyDown={(e) => rowKeyDown(e, () => previewEpisode(episode))}
-          className="flex cursor-pointer items-center gap-3"
-        >
-          <Rank n={rank} />
-          <CoverTile src={episode.coverUrl} size={56} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold">{episode.title}</p>
-            {episode.showTitle && (
-              <p className="truncate text-sm text-zinc-500">
-                {episode.showId ? (
-                  <Link
-                    href={`/show/${episode.showId}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="hover:underline"
-                  >
-                    {episode.showTitle}
-                  </Link>
-                ) : (
-                  episode.showTitle
-                )}
-              </p>
-            )}
-            <p className="truncate text-xs text-zinc-400">▶ {episode.why}</p>
-          </div>
-          <Chip
-            active={queued}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleLater();
-            }}
-            className="shrink-0"
-          >
-            {queued ? "Queued ✓" : "+ Later"}
-          </Chip>
-          {episode.appleUrl ? (
-            <a
-              href={episode.appleUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="shrink-0 rounded-pill bg-surface px-3 py-1.5 text-sm font-medium hover:opacity-80"
-            >
-              Full ↗
-            </a>
-          ) : (
-            // missing platform = dimmed chip, never an error (Section 6)
-            <span
-              aria-disabled
-              className="shrink-0 cursor-not-allowed rounded-pill bg-surface px-3 py-1.5 text-sm font-medium opacity-40"
-            >
-              Full
-            </span>
+      <PlayableCard
+        onPlay={() => previewEpisode(episode)}
+        playLabel={`Preview ${episode.title}`}
+        className="cursor-pointer"
+      >
+        <Rank n={rank} />
+        <CoverTile src={episode.coverUrl} size={56} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{episode.title}</p>
+          {episode.showTitle && (
+            <p className="truncate text-sm text-zinc-500">
+              {episode.showId ? (
+                <Link
+                  href={`/show/${episode.showId}`}
+                  className="relative z-10 hover:underline"
+                >
+                  {episode.showTitle}
+                </Link>
+              ) : (
+                episode.showTitle
+              )}
+            </p>
           )}
-        </Card>
-      </SettleIn>
+          <p className="truncate text-xs text-zinc-400">▶ {episode.why}</p>
+        </div>
+        <Chip
+          active={queued}
+          onClick={() => toggleLater()}
+          className="relative z-10 shrink-0"
+        >
+          {queued ? "Queued ✓" : "+ Later"}
+        </Chip>
+        {episode.appleUrl ? (
+          <a
+            href={episode.appleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative z-10 shrink-0 rounded-pill bg-surface px-3 py-1.5 text-sm font-medium hover:opacity-80"
+          >
+            Full ↗
+          </a>
+        ) : (
+          // missing platform = dimmed chip, never an error (Section 6)
+          <span
+            aria-disabled
+            className="shrink-0 cursor-not-allowed rounded-pill bg-surface px-3 py-1.5 text-sm font-medium opacity-40"
+          >
+            Full
+          </span>
+        )}
+      </PlayableCard>
     </li>
   );
 }

@@ -8,7 +8,7 @@ import type { CatalogShow } from "@/src/data/catalog/types";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { previewShow } from "@/src/features/player/preview";
 import { SimilarContent } from "@/src/features/show/SimilarContent";
-import { Card, Chip, CoverTile, SettleIn } from "@/src/ui";
+import { Chip, CoverTile, PlayableCard } from "@/src/ui";
 
 const DEBOUNCE_MS = 350;
 const MIN_QUERY_LENGTH = 2;
@@ -103,49 +103,35 @@ function ShowRow({ show }: { show: CatalogShow }) {
 
   return (
     <li>
-      <SettleIn>
-        {/* card click = 30-sec preview clip; Details -> show page */}
-        <Card
-          role="button"
-          tabIndex={0}
-          onClick={() => previewShow(show)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              previewShow(show);
-            }
-          }}
-          className="flex cursor-pointer items-center gap-4"
+      <PlayableCard
+        onPlay={() => previewShow(show)}
+        playLabel={`Preview ${show.title}`}
+        className="cursor-pointer gap-4"
+      >
+        <CoverTile src={show.coverUrl} size={64} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{show.title}</p>
+          <p className="truncate text-sm text-zinc-500">{show.author}</p>
+          <p className="truncate text-xs text-zinc-400">
+            ▶ Click for a 30s clip
+            {show.categories.length > 0 &&
+              ` · ${show.categories.slice(0, 3).join(" · ")}`}
+          </p>
+        </div>
+        <Link
+          href={`/show/${show.id}`}
+          className="relative z-10 shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
         >
-          <CoverTile src={show.coverUrl} size={64} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold">{show.title}</p>
-            <p className="truncate text-sm text-zinc-500">{show.author}</p>
-            <p className="truncate text-xs text-zinc-400">
-              ▶ Click for a 30s clip
-              {show.categories.length > 0 &&
-                ` · ${show.categories.slice(0, 3).join(" · ")}`}
-            </p>
-          </div>
-          <Link
-            href={`/show/${show.id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          >
-            Details →
-          </Link>
-          <Chip
-            active={saved}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleSave();
-            }}
-            className="shrink-0"
-          >
-            {saved ? "Saved ✓" : "Save"}
-          </Chip>
-        </Card>
-      </SettleIn>
+          Details →
+        </Link>
+        <Chip
+          active={saved}
+          onClick={() => toggleSave()}
+          className="relative z-10 shrink-0"
+        >
+          {saved ? "Saved ✓" : "Save"}
+        </Chip>
+      </PlayableCard>
     </li>
   );
 }
