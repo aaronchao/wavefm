@@ -53,10 +53,11 @@ Last updated: 2026-07-13.
   filters blocked/saved after fetching; a heavily-blocked user gets a
   thinner feed. Consider over-fetching candidates proportional to the
   block count.
-- [ ] **P3 — Interest picker is fixed-list only.** Users can only pick
-  from `defaultTopics()`. Add free-text / search-to-add an interest (any
-  catalog term becomes a seed), and a way to re-open onboarding from
-  Settings.
+- [x] **P3 — Custom interests.** Done 2026-07-17. Settings now has a
+  free-text "Add an interest" input (any term becomes a seed) and uses
+  `defaultTopics()` for consistency (previously it still showed the hidden
+  personal seeds — bug fixed). Still open: a one-tap "re-run onboarding"
+  from Settings.
 - [ ] **P3 — TF-IDF ceiling.** Cosine over TF-IDF is transparent but
   shallow. A local embeddings model (e.g. a small quantized sentence
   encoder bundled client-side) could sharpen similarity while staying
