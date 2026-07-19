@@ -203,8 +203,9 @@ test("discover Global chart tab ranks by community + metrics", async ({ page }) 
   await expect(page.getByText("Buzzing on Reddit · 3.4k threads")).toBeVisible();
 });
 
-test("library offers an OPML export", async ({ page }) => {
+test("library offers OPML import and export", async ({ page }) => {
   await stub(page);
   await page.goto("/library");
+  await expect(page.getByRole("button", { name: "Import OPML" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Export OPML" })).toBeVisible();
 });

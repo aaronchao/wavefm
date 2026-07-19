@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOpml } from "@/src/core/opml";
+import { buildOpml, parseOpml } from "@/src/core/opml";
 
 describe("buildOpml", () => {
   it("emits a valid OPML 2.0 outline per feed", () => {
@@ -35,5 +35,39 @@ describe("buildOpml", () => {
     const xml = buildOpml([]);
     expect(xml).toContain("<body>");
     expect(xml).toContain("</opml>");
+  });
+});
+
+describe("parseOpml", () => {
+  it("extracts every feed outline, nested or flat, and decodes entities", () => {
+    const xml = `<?xml version="1.0"?>
+      <opml version="2.0"><body>
+        <outline text="News">
+          <outline type="rss" text="A &amp; B" xmlUrl="https://f/ab" htmlUrl="https://ab" />
+        </outline>
+        <outline type="rss" title="故事FM" xmlUrl="https://f/gushi"/>
+      </body></opml>`;
+    const feeds = parseOpml(xml);
+    expect(feeds).toHaveLength(2); // the folder outline (no xmlUrl) is ignored
+    expect(feeds[0]).toEqual({ feedUrl: "https://f/ab", title: "A & B", htmlUrl: "https://ab" });
+    expect(feeds[1].title).toBe("故事FM");
+    expect(feeds[1].feedUrl).toBe("https://f/gushi");
+  });
+
+  it("dedupes by feed URL and survives malformed input", () => {
+    const xml = `<outline xmlUrl="https://f/x" text="One"/><outline xmlUrl="https://f/x" text="Dup"/>`;
+    expect(parseOpml(xml)).toHaveLength(1);
+    expect(parseOpml("not xml at all")).toEqual([]);
+    expect(parseOpml("")).toEqual([]);
+  });
+
+  it("round-trips with buildOpml", () => {
+    const feeds = [
+      { title: "故事FM", feedUrl: "https://f/gushi", htmlUrl: "https://apple/gushi" },
+      { title: "Radiolab", feedUrl: "https://f/radiolab" },
+    ];
+    const parsed = parseOpml(buildOpml(feeds));
+    expect(parsed.map((f) => f.feedUrl)).toEqual(feeds.map((f) => f.feedUrl));
+    expect(parsed[0].title).toBe("故事FM");
   });
 });

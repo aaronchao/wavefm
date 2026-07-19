@@ -21,6 +21,50 @@ function esc(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
+function decodeXml(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&amp;/g, "&"); // last, so &amp;lt; doesn't double-decode
+}
+
+function parseAttrs(raw: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const re = /([\w:.-]+)\s*=\s*"([^"]*)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw)) !== null) out[m[1].toLowerCase()] = decodeXml(m[2]);
+  return out;
+}
+
+/**
+ * Parse an OPML file (PURE) into the feeds it subscribes to — the inverse
+ * of buildOpml, for importing a subscription list exported from another
+ * podcast app. Tolerant of nesting and formatting: any <outline> carrying
+ * an xmlUrl is a feed; everything else (folders, headers) is ignored.
+ * Deduped by URL. Never throws on malformed input — returns what it can.
+ */
+export function parseOpml(xml: string): OpmlFeed[] {
+  const feeds: OpmlFeed[] = [];
+  const seen = new Set<string>();
+  const outline = /<outline\b([^>]*?)\/?>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = outline.exec(xml)) !== null) {
+    const attrs = parseAttrs(m[1]);
+    const feedUrl = (attrs.xmlurl ?? "").trim();
+    if (!feedUrl || seen.has(feedUrl)) continue;
+    seen.add(feedUrl);
+    feeds.push({
+      feedUrl,
+      title: attrs.text || attrs.title || feedUrl,
+      htmlUrl: attrs.htmlurl || undefined,
+    });
+  }
+  return feeds;
+}
+
 export function buildOpml(feeds: OpmlFeed[], title = "Wavr subscriptions"): string {
   const seen = new Set<string>();
   const rows: string[] = [];
