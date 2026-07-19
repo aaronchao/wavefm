@@ -8,8 +8,8 @@ import {
   type SimilarItemInput,
 } from "@/src/core/recommend";
 import { listenNotesBuzz } from "@/src/data/buzz/listennotes";
-import { redditBuzz } from "@/src/data/buzz/reddit";
-import { v2exBuzz } from "@/src/data/buzz/v2ex";
+import { redditDiscussion } from "@/src/data/buzz/reddit";
+import { v2exDiscussion } from "@/src/data/buzz/v2ex";
 import { mergeBuzz, xiaoyuzhouBuzz } from "@/src/data/buzz/xiaoyuzhou";
 import { xyzrankBuzz } from "@/src/data/buzz/xyzrank";
 import { lookupShow } from "@/src/data/catalog/lookup";
@@ -18,7 +18,11 @@ import {
   itunesTopChartRanks,
   piTrendingRanks,
 } from "@/src/data/catalog/server";
-import type { CatalogShow, TopPicksResponse } from "@/src/data/catalog/types";
+import type {
+  CatalogShow,
+  EvidenceItem,
+  TopPicksResponse,
+} from "@/src/data/catalog/types";
 
 /**
  * Proxy: Top Picks — the shows communities actually talk about, NOT the
@@ -88,17 +92,21 @@ export async function GET(request: Request) {
     categories: s.categories,
   }));
 
-  // enrich the shortlist with real community discussion (cached daily), and
-  // mark whichever are currently charted so the ranker can penalise them
+  // enrich the shortlist with real community discussion (cached daily) —
+  // counts AND the actual threads for readable evidence — and mark whichever
+  // are currently charted so the ranker can penalise them
+  const evidenceById = new Map<string, EvidenceItem[]>();
   const candidates: SimilarItemInput[] = await Promise.all(
     finalPool.map(async (s) => {
       const [xyz, reddit, v2ex, xiaoyuzhou, listen] = await Promise.all([
         xyzrankBuzz(s.title),
-        redditBuzz(s.title),
-        v2exBuzz(s.title),
+        redditDiscussion(s.title),
+        v2exDiscussion(s.title),
         xiaoyuzhouBuzz(s.title),
         listenNotesBuzz(s.title),
       ]);
+      const evidence = [...(reddit?.evidence ?? []), ...(v2ex?.evidence ?? [])].slice(0, 3);
+      if (evidence.length > 0) evidenceById.set(s.id, evidence);
       return {
         id: s.id,
         title: s.title,
@@ -108,7 +116,7 @@ export async function GET(request: Request) {
         episodeCount: s.episodeCount,
         chartRank: chartRanks?.get(s.id),
         trendRank: trendRanks?.get(s.id),
-        buzz: mergeBuzz(xyz, listen, xiaoyuzhou, v2ex, reddit),
+        buzz: mergeBuzz(xyz, listen, xiaoyuzhou, v2ex?.buzz, reddit?.buzz),
       };
     }),
   );
@@ -124,7 +132,11 @@ export async function GET(request: Request) {
       }));
 
   const response: TopPicksResponse = {
-    picks: finalists.map((p) => ({ ...showById.get(p.id)!, why: p.why })),
+    picks: finalists.map((p) => ({
+      ...showById.get(p.id)!,
+      why: p.why,
+      evidence: evidenceById.get(p.id),
+    })),
     degraded,
   };
 

@@ -103,7 +103,14 @@ test("discover ranks recommendations and opens a show's episodes", async ({ page
   const RANKED_PICKS = {
     picks: [
       show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"], {
-        why: "Highly discussed on Reddit",
+        why: "Talked about on Reddit (12 threads)",
+        evidence: [
+          {
+            source: "r/podcasts",
+            text: "Psychology In Seattle changed how I think about relationships",
+            url: "https://www.reddit.com/r/podcasts/x",
+          },
+        ],
       }),
       show("333", "Where Should We Begin", "Esther Perel", ["Society & Culture"], {
         why: "Because you saved similar shows",
@@ -137,6 +144,12 @@ test("discover ranks recommendations and opens a show's episodes", async ({ page
   await page.getByRole("button", { name: /Top episodes/ }).first().click();
   await expect(page.getByText("The one everyone argues about")).toBeVisible();
   await expect(page.getByText("Most discussed · 40 Reddit threads")).toBeVisible();
+
+  // tapping the reason badge expands the real community thread behind it
+  await page.getByRole("button", { name: /Talked about on Reddit/ }).first().click();
+  await expect(
+    page.getByText("Psychology In Seattle changed how I think about relationships"),
+  ).toBeVisible();
 });
 
 test("show detail lists the show's own top episodes", async ({ page }) => {

@@ -57,7 +57,21 @@ export type CatalogShowResponse = {
   show: CatalogShow | null;
 };
 
-export type SimilarShow = CatalogShow & { why: string };
+/** A real community discussion snippet behind a pick (tappable to open). */
+export type EvidenceItem = {
+  /** "Reddit", "V2EX", "小宇宙"… */
+  source: string;
+  /** A short quote or thread title. */
+  text: string;
+  /** Link to the actual thread/comment, when available. */
+  url?: string;
+};
+
+export type SimilarShow = CatalogShow & {
+  why: string;
+  /** Real discussion behind the pick — populated for discussion-first picks. */
+  evidence?: EvidenceItem[];
+};
 
 /** Response of /api/catalog/top-picks — curated, ranked top to bottom. */
 export type TopPicksResponse = {
