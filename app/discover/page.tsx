@@ -1,12 +1,6 @@
-import type { Metadata } from "next";
-import { DiscoverPage } from "@/src/features/discover/DiscoverPage";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Discover · Wavr",
-  description:
-    "Ranked podcast recommendations with the real discussion behind them — one click to hear the middle of the episode people actually talk about.",
-};
-
+/** Discovery now lives at the root; keep this path working for old links. */
 export default function Discover() {
-  return <DiscoverPage />;
+  redirect("/");
 }

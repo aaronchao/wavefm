@@ -53,7 +53,7 @@ export function Landing() {
             transition={{ delay: 0.65, duration: 0.6 }}
           >
             <Link
-              href="/discover"
+              href="/"
               className="rounded-pill bg-accent px-6 py-3 text-sm font-semibold text-white shadow-sm transition-transform hover:shadow-md active:scale-95"
             >
               Explore discovery →
@@ -103,7 +103,7 @@ export function Landing() {
           Let the crowd’s judgement do the digging. You just listen.
         </p>
         <Link
-          href="/discover"
+          href="/"
           className="mt-6 inline-block rounded-pill bg-accent px-7 py-3 text-sm font-semibold text-white shadow-sm transition-transform hover:shadow-md active:scale-95"
         >
           Start discovering →

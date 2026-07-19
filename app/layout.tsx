@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Doto, Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { TabBar } from "@/src/features/nav/TabBar";
 import { PreviewPlayer } from "@/src/features/player/PreviewPlayer";
 import { Providers } from "@/src/state/providers";
 import "./globals.css";
@@ -13,6 +14,14 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Nothing-brand dot-matrix display face (free, Google Fonts) — used for the
+// logo, headings, machine labels and nav; body copy stays Geist for reading.
+const doto = Doto({
+  variable: "--font-doto",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
 });
 
 export const metadata: Metadata = {
@@ -28,34 +37,28 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${doto.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-full flex-col">
         <Providers>
-          <header className="flex items-center gap-5 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800 sm:px-8">
-            <Link href="/" className="font-bold">
-              Wavr
+          <header className="flex items-center justify-between border-b border-surface-border px-4 py-3 sm:px-8">
+            <Link href="/" className="font-brand text-xl font-bold tracking-wide">
+              WAVR
             </Link>
-            <nav className="flex gap-4 text-sm text-zinc-500">
-              <Link href="/discover" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-                Discover
-              </Link>
-              <Link href="/search" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-                Search
-              </Link>
-              <Link href="/topics" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-                Topics
-              </Link>
-              <Link href="/library" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-                Library
-              </Link>
-              <Link href="/settings" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-                Settings
-              </Link>
-            </nav>
+            <Link
+              href="/settings"
+              aria-label="Settings"
+              className="rounded-full p-2 text-zinc-400 transition-colors hover:text-foreground"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" strokeLinejoin="round" />
+              </svg>
+            </Link>
           </header>
-          {children}
+          <div className="flex-1 pb-16">{children}</div>
           <PreviewPlayer />
+          <TabBar />
         </Providers>
       </body>
     </html>

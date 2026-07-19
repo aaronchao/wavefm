@@ -2,10 +2,10 @@
 
 import type { SimilarShow } from "@/src/data/catalog/types";
 import { previewShowTopEpisodeMiddle } from "@/src/features/player/preview";
-import { RatingBadges } from "@/src/features/show/RatingBadges";
 import { Chip, CoverTile, SettleIn } from "@/src/ui";
 import { MachineLabel } from "./DiscoverPage";
 import { EpisodeList } from "./EpisodeList";
+import { Evidence } from "./Evidence";
 import { useSavedToggle } from "./useSavedToggle";
 
 /**
@@ -69,10 +69,7 @@ export function RankedRow({ pick, rank }: { pick: SimilarShow; rank: number }) {
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{pick.title}</p>
           <p className="truncate text-sm text-zinc-500">{pick.author}</p>
-          <p className="truncate text-xs text-accent">▶ {pick.why}</p>
-          <div className="mt-1">
-            <RatingBadges showId={pick.id} title={pick.title} />
-          </div>
+          <Evidence show={pick} className="mt-1" />
         </div>
         <button
           type="button"
