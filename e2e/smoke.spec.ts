@@ -80,9 +80,23 @@ test("queue an episode for later, then it appears in the Library", async ({ page
 
 test("degraded Top Picks hides the section but the home page still renders", async ({ page }) => {
   await stub(page, { topPicks: { picks: [], degraded: true } });
-  await page.goto("/");
+  await page.goto("/home");
   await expect(page.getByText("What next?")).toBeVisible();
   await expect(page.getByText("Top picks for you")).toHaveCount(0);
+});
+
+test("the landing page greets signed-out visitors with a discovery CTA", async ({ page }) => {
+  await stub(page);
+  await page.goto("/");
+  await expect(page.getByText("Just press")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Explore discovery →" })).toBeVisible();
+  // the interactive metaphor pours out a feed once five shows are "saved"
+  await page.getByRole("button", { name: /Radiolab/ }).click();
+  await page.getByRole("button", { name: /故事FM/ }).click();
+  await page.getByRole("button", { name: /Reply All/ }).click();
+  await page.getByRole("button", { name: /忽左忽右/ }).click();
+  await page.getByRole("button", { name: /99% Invisible/ }).click();
+  await expect(page.getByText("Your feed, poured out")).toBeVisible();
 });
 
 test("discover ranks recommendations and opens a show's episodes", async ({ page }) => {
