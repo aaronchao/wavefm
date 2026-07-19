@@ -247,7 +247,7 @@ test("discover Global chart tab ranks by community + metrics", async ({ page }) 
   );
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Global" }).click();
+  await page.getByRole("button", { name: "Apple" }).click();
   await expect(page.getByText("Radiolab")).toBeVisible();
   await expect(page.getByText("Buzzing on Reddit · 3.4k threads")).toBeVisible();
 });

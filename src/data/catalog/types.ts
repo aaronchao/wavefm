@@ -91,6 +91,12 @@ export type GlobalChartsResponse = {
   degraded: boolean;
 };
 
+/** Response of /api/catalog/charts/discussed — community discussion chart. */
+export type DiscussedChartsResponse = {
+  shows: SimilarShow[];
+  degraded: boolean;
+};
+
 /** One ranked episode of a show (for the discovery "top episodes" list). */
 export type RankedEpisodeItem = {
   id: string;

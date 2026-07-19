@@ -74,7 +74,7 @@ export function DiscoverPage() {
       <div className="mb-8 border-b border-surface-border pb-6">
         <div className="flex items-center gap-2">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-          <MachineLabel>Wavr · Discovery Engine</MachineLabel>
+          <MachineLabel>wavefm · Discovery Engine</MachineLabel>
         </div>
         <h1 className="font-brand mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Discover</h1>
         <p className="mt-2 max-w-lg text-zinc-500">

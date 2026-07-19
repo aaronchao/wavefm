@@ -2,25 +2,32 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { getChineseCharts, getGlobalCharts } from "@/src/data/catalog/client";
+import {
+  getChineseCharts,
+  getDiscussedCharts,
+  getGlobalCharts,
+} from "@/src/data/catalog/client";
 import { SettleIn } from "@/src/ui";
 import { MachineLabel } from "./DiscoverPage";
 import { RankedRow } from "./RankedRecs";
 
-type Tab = "chinese" | "global";
+type Tab = "discussed" | "chinese" | "global";
 
 /**
- * Charts — the crowd's leaderboards, ranked by real signal rather than by
- * us: 中文播客榜 (小宇宙 subscribers/plays/comments, in the spirit of
- * xyzrank.com) and a Global board (Apple chart + Podcast Index trending +
- * Reddit discussion + Listen Score). Placed high so discovery-by-chart is
- * front and center. Each row is a real Wavr show — playable, saveable,
- * openable to its episodes. Hidden only when both boards are unreachable.
+ * Charts — the crowd's leaderboards, community-first. We lead with the
+ * boards ranked by real discussion (社区热议: Reddit + V2EX + 小宇宙; and
+ * 中文播客榜, the 小宇宙 leaderboard) and keep the Apple-based board last —
+ * you've already scrolled Apple, that's why you're here. Each row is a real
+ * show: playable, saveable, openable to episodes, with tappable evidence.
+ * Hidden only when every board is unreachable.
  */
 export function Charts() {
-  // null until the user taps a tab; before that we auto-focus the board
-  // that actually has data so we never open on an empty tab
   const [picked, setPicked] = useState<Tab | null>(null);
+  const discussed = useQuery({
+    queryKey: ["catalog", "charts", "discussed"],
+    queryFn: () => getDiscussedCharts(24),
+    staleTime: 6 * 60 * 60 * 1000,
+  });
   const zh = useQuery({
     queryKey: ["catalog", "charts", "chinese"],
     queryFn: () => getChineseCharts(24),
@@ -32,32 +39,40 @@ export function Charts() {
     staleTime: 6 * 60 * 60 * 1000,
   });
 
-  const zhCount = zh.data?.shows.length ?? 0;
-  const enCount = en.data?.shows.length ?? 0;
-  // auto-default: 中文 unless it's settled-empty while Global has shows
-  const tab: Tab = picked ?? (zh.isSuccess && zhCount === 0 && enCount > 0 ? "global" : "chinese");
-  const setTab = (t: Tab) => setPicked(t);
+  const counts: Record<Tab, number> = {
+    discussed: discussed.data?.shows.length ?? 0,
+    chinese: zh.data?.shows.length ?? 0,
+    global: en.data?.shows.length ?? 0,
+  };
+  const queries: Record<Tab, typeof discussed> = { discussed, chinese: zh, global: en };
 
-  const active = tab === "chinese" ? zh : en;
+  // auto-focus the first community board that has data (never open empty)
+  const autoTab: Tab =
+    counts.discussed > 0 ? "discussed" : counts.chinese > 0 ? "chinese" : "global";
+  const tab: Tab = picked ?? autoTab;
+  const active = queries[tab];
   const shows = active.data?.shows ?? [];
-  const bothSettledEmpty =
-    zh.isSuccess && en.isSuccess && zhCount === 0 && enCount === 0;
-  if (bothSettledEmpty) return null;
+
+  const allSettledEmpty =
+    discussed.isSuccess && zh.isSuccess && en.isSuccess &&
+    counts.discussed === 0 && counts.chinese === 0 && counts.global === 0;
+  if (allSettledEmpty) return null;
 
   return (
     <section className="mb-12">
       <div className="mb-1 flex items-baseline gap-2">
-        <h2 className="text-lg font-semibold">Charts</h2>
-        <MachineLabel>ranked by the crowd, not us</MachineLabel>
+        <h2 className="font-brand text-lg font-semibold">Charts</h2>
+        <MachineLabel>ranked by the crowd, not the charts</MachineLabel>
       </div>
       <p className="mb-3 text-sm text-zinc-500">
-        Real discussion, ratings and stream metrics — the shows people actually
-        rally around, ordered.
+        Community-first: what people actually discuss on Reddit, V2EX & 小宇宙 —
+        Apple comes last.
       </p>
 
-      <div className="mb-4 flex gap-2">
-        <ChartTab label="中文播客榜" active={tab === "chinese"} onClick={() => setTab("chinese")} />
-        <ChartTab label="Global" active={tab === "global"} onClick={() => setTab("global")} />
+      <div className="mb-4 flex flex-wrap gap-2">
+        <ChartTab label="社区热议" active={tab === "discussed"} onClick={() => setPicked("discussed")} />
+        <ChartTab label="中文播客榜" active={tab === "chinese"} onClick={() => setPicked("chinese")} />
+        <ChartTab label="Apple" active={tab === "global"} onClick={() => setPicked("global")} />
       </div>
 
       {active.isLoading ? (
@@ -68,7 +83,7 @@ export function Charts() {
         </div>
       ) : shows.length === 0 ? (
         <p className="rounded-card border border-surface-border bg-surface px-4 py-6 text-center text-sm text-zinc-500">
-          This board is quiet right now — check the other tab.
+          This board is quiet right now — try another tab.
         </p>
       ) : (
         <ol className="flex flex-col gap-3">
@@ -97,7 +112,7 @@ function ChartTab({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-pill border px-4 py-1.5 text-sm font-semibold transition-colors ${
+      className={`font-brand rounded-pill border px-4 py-1.5 text-sm font-semibold transition-colors ${
         active
           ? "border-accent bg-accent text-white"
           : "border-surface-border bg-surface text-zinc-500 hover:text-foreground"

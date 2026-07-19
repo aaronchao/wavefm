@@ -65,7 +65,7 @@ export function parseOpml(xml: string): OpmlFeed[] {
   return feeds;
 }
 
-export function buildOpml(feeds: OpmlFeed[], title = "Wavr subscriptions"): string {
+export function buildOpml(feeds: OpmlFeed[], title = "wavefm subscriptions"): string {
   const seen = new Set<string>();
   const rows: string[] = [];
   for (const f of feeds) {

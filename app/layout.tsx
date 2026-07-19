@@ -25,7 +25,7 @@ const doto = Doto({
 });
 
 export const metadata: Metadata = {
-  title: "Wavr",
+  title: "wavefm",
   description: "Free, browser-based podcast discovery — what to listen to next, and why.",
 };
 
@@ -43,7 +43,7 @@ export default function RootLayout({
         <Providers>
           <header className="flex items-center justify-between border-b border-surface-border px-4 py-3 sm:px-8">
             <Link href="/" className="font-brand text-xl font-bold tracking-wide">
-              WAVR
+              WAVEFM
             </Link>
             <Link
               href="/settings"

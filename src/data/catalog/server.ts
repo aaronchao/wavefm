@@ -280,6 +280,13 @@ export async function piTrendingRanks(): Promise<Map<string, number> | null> {
   return ranks;
 }
 
+/** Podcast Index trending shows (free key) — an independent, non-Apple pool. */
+export async function piTrendingShows(): Promise<CatalogShow[] | null> {
+  const feeds = await piFetch(`/podcasts/trending?max=100`);
+  if (feeds === null) return null;
+  return feeds.map(mapPi).filter((s): s is CatalogShow => s !== null);
+}
+
 export async function piLookup(id: string): Promise<CatalogShow | null> {
   const path = id.startsWith("pi-")
     ? `/podcasts/byfeedid?id=${encodeURIComponent(id.slice(3))}`

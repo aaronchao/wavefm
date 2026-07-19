@@ -3,6 +3,7 @@ import type {
   CatalogShow,
   CatalogShowResponse,
   ChineseChartsResponse,
+  DiscussedChartsResponse,
   EpisodesRankedResponse,
   GlobalChartsResponse,
   PreviewEpisode,
@@ -80,6 +81,17 @@ export async function getChineseCharts(limit = 24): Promise<ChineseChartsRespons
     const res = await fetch(`/api/catalog/charts/chinese?limit=${limit}`);
     if (!res.ok) return { shows: [], degraded: true };
     const json = (await res.json()) as Partial<ChineseChartsResponse>;
+    return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
+  } catch {
+    return { shows: [], degraded: true };
+  }
+}
+
+export async function getDiscussedCharts(limit = 24): Promise<DiscussedChartsResponse> {
+  try {
+    const res = await fetch(`/api/catalog/charts/discussed?limit=${limit}`);
+    if (!res.ok) return { shows: [], degraded: true };
+    const json = (await res.json()) as Partial<DiscussedChartsResponse>;
     return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
   } catch {
     return { shows: [], degraded: true };
