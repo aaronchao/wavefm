@@ -18,7 +18,9 @@ type Tab = "chinese" | "global";
  * openable to its episodes. Hidden only when both boards are unreachable.
  */
 export function Charts() {
-  const [tab, setTab] = useState<Tab>("chinese");
+  // null until the user taps a tab; before that we auto-focus the board
+  // that actually has data so we never open on an empty tab
+  const [picked, setPicked] = useState<Tab | null>(null);
   const zh = useQuery({
     queryKey: ["catalog", "charts", "chinese"],
     queryFn: () => getChineseCharts(24),
@@ -30,13 +32,16 @@ export function Charts() {
     staleTime: 6 * 60 * 60 * 1000,
   });
 
+  const zhCount = zh.data?.shows.length ?? 0;
+  const enCount = en.data?.shows.length ?? 0;
+  // auto-default: 中文 unless it's settled-empty while Global has shows
+  const tab: Tab = picked ?? (zh.isSuccess && zhCount === 0 && enCount > 0 ? "global" : "chinese");
+  const setTab = (t: Tab) => setPicked(t);
+
   const active = tab === "chinese" ? zh : en;
   const shows = active.data?.shows ?? [];
   const bothSettledEmpty =
-    zh.isSuccess &&
-    en.isSuccess &&
-    (zh.data?.shows.length ?? 0) === 0 &&
-    (en.data?.shows.length ?? 0) === 0;
+    zh.isSuccess && en.isSuccess && zhCount === 0 && enCount === 0;
   if (bothSettledEmpty) return null;
 
   return (

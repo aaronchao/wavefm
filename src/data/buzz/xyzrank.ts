@@ -70,9 +70,18 @@ let memo: Promise<XyzChartEntry[] | null> | null = null;
 
 async function fetchChart(): Promise<XyzChartEntry[] | null> {
   try {
+    // xyzrank sits behind a bot filter that 403s bare server-side fetches;
+    // browser-like headers get us the JSON. Still best-effort — any failure
+    // just drops the enrichment, the board falls back to the Apple CN chart.
     const res = await fetch("https://xyzrank.com/api/podcasts", {
       next: { revalidate: REVALIDATE_SECONDS },
-      headers: { "User-Agent": "wavr/0.1 (personal podcast discovery)" },
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        Accept: "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        Referer: "https://xyzrank.com/",
+      },
     });
     if (!res.ok) return null;
     const entries = extractOrdered(await res.json());

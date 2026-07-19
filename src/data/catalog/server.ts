@@ -136,10 +136,11 @@ type ChartEntry = {
   genres?: { name?: string }[];
 };
 
-async function fetchTopChart(): Promise<ChartEntry[] | null> {
+async function fetchTopChart(country = "us"): Promise<ChartEntry[] | null> {
+  const cc = /^[a-z]{2}$/i.test(country) ? country.toLowerCase() : "us";
   try {
     const res = await fetch(
-      "https://rss.marketingtools.apple.com/api/v2/us/podcasts/top/100/podcasts.json",
+      `https://rss.marketingtools.apple.com/api/v2/${cc}/podcasts/top/100/podcasts.json`,
       { next: { revalidate: CHART_REVALIDATE_SECONDS } },
     );
     if (!res.ok) return null;
@@ -151,12 +152,13 @@ async function fetchTopChart(): Promise<ChartEntry[] | null> {
 }
 
 /**
- * Apple's top-podcasts chart (free RSS, no key). Returns collectionId ->
- * 1-based chart rank, or null when unreachable — a popularity proxy,
- * since real listen counts aren't public on any free API.
+ * Apple's top-podcasts chart (free RSS, no key) for a storefront (default
+ * US). Returns collectionId -> 1-based chart rank, or null when
+ * unreachable — a popularity proxy, since real listen counts aren't public
+ * on any free API.
  */
-export async function itunesTopChartRanks(): Promise<Map<string, number> | null> {
-  const entries = await fetchTopChart();
+export async function itunesTopChartRanks(country = "us"): Promise<Map<string, number> | null> {
+  const entries = await fetchTopChart(country);
   if (entries === null) return null;
   const ranks = new Map<string, number>();
   entries.forEach((entry, i) => {
@@ -166,8 +168,8 @@ export async function itunesTopChartRanks(): Promise<Map<string, number> | null>
 }
 
 /** The same chart as candidate shows (chart ids are iTunes collection ids). */
-export async function itunesTopChartShows(): Promise<CatalogShow[] | null> {
-  const entries = await fetchTopChart();
+export async function itunesTopChartShows(country = "us"): Promise<CatalogShow[] | null> {
+  const entries = await fetchTopChart(country);
   if (entries === null) return null;
   return entries
     .filter((e): e is ChartEntry & { id: string; name: string } =>
