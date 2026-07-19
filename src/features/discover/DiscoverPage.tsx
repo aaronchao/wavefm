@@ -5,6 +5,7 @@ import { useState } from "react";
 import { defaultTopics } from "@/src/core/recommend";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
 import { useSession } from "@/src/state/useSession";
+import { ChineseCharts } from "./ChineseCharts";
 import { RankedRecs } from "./RankedRecs";
 import { SavedRails } from "./SavedRails";
 import { TrendingShelf } from "./TrendingShelf";
@@ -74,6 +75,8 @@ export function DiscoverPage() {
       </div>
 
       <RankedRecs seedIds={seedIds} topic={topic} savedReady={savedQ.isSuccess} />
+
+      <ChineseCharts />
 
       <SavedRails saved={saved} />
 

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import {
+  detectLang,
   queryTermsForShow,
   rankSimilar,
+  shouldLanguageFilter,
   type SimilarItemInput,
 } from "@/src/core/recommend";
 import { xyzrankBuzz } from "@/src/data/buzz/xyzrank";
@@ -41,11 +43,19 @@ export async function GET(request: Request) {
   const topicQuery = queryTermsForShow(seed, 5).join(" ") || seed.title;
   const categoryQuery = seed.categories[0];
 
-  const [byTopic, byCategory, byPi, episodeResults, chartRanks, trendRanks] =
+  // keep recs in the seed's language (RECS_FIRST): a Chinese show should
+  // surface Chinese neighbours, not the English chart. For a CJK seed we
+  // also pull the matching storefront to widen the same-language pool.
+  const seedLang = detectLang(`${seed.title} ${seed.description ?? ""}`);
+  const languageLocked = shouldLanguageFilter(seedLang);
+  const storefront = seedLang === "zh" ? "cn" : seedLang === "ja" ? "jp" : seedLang === "ko" ? "kr" : undefined;
+
+  const [byTopic, byCategory, byPi, byStorefront, episodeResults, chartRanks, trendRanks] =
     await Promise.all([
       itunesSearch(topicQuery),
       categoryQuery ? itunesSearch(categoryQuery) : Promise.resolve(null),
       piSearch(topicQuery),
+      storefront ? itunesSearch(topicQuery, storefront) : Promise.resolve(null),
       itunesEpisodeSearch(topicQuery),
       itunesTopChartRanks(),
       piTrendingRanks(),
@@ -57,13 +67,27 @@ export async function GET(request: Request) {
 
   // dedupe candidate shows by id, first source wins (iTunes topical first)
   const showById = new Map<string, CatalogShow>();
-  for (const s of [...(byTopic ?? []), ...(byCategory ?? []), ...(byPi ?? [])]) {
+  for (const s of [
+    ...(byTopic ?? []),
+    ...(byStorefront ?? []),
+    ...(byCategory ?? []),
+    ...(byPi ?? []),
+  ]) {
     if (!showById.has(s.id)) showById.set(s.id, s);
   }
 
+  // drop cross-language candidates for a CJK seed; never empty the pool —
+  // if nothing matches, fall back to the unfiltered set
+  const inLanguage = (title: string, description?: string) =>
+    !languageLocked || detectLang(`${title} ${description ?? ""}`) === seedLang;
+
+  const allShows = [...showById.values()];
+  const langShows = allShows.filter((s) => inLanguage(s.title, s.description));
+  const showPool = langShows.length > 0 ? langShows : allShows;
+
   // 中文播客榜 buzz is one cached index fetch — cheap enough for all
   const showCandidates: SimilarItemInput[] = await Promise.all(
-    [...showById.values()].map(async (s) => ({
+    showPool.map(async (s) => ({
       id: s.id,
       title: s.title,
       description: s.description,
@@ -81,9 +105,12 @@ export async function GET(request: Request) {
     if (!episodeById.has(e.id)) episodeById.set(e.id, e);
   }
 
-  const episodeCandidates: SimilarItemInput[] = [...episodeById.values()]
+  const allEps = [...episodeById.values()].filter((e) => e.showId !== seed.id);
+  const langEps = allEps.filter((e) => inLanguage(e.title, e.description));
+  const episodePool = langEps.length > 0 ? langEps : allEps;
+
+  const episodeCandidates: SimilarItemInput[] = episodePool
     // episodes of the seed show itself aren't "similar content"
-    .filter((e) => e.showId !== seed.id)
     .map((e) => ({
       id: e.id,
       title: e.title,

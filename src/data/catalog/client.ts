@@ -2,6 +2,7 @@ import type {
   CatalogSearchResponse,
   CatalogShow,
   CatalogShowResponse,
+  ChineseChartsResponse,
   EpisodesRankedResponse,
   PreviewEpisode,
   PreviewResponse,
@@ -70,6 +71,17 @@ export async function getRankedEpisodes(id: string): Promise<RankedEpisodeItem[]
     return asArray<RankedEpisodeItem>(json.episodes);
   } catch {
     return [];
+  }
+}
+
+export async function getChineseCharts(limit = 24): Promise<ChineseChartsResponse> {
+  try {
+    const res = await fetch(`/api/catalog/charts/chinese?limit=${limit}`);
+    if (!res.ok) return { shows: [], degraded: true };
+    const json = (await res.json()) as Partial<ChineseChartsResponse>;
+    return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
+  } catch {
+    return { shows: [], degraded: true };
   }
 }
 

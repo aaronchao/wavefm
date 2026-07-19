@@ -97,8 +97,12 @@ async function itunesFetch(url: string): Promise<ItunesResult[] | null> {
   }
 }
 
-export async function itunesSearch(q: string): Promise<CatalogShow[] | null> {
-  const url = `https://itunes.apple.com/search?media=podcast&limit=25&term=${encodeURIComponent(q)}`;
+export async function itunesSearch(
+  q: string,
+  country?: string,
+): Promise<CatalogShow[] | null> {
+  const cc = country ? `&country=${encodeURIComponent(country)}` : "";
+  const url = `https://itunes.apple.com/search?media=podcast&limit=25${cc}&term=${encodeURIComponent(q)}`;
   const results = await itunesFetch(url);
   if (results === null) return null;
   return results.map(mapItunes).filter((s): s is CatalogShow => s !== null);

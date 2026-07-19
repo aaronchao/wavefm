@@ -65,6 +65,12 @@ export type TopPicksResponse = {
   degraded: boolean;
 };
 
+/** Response of /api/catalog/charts/chinese — 中文播客榜, ranked top to bottom. */
+export type ChineseChartsResponse = {
+  shows: SimilarShow[];
+  degraded: boolean;
+};
+
 /** One ranked episode of a show (for the discovery "top episodes" list). */
 export type RankedEpisodeItem = {
   id: string;

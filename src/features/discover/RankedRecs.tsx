@@ -132,7 +132,7 @@ function HeroCard({ pick }: { pick: SimilarShow }) {
 }
 
 /** One ranked recommendation, openable into its episodes. */
-function RankedRow({ pick, rank }: { pick: SimilarShow; rank: number }) {
+export function RankedRow({ pick, rank }: { pick: SimilarShow; rank: number }) {
   const saved = useSavedToggle(pick);
   return (
     <li className="rounded-card border border-surface-border bg-background p-3 shadow-sm">

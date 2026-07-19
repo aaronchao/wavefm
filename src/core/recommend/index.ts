@@ -28,6 +28,8 @@ export { rankEpisodes } from "./episodes";
 export type { EpisodeInput, RankedEpisode, EpisodeBasis } from "./episodes";
 export { topPicks } from "./topPicks";
 export type { TopPick, TopPicksInput } from "./topPicks";
+export { detectLang, sameLanguage, shouldLanguageFilter } from "./language";
+export type { Lang } from "./language";
 
 export type RecommendInput = {
   /** Shows to rank (from catalog search / trending / seeds). */

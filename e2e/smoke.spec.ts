@@ -124,3 +124,64 @@ test("discover ranks recommendations and opens a show's episodes", async ({ page
   await expect(page.getByText("The one everyone argues about")).toBeVisible();
   await expect(page.getByText("Most discussed · 40 Reddit threads")).toBeVisible();
 });
+
+test("show detail lists the show's own top episodes", async ({ page }) => {
+  await stub(page);
+  await page.route("**/api/catalog/show**", (r) =>
+    r.fulfill({
+      json: {
+        show: show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"], {
+          feedUrl: "https://feeds/x",
+        }),
+      },
+    }),
+  );
+  await page.route("**/api/catalog/episodes-ranked**", (r) =>
+    r.fulfill({
+      json: {
+        episodes: [
+          {
+            id: "e1",
+            title: "Attachment styles deep-dive",
+            audioUrl: "https://cdn/e1.mp3",
+            durationSec: 2400,
+            basis: "discussion",
+            why: "Most discussed · 40 Reddit threads",
+          },
+        ],
+        degraded: false,
+      },
+    }),
+  );
+
+  await page.goto("/show/222");
+  await expect(page.getByRole("heading", { name: "Psychology In Seattle" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Top episodes" })).toBeVisible();
+  await expect(page.getByText("Attachment styles deep-dive")).toBeVisible();
+});
+
+test("discover surfaces the 中文播客榜 Chinese charts", async ({ page }) => {
+  await stub(page);
+  await page.route("**/api/catalog/charts/chinese**", (r) =>
+    r.fulfill({
+      json: {
+        shows: [
+          show("900", "故事FM", "寇爱哲", ["Society & Culture"], {
+            why: "#1 on 中文播客榜 · 12w subscribers",
+          }),
+        ],
+        degraded: false,
+      },
+    }),
+  );
+
+  await page.goto("/discover");
+  await expect(page.getByRole("heading", { name: "中文播客榜" })).toBeVisible();
+  await expect(page.getByText("故事FM")).toBeVisible();
+});
+
+test("library offers an OPML export", async ({ page }) => {
+  await stub(page);
+  await page.goto("/library");
+  await expect(page.getByRole("button", { name: "Export OPML" })).toBeVisible();
+});

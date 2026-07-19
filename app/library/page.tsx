@@ -11,6 +11,7 @@ import {
   type SavedEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
 import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
+import { ExportOpmlButton } from "@/src/features/library/ExportOpmlButton";
 import { previewEpisode, previewShow } from "@/src/features/player/preview";
 import { useSession } from "@/src/state/useSession";
 import { Chip, CoverTile, PlayableCard } from "@/src/ui";
@@ -26,9 +27,13 @@ export default function LibraryPage() {
 
   return (
     <main className="mx-auto w-full max-w-2xl p-4 pb-40 sm:p-8 sm:pb-40">
-      <h1 className="mb-1 text-2xl font-bold">Library</h1>
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Library</h1>
+        <ExportOpmlButton />
+      </div>
       <p className="mb-4 text-zinc-500">
         Shows you follow and episodes queued for later — synced when signed in.
+        Export any time to take them elsewhere.
       </p>
       <div className="mb-5 flex gap-2">
         <Chip active={tab === "shows"} onClick={() => setTab("shows")}>
