@@ -34,6 +34,19 @@ const TOPICS = defaultTopics();
 const CN_TOPICS = ["商业", "科技", "文化", "历史", "情感", "悬疑", "喜剧", "读书", "新闻", "生活"];
 
 /**
+ * Mood entry points — discovery by feeling, not genre. Each `query` is a
+ * bilingual bag of terms that lenses the search + filtering underneath.
+ */
+const MOODS: { emoji: string; label: string; query: string }[] = [
+  { emoji: "😂", label: "make me laugh", query: "comedy 搞笑" },
+  { emoji: "🤯", label: "blow my mind", query: "science 脑洞" },
+  { emoji: "☕", label: "cozy", query: "cozy 治愈" },
+  { emoji: "🥊", label: "a good debate", query: "debate 辩论" },
+  { emoji: "😢", label: "cry a little", query: "emotional 情感" },
+  { emoji: "🕳️", label: "rabbit hole", query: "history 深度" },
+];
+
+/**
  * Discover: the ranked, discussion-first exploration surface. Recommended
  * shows are ordered top to bottom; one click plays a random middle section
  * of the show's most-talked-about episode. Open a show to see its episodes
@@ -62,22 +75,40 @@ export function DiscoverPage() {
         </div>
         <h1 className="font-brand mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Discover</h1>
         <p className="mt-2 max-w-lg text-zinc-500">
-          Ranked by the discussion behind them. One tap plays the middle of the
-          episode people actually talk about — no intros, no ads.
+          Chosen by real people — <span className="text-foreground">Reddit · 豆瓣 · V2EX · 小宇宙</span>,
+          not the charts. One tap plays the bit they actually argue about.
         </p>
       </div>
 
+      {/* Mood lens — start from a feeling */}
+      <div className="mb-6">
+        <MachineLabel>How do you want to feel?</MachineLabel>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {MOODS.map((m) => (
+            <TopicChip
+              key={m.label}
+              label={`${m.emoji} ${m.label}`}
+              active={topic === m.query}
+              onClick={() => setTopic((cur) => (cur === m.query ? null : m.query))}
+            />
+          ))}
+        </div>
+      </div>
+
       {/* Topic lens — English + 中文 */}
-      <div className="mb-8 flex flex-wrap gap-2">
-        <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
-        {[...TOPICS, ...CN_TOPICS].map((t) => (
-          <TopicChip
-            key={t}
-            label={t}
-            active={topic === t}
-            onClick={() => setTopic((cur) => (cur === t ? null : t))}
-          />
-        ))}
+      <div className="mb-8">
+        <MachineLabel>Or pick a topic</MachineLabel>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
+          {[...TOPICS, ...CN_TOPICS].map((t) => (
+            <TopicChip
+              key={t}
+              label={t}
+              active={topic === t}
+              onClick={() => setTopic((cur) => (cur === t ? null : t))}
+            />
+          ))}
+        </div>
       </div>
 
       {/* The payoff: today's picks, several at a glance, each with its reason */}
