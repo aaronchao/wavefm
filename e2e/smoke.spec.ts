@@ -152,6 +152,28 @@ test("discover ranks recommendations and opens a show's episodes", async ({ page
   ).toBeVisible();
 });
 
+test("Surprise-me deck lets you keep a show", async ({ page }) => {
+  const RANKED_PICKS = {
+    picks: [
+      show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"], {
+        why: "Talked about on Reddit (12 threads)",
+      }),
+      show("333", "Where Should We Begin", "Esther Perel", ["Society & Culture"], {
+        why: "Under the radar · Discussed on V2EX (4 threads)",
+      }),
+    ],
+    degraded: false,
+  };
+  await stub(page, { topPicks: RANKED_PICKS });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Surprise me/ }).first().click();
+  await expect(page.getByText("Swipe → keep · ← skip")).toBeVisible();
+  // keep it -> the "Done · 1 saved" counter reflects the save
+  await page.getByRole("button", { name: "Keep" }).click();
+  await expect(page.getByText(/1 saved/)).toBeVisible();
+});
+
 test("show detail lists the show's own top episodes", async ({ page }) => {
   await stub(page);
   await page.route("**/api/catalog/show**", (r) =>

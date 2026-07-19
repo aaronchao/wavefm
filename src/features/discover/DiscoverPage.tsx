@@ -8,6 +8,7 @@ import { useSession } from "@/src/state/useSession";
 import { Charts } from "./Charts";
 import { RankedRecs } from "./RankedRecs";
 import { SavedRails } from "./SavedRails";
+import { SurpriseDeck } from "./SurpriseDeck";
 import { TodaysPicks } from "./TodaysPicks";
 import { TrendingShelf } from "./TrendingShelf";
 import { useDiscoverPicks } from "./useDiscoverPicks";
@@ -62,11 +63,13 @@ export function DiscoverPage() {
   const seedIds = saved.slice(0, 4).map((s) => s.show.id);
 
   const [topic, setTopic] = useState<string | null>(null);
+  const [deckOpen, setDeckOpen] = useState(false);
   const picks = useDiscoverPicks({ seedIds, topic, savedReady: savedQ.isSuccess });
   const heroPicks = picks.hero ? [picks.hero, ...picks.rest] : [];
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-44 pt-6 sm:px-8">
+      {deckOpen && <SurpriseDeck picks={heroPicks} onClose={() => setDeckOpen(false)} />}
       {/* Masthead */}
       <div className="mb-8 border-b border-surface-border pb-6">
         <div className="flex items-center gap-2">
@@ -78,6 +81,14 @@ export function DiscoverPage() {
           Chosen by real people — <span className="text-foreground">Reddit · 豆瓣 · V2EX · 小宇宙</span>,
           not the charts. One tap plays the bit they actually argue about.
         </p>
+        <button
+          type="button"
+          onClick={() => setDeckOpen(true)}
+          disabled={heroPicks.length === 0}
+          className="font-brand mt-4 rounded-pill bg-accent px-5 py-2.5 text-sm uppercase tracking-wider text-white shadow-sm transition-transform hover:shadow-md active:scale-95 disabled:opacity-40"
+        >
+          ⤮ Surprise me
+        </button>
       </div>
 
       {/* Mood lens — start from a feeling */}
