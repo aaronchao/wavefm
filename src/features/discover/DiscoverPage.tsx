@@ -5,10 +5,12 @@ import { useState } from "react";
 import { defaultTopics } from "@/src/core/recommend";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
 import { useSession } from "@/src/state/useSession";
-import { ChineseCharts } from "./ChineseCharts";
+import { Charts } from "./Charts";
+import { ForYouHero } from "./ForYouHero";
 import { RankedRecs } from "./RankedRecs";
 import { SavedRails } from "./SavedRails";
 import { TrendingShelf } from "./TrendingShelf";
+import { useDiscoverPicks } from "./useDiscoverPicks";
 
 /** Monospace "machine" micro-label — the Nothing-brand technical voice. */
 export function MachineLabel({
@@ -45,6 +47,8 @@ export function DiscoverPage() {
   const seedIds = saved.slice(0, 4).map((s) => s.show.id);
 
   const [topic, setTopic] = useState<string | null>(null);
+  const picks = useDiscoverPicks({ seedIds, topic, savedReady: savedQ.isSuccess });
+  const heroPicks = picks.hero ? [picks.hero, ...picks.rest] : [];
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-44 pt-6 sm:px-8">
@@ -74,9 +78,20 @@ export function DiscoverPage() {
         ))}
       </div>
 
-      <RankedRecs seedIds={seedIds} topic={topic} savedReady={savedQ.isSuccess} />
+      {/* The payoff: one great pick, researched for you */}
+      <ForYouHero key={topic ?? "all"} picks={heroPicks} />
 
-      <ChineseCharts />
+      {/* Charts up top for visibility — the crowd's leaderboards */}
+      <Charts />
+
+      {/* The rest of the personalized ranking */}
+      <RankedRecs
+        rest={picks.rest}
+        count={picks.count}
+        topic={topic}
+        topicApplied={picks.topicApplied}
+        isLoading={picks.isLoading}
+      />
 
       <SavedRails saved={saved} />
 

@@ -160,7 +160,7 @@ test("show detail lists the show's own top episodes", async ({ page }) => {
   await expect(page.getByText("Attachment styles deep-dive")).toBeVisible();
 });
 
-test("discover surfaces the 中文播客榜 Chinese charts", async ({ page }) => {
+test("discover surfaces the 中文播客榜 chart in the Charts block", async ({ page }) => {
   await stub(page);
   await page.route("**/api/catalog/charts/chinese**", (r) =>
     r.fulfill({
@@ -176,8 +176,31 @@ test("discover surfaces the 中文播客榜 Chinese charts", async ({ page }) =>
   );
 
   await page.goto("/discover");
-  await expect(page.getByRole("heading", { name: "中文播客榜" })).toBeVisible();
+  // Charts block is present with the 中文播客榜 tab active by default
+  await expect(page.getByRole("heading", { name: "Charts" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "中文播客榜" })).toBeVisible();
   await expect(page.getByText("故事FM")).toBeVisible();
+});
+
+test("discover Global chart tab ranks by community + metrics", async ({ page }) => {
+  await stub(page);
+  await page.route("**/api/catalog/charts/global**", (r) =>
+    r.fulfill({
+      json: {
+        shows: [
+          show("910", "Radiolab", "WNYC", ["Science"], {
+            why: "Buzzing on Reddit · 3.4k threads",
+          }),
+        ],
+        degraded: false,
+      },
+    }),
+  );
+
+  await page.goto("/discover");
+  await page.getByRole("button", { name: "Global" }).click();
+  await expect(page.getByText("Radiolab")).toBeVisible();
+  await expect(page.getByText("Buzzing on Reddit · 3.4k threads")).toBeVisible();
 });
 
 test("library offers an OPML export", async ({ page }) => {

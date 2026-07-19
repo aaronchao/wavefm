@@ -4,6 +4,7 @@ import type {
   CatalogShowResponse,
   ChineseChartsResponse,
   EpisodesRankedResponse,
+  GlobalChartsResponse,
   PreviewEpisode,
   PreviewResponse,
   RankedEpisodeItem,
@@ -79,6 +80,17 @@ export async function getChineseCharts(limit = 24): Promise<ChineseChartsRespons
     const res = await fetch(`/api/catalog/charts/chinese?limit=${limit}`);
     if (!res.ok) return { shows: [], degraded: true };
     const json = (await res.json()) as Partial<ChineseChartsResponse>;
+    return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
+  } catch {
+    return { shows: [], degraded: true };
+  }
+}
+
+export async function getGlobalCharts(limit = 24): Promise<GlobalChartsResponse> {
+  try {
+    const res = await fetch(`/api/catalog/charts/global?limit=${limit}`);
+    if (!res.ok) return { shows: [], degraded: true };
+    const json = (await res.json()) as Partial<GlobalChartsResponse>;
     return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
   } catch {
     return { shows: [], degraded: true };

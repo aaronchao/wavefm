@@ -71,6 +71,12 @@ export type ChineseChartsResponse = {
   degraded: boolean;
 };
 
+/** Response of /api/catalog/charts/global — English/Global chart, ranked. */
+export type GlobalChartsResponse = {
+  shows: SimilarShow[];
+  degraded: boolean;
+};
+
 /** One ranked episode of a show (for the discovery "top episodes" list). */
 export type RankedEpisodeItem = {
   id: string;
