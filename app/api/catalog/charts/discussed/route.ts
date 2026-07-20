@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { rankByDiscussion, topPicks, type SimilarItemInput } from "@/src/core/recommend";
 import { dcardDiscussion } from "@/src/data/buzz/dcard";
+import {
+  doubanGroupDiscussion,
+  lihkgDiscussion,
+  pttDiscussion,
+} from "@/src/data/buzz/forums";
 import { listenNotesBuzz } from "@/src/data/buzz/listennotes";
 import { normalizeForMatch } from "@/src/data/buzz/match";
 import { redditDiscussion } from "@/src/data/buzz/reddit";
@@ -72,7 +77,7 @@ export async function GET(request: Request) {
     for (const s of resolved) if (s && !showById.has(s.id)) showById.set(s.id, s);
   }
 
-  const pool = [...showById.values()].slice(0, 20);
+  const pool = [...showById.values()].slice(0, 16);
   if (pool.length === 0) {
     const empty: DiscussedChartsResponse = { shows: [], degraded: true };
     return NextResponse.json(empty, { status: 200 });
@@ -81,19 +86,26 @@ export async function GET(request: Request) {
   const evidenceById = new Map<string, EvidenceItem[]>();
   const candidates: SimilarItemInput[] = await Promise.all(
     pool.map(async (s) => {
-      const [xyzBuzz, reddit, v2ex, dcard, xiaoyuzhou, listen] = await Promise.all([
-        xyzrankBuzz(s.title),
-        redditDiscussion(s.title),
-        v2exDiscussion(s.title),
-        dcardDiscussion(s.title),
-        xiaoyuzhouBuzz(s.title),
-        listenNotesBuzz(s.title),
-      ]);
+      const [xyzBuzz, reddit, v2ex, dcard, ptt, lihkg, douban, xiaoyuzhou, listen] =
+        await Promise.all([
+          xyzrankBuzz(s.title),
+          redditDiscussion(s.title),
+          v2exDiscussion(s.title),
+          dcardDiscussion(s.title),
+          pttDiscussion(s.title),
+          lihkgDiscussion(s.title),
+          doubanGroupDiscussion(s.title),
+          xiaoyuzhouBuzz(s.title),
+          listenNotesBuzz(s.title),
+        ]);
       const evidence = [
         ...(reddit?.evidence ?? []),
-        ...(v2ex?.evidence ?? []),
+        ...(douban?.evidence ?? []),
         ...(dcard?.evidence ?? []),
-      ].slice(0, 3);
+        ...(ptt?.evidence ?? []),
+        ...(lihkg?.evidence ?? []),
+        ...(v2ex?.evidence ?? []),
+      ].slice(0, 4);
       if (evidence.length > 0) evidenceById.set(s.id, evidence);
       return {
         id: s.id,
@@ -104,20 +116,36 @@ export async function GET(request: Request) {
         episodeCount: s.episodeCount,
         chartRank: chartRanks?.get(s.id),
         trendRank: trendRanks?.get(s.id),
-        buzz: mergeBuzz(xyzBuzz, listen, xiaoyuzhou, dcard?.buzz, v2ex?.buzz, reddit?.buzz),
+        buzz: mergeBuzz(
+          xyzBuzz,
+          listen,
+          xiaoyuzhou,
+          douban?.buzz,
+          dcard?.buzz,
+          ptt?.buzz,
+          lihkg?.buzz,
+          v2ex?.buzz,
+          reddit?.buzz,
+        ),
       };
     }),
   );
 
   // discussion-first; if no discussion signal is reachable at all, fall back
-  // to the quality ranker over the non-chart pool so the board still fills
+  // to the quality ranker (off-chart preferred, but never an empty board)
   const discussed = rankByDiscussion({ saved: [], candidates, limit });
-  const rows =
+  const quality = topPicks({ saved: [], candidates, limit });
+  const offChart = quality.filter(
+    (p) => p.item.chartRank == null && p.item.trendRank == null,
+  );
+  const rows = (
     discussed.length > 0
       ? discussed.map((p) => ({ id: p.item.id, why: p.why }))
-      : topPicks({ saved: [], candidates, limit })
-          .filter((p) => p.item.chartRank == null && p.item.trendRank == null)
-          .map((p) => ({ id: p.item.id, why: p.why }));
+      : (offChart.length > 0 ? offChart : quality).map((p) => ({
+          id: p.item.id,
+          why: p.why,
+        }))
+  );
 
   const response: DiscussedChartsResponse = {
     shows: rows.map((r) => ({

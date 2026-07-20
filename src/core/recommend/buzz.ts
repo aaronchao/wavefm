@@ -16,6 +16,12 @@ export type BuzzInput = {
   v2exMentions?: number;
   /** Dcard posts mentioning the show (Taiwanese social forum). */
   dcardMentions?: number;
+  /** PTT (批踢踢) posts mentioning the show. */
+  pttMentions?: number;
+  /** LIHKG (連登) threads mentioning the show. */
+  lihkgMentions?: number;
+  /** 豆瓣小组 topics mentioning the show. */
+  doubanMentions?: number;
   /** 1-based rank on 中文播客榜 (xyzrank) popular podcasts. */
   xyzrankRank?: number;
   /** 小宇宙 stats, when available (xyzrank payloads or env-gated API). */
@@ -51,6 +57,9 @@ function discussionParts(b: BuzzInput): number[] {
   }
   if (b.v2exMentions != null) discussion.push(logScale(b.v2exMentions, 1.5)); // ~30 threads -> 1
   if (b.dcardMentions != null) discussion.push(logScale(b.dcardMentions, 1.5));
+  if (b.pttMentions != null) discussion.push(logScale(b.pttMentions, 1.5));
+  if (b.lihkgMentions != null) discussion.push(logScale(b.lihkgMentions, 1.5));
+  if (b.doubanMentions != null) discussion.push(logScale(b.doubanMentions, 1.5));
   if (b.comments != null) discussion.push(logScale(b.comments, 4)); // 小宇宙 comments
   return discussion;
 }
@@ -106,6 +115,15 @@ export function buzzWhy(b: BuzzInput | undefined): string | null {
   }
   if ((b.dcardMentions ?? 0) >= 3) {
     return `Discussed on Dcard (${b.dcardMentions} posts)`;
+  }
+  if ((b.doubanMentions ?? 0) >= 3) {
+    return `聊过 on 豆瓣小组 (${b.doubanMentions} topics)`;
+  }
+  if ((b.pttMentions ?? 0) >= 3) {
+    return `Discussed on PTT (${b.pttMentions} posts)`;
+  }
+  if ((b.lihkgMentions ?? 0) >= 3) {
+    return `熱議 on LIHKG (${b.lihkgMentions} threads)`;
   }
   if ((b.comments ?? 0) >= 500) {
     return `Lively comments on 小宇宙`;

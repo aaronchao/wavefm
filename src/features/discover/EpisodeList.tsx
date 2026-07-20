@@ -1,9 +1,14 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { getRankedEpisodes } from "@/src/data/catalog/client";
 import type { RankedEpisodeItem, SimilarShow } from "@/src/data/catalog/types";
+import {
+  isEpisodeSaved,
+  removeEpisode,
+  saveEpisode,
+} from "@/src/data/repos/savedEpisodesRepo";
 import { previewRankedEpisode } from "@/src/features/player/preview";
 
 const BASIS_LABEL: Record<RankedEpisodeItem["basis"], string> = {
@@ -63,6 +68,38 @@ function EpisodeRow({
   rank: number;
   show: SimilarShow;
 }) {
+  const queryClient = useQueryClient();
+  const [queued, setQueued] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void isEpisodeSaved(ep.id).then((v) => !cancelled && setQueued(v));
+    return () => {
+      cancelled = true;
+    };
+  }, [ep.id]);
+
+  // ONE_CLICK: queue this top episode straight into the Library
+  function toggleLater() {
+    const next = !queued;
+    setQueued(next);
+    void (next
+      ? saveEpisode({
+          id: ep.id,
+          title: ep.title,
+          showId: show.id,
+          showTitle: show.title,
+          coverUrl: show.coverUrl,
+          appleUrl: show.appleUrl,
+          audioUrl: ep.audioUrl,
+          durationSec: ep.durationSec,
+          publishedAt: ep.publishedAt,
+          categories: [],
+        })
+      : removeEpisode(ep.id)
+    ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
+  }
+
   return (
     <li className="flex items-center gap-2.5 rounded-tile px-2 py-1.5 hover:bg-surface">
       <span className="w-5 shrink-0 text-center font-mono text-xs tabular-nums text-zinc-400">
@@ -89,6 +126,18 @@ function EpisodeRow({
         className="shrink-0 rounded-full border border-surface-border px-2.5 py-1 text-xs font-medium text-zinc-500 transition-colors hover:border-accent hover:text-accent disabled:opacity-30"
       >
         ▶
+      </button>
+      <button
+        type="button"
+        onClick={() => toggleLater()}
+        aria-label={queued ? `Remove ${ep.title} from Later` : `Save ${ep.title} for later`}
+        className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+          queued
+            ? "border-accent bg-accent-soft text-accent"
+            : "border-surface-border text-zinc-500 hover:border-accent hover:text-accent"
+        }`}
+      >
+        {queued ? "✓" : "+ Later"}
       </button>
     </li>
   );

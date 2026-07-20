@@ -72,8 +72,13 @@ export async function GET(request: Request) {
   });
 
   const ranked = topPicks({ saved: [], candidates, limit });
+  // This board IS 小宇宙 — the "why" speaks 小宇宙, never "#x on Apple charts"
+  // (the Apple CN chart is only the reliability backbone underneath).
   const response: ChineseChartsResponse = {
-    shows: ranked.map((p) => ({ ...showById.get(p.item.id)!, why: p.why })),
+    shows: ranked.map((p) => ({
+      ...showById.get(p.item.id)!,
+      why: xiaoyuzhouWhy(p.item.buzz),
+    })),
     degraded: false,
   };
   return NextResponse.json(response, {
@@ -81,6 +86,22 @@ export async function GET(request: Request) {
       "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=172800",
     },
   });
+}
+
+function compact(n: number): string {
+  if (n >= 10000) return `${(n / 10000).toFixed(n >= 100000 ? 0 : 1)}w`; // 万
+  if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
+  return String(n);
+}
+
+/** 小宇宙-native reason line for a board row. */
+function xiaoyuzhouWhy(b: SimilarItemInput["buzz"]): string {
+  const bits: string[] = [];
+  if (b?.xyzrankRank != null) bits.push(`#${b.xyzrankRank} on 小宇宙`);
+  if (b?.subscribers != null) bits.push(`${compact(b.subscribers)} subscribers`);
+  else if (b?.comments != null) bits.push(`${compact(b.comments)} comments`);
+  else if (b?.plays != null) bits.push(`${compact(b.plays)} plays`);
+  return bits.length > 0 ? bits.join(" · ") : "热门中文播客";
 }
 
 /** Resolve a 中文播客榜 title to a CN-storefront catalog show, if it exists. */

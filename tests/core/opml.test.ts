@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOpml, parseOpml } from "@/src/core/opml";
+import { buildOpml, parseOpml, stableFeedId } from "@/src/core/opml";
 
 describe("buildOpml", () => {
   it("emits a valid OPML 2.0 outline per feed", () => {
@@ -38,6 +38,15 @@ describe("buildOpml", () => {
   });
 });
 
+describe("stableFeedId", () => {
+  it("is deterministic, url-shape-insensitive, and rss-prefixed", () => {
+    expect(stableFeedId("https://f/x")).toBe(stableFeedId("https://f/x"));
+    expect(stableFeedId("https://F/X ")).toBe(stableFeedId("https://f/x"));
+    expect(stableFeedId("https://f/x")).toMatch(/^rss-[a-z0-9]+$/);
+    expect(stableFeedId("https://f/x")).not.toBe(stableFeedId("https://f/y"));
+  });
+});
+
 describe("parseOpml", () => {
   it("extracts every feed outline, nested or flat, and decodes entities", () => {
     const xml = `<?xml version="1.0"?>
@@ -59,6 +68,20 @@ describe("parseOpml", () => {
     expect(parseOpml(xml)).toHaveLength(1);
     expect(parseOpml("not xml at all")).toEqual([]);
     expect(parseOpml("")).toEqual([]);
+  });
+
+  it("handles 小宇宙-style outlines: name in title, multi-line description in text", () => {
+    const xml = `<opml version="2.0"><body>
+      <outline title="击剑俱乐部" text="网罗大同故事，把握圈内趋势
+观点锐利交锋
+
+" xmlUrl="https://feed.xyzfm.space/a9vyu4q9fb6v" type="rss"/>
+    </body></opml>`;
+    const feeds = parseOpml(xml);
+    expect(feeds).toHaveLength(1);
+    expect(feeds[0].title).toBe("击剑俱乐部"); // NOT the description
+    expect(feeds[0].description).toContain("网罗大同故事");
+    expect(feeds[0].feedUrl).toBe("https://feed.xyzfm.space/a9vyu4q9fb6v");
   });
 
   it("round-trips with buildOpml", () => {

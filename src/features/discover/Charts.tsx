@@ -59,7 +59,7 @@ export function Charts() {
   if (allSettledEmpty) return null;
 
   return (
-    <section className="mb-12">
+    <section>
       <div className="mb-1 flex items-baseline gap-2">
         <h2 className="font-brand text-lg font-semibold">Charts</h2>
         <MachineLabel>ranked by the crowd, not the charts</MachineLabel>

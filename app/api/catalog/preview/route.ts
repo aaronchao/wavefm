@@ -12,13 +12,18 @@ import type { PreviewResponse } from "@/src/data/catalog/types";
  * Anything missing -> { episodes: [] }, never an error.
  */
 export async function GET(request: Request) {
-  const id = new URL(request.url).searchParams.get("id")?.trim() ?? "";
-  if (!id) {
+  const params = new URL(request.url).searchParams;
+  const id = params.get("id")?.trim() ?? "";
+  // feed-only shows (OPML imports, `rss-` ids) aren't in any catalog —
+  // the client sends their feed URL along so previews still work
+  const feedUrlParam = params.get("feedUrl")?.trim();
+  if (!id && !feedUrlParam) {
     return NextResponse.json({ error: "missing id" }, { status: 400 });
   }
 
-  const show = await lookupShow(id);
-  const episodes = show?.feedUrl ? await episodesFromRss(show.feedUrl, 10) : [];
+  const show = id && !id.startsWith("rss-") ? await lookupShow(id) : null;
+  const feedUrl = show?.feedUrl ?? feedUrlParam;
+  const episodes = feedUrl ? await episodesFromRss(feedUrl, 10) : [];
 
   const response: PreviewResponse = {
     episodes: episodes.map((e) => ({

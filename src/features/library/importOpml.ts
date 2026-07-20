@@ -1,6 +1,6 @@
 "use client";
 
-import { parseOpml } from "@/src/core/opml";
+import { parseOpml, stableFeedId, type OpmlFeed } from "@/src/core/opml";
 import { searchShows } from "@/src/data/catalog/client";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { saveShow } from "@/src/data/repos/savedShowsRepo";
@@ -8,12 +8,13 @@ import { saveShow } from "@/src/data/repos/savedShowsRepo";
 export type ImportResult = { imported: number; total: number };
 
 /**
- * Import a subscription list from an OPML file (exported from Pocket Casts,
- * Apple Podcasts, Overcast, AntennaPod…) and save every show that resolves
- * in our catalog. Saves go through the normal repo, so when the user is
- * signed in they land in Supabase and sync to every device on their own —
- * import once, and the list is just there everywhere. Best-effort per feed:
- * one that can't be resolved is skipped, never fails the whole import.
+ * Import a subscription list from an OPML file (Pocket Casts, Apple
+ * Podcasts, Overcast, 小宇宙…) — every feed is imported, no exceptions.
+ * We first try to match the feed to a catalog show (exact feed URL, then
+ * exact title) so imports get art/links; anything the catalog doesn't
+ * know (小宇宙-only shows, tiny indies) is saved directly from the feed
+ * itself as an `rss-` show — still playable via its RSS and exportable.
+ * Saves go through the normal repo, so signed-in users sync everywhere.
  */
 export async function importSubscriptionsOpml(file: File): Promise<ImportResult> {
   const feeds = parseOpml(await file.text());
@@ -23,25 +24,40 @@ export async function importSubscriptionsOpml(file: File): Promise<ImportResult>
   const BATCH = 5;
   for (let i = 0; i < feeds.length; i += BATCH) {
     const batch = feeds.slice(i, i + BATCH);
-    const shows = await Promise.all(batch.map((f) => resolveFeed(f.title, f.feedUrl)));
+    const shows = await Promise.all(batch.map((f) => resolveFeed(f)));
     for (const show of shows) {
-      if (show) {
-        await saveShow(show);
-        imported += 1;
-      }
+      await saveShow(show);
+      imported += 1;
     }
   }
   return { imported, total: feeds.length };
 }
 
 const canonical = (url?: string) => (url ?? "").replace(/\/+$/, "").toLowerCase();
+const norm = (t: string) => t.trim().toLowerCase();
 
 /**
- * Resolve an OPML entry to a catalog show: search by its title, then prefer
- * the result whose feed URL matches exactly (accurate), else the top hit.
+ * Resolve an OPML entry to a catalog show only on a CONFIDENT match
+ * (same feed URL, or same title) — a wrong show is worse than a plain
+ * feed. No match -> a feed-only show built from the OPML entry.
  */
-async function resolveFeed(title: string, feedUrl: string): Promise<CatalogShow | null> {
-  const { shows } = await searchShows(title);
-  if (shows.length === 0) return null;
-  return shows.find((s) => canonical(s.feedUrl) === canonical(feedUrl)) ?? shows[0];
+async function resolveFeed(feed: OpmlFeed): Promise<CatalogShow> {
+  const { shows } = await searchShows(feed.title);
+  const match =
+    shows.find((s) => canonical(s.feedUrl) === canonical(feed.feedUrl)) ??
+    shows.find((s) => norm(s.title) === norm(feed.title));
+  return match ?? rssShow(feed);
+}
+
+/** A show carried entirely by its RSS feed — no catalog entry needed. */
+function rssShow(feed: OpmlFeed): CatalogShow {
+  return {
+    id: stableFeedId(feed.feedUrl),
+    source: "rss",
+    title: feed.title,
+    author: "",
+    description: feed.description,
+    feedUrl: feed.feedUrl,
+    categories: [],
+  };
 }

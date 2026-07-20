@@ -10,6 +10,8 @@ export type OpmlFeed = {
   feedUrl: string;
   /** Optional human page (e.g. Apple Podcasts URL). */
   htmlUrl?: string;
+  /** Some exporters (小宇宙) put the show description in `text`. */
+  description?: string;
 };
 
 function esc(s: string): string {
@@ -56,13 +58,24 @@ export function parseOpml(xml: string): OpmlFeed[] {
     const feedUrl = (attrs.xmlurl ?? "").trim();
     if (!feedUrl || seen.has(feedUrl)) continue;
     seen.add(feedUrl);
-    feeds.push({
-      feedUrl,
-      title: attrs.text || attrs.title || feedUrl,
-      htmlUrl: attrs.htmlurl || undefined,
-    });
+    // Standard OPML puts the name in `text`; 小宇宙 puts the name in `title`
+    // and a long description in `text`. Prefer `title` so we never treat a
+    // paragraph as the show's name, and keep the description when it differs.
+    const title = (attrs.title || attrs.text || feedUrl).trim();
+    const description =
+      attrs.text && attrs.text.trim() !== title ? attrs.text.trim() : undefined;
+    feeds.push({ feedUrl, title, htmlUrl: attrs.htmlurl || undefined, description });
   }
   return feeds;
+}
+
+/** Deterministic id for a feed-only show ("rss-<hash>") — no catalog needed. */
+export function stableFeedId(feedUrl: string): string {
+  let h = 5381;
+  for (const ch of feedUrl.trim().toLowerCase()) {
+    h = ((h * 33) ^ ch.codePointAt(0)!) >>> 0;
+  }
+  return `rss-${h.toString(36)}`;
 }
 
 export function buildOpml(feeds: OpmlFeed[], title = "wavefm subscriptions"): string {

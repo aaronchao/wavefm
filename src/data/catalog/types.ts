@@ -1,8 +1,12 @@
 /** A show as returned by the catalog proxy (/api/catalog/*). */
 export type CatalogShow = {
-  /** iTunes collectionId as string, or `pi-<feedId>` for Podcast-Index-only shows. */
+  /**
+   * iTunes collectionId as string, `pi-<feedId>` for Podcast-Index-only
+   * shows, or `rss-<hash>` for feed-only shows (e.g. OPML imports that
+   * aren't in any catalog).
+   */
   id: string;
-  source: "itunes" | "podcastindex";
+  source: "itunes" | "podcastindex" | "rss";
   title: string;
   author: string;
   description?: string;
@@ -96,6 +100,22 @@ export type GlobalChartsResponse = {
 /** Response of /api/catalog/charts/discussed — community discussion chart. */
 export type DiscussedChartsResponse = {
   shows: SimilarShow[];
+  degraded: boolean;
+};
+
+/** One row of the hot-EPISODES board (小宇宙 play/comment data). */
+export type ChartEpisodeItem = {
+  id: string;
+  title: string;
+  showTitle?: string;
+  /** 小宇宙 episode page, when the board provides it. */
+  url?: string;
+  why: string;
+};
+
+/** Response of /api/catalog/charts/episodes — ranked hot episodes. */
+export type EpisodeChartsResponse = {
+  episodes: ChartEpisodeItem[];
   degraded: boolean;
 };
 

@@ -120,12 +120,15 @@ function ShowsTab() {
                   className="relative z-10 mt-1.5"
                 />
               </div>
-              <Link
-                href={`/show/${show.id}`}
-                className="relative z-10 shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-              >
-                Details →
-              </Link>
+              {/* feed-only imports have no catalog page to open */}
+              {show.source !== "rss" && (
+                <Link
+                  href={`/show/${show.id}`}
+                  className="relative z-10 shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                >
+                  Details →
+                </Link>
+              )}
               <Chip
                 onClick={() =>
                   void unsaveShow(show.id).then(() =>

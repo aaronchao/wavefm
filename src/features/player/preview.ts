@@ -16,7 +16,9 @@ import { player, type PreviewMeta } from "@/src/state/player";
  * blocked feed never turns into a dead click.
  */
 
-export function previewShow(show: Pick<CatalogShow, "id" | "title" | "coverUrl" | "appleUrl">) {
+export function previewShow(
+  show: Pick<CatalogShow, "id" | "title" | "coverUrl" | "appleUrl" | "feedUrl">,
+) {
   const meta: PreviewMeta = {
     title: show.title,
     coverUrl: show.coverUrl,
@@ -24,7 +26,8 @@ export function previewShow(show: Pick<CatalogShow, "id" | "title" | "coverUrl" 
     appleUrl: show.appleUrl,
   };
   player.startLoading(meta);
-  void getPreviewEpisodes(show.id).then((episodes) => {
+  // rss- shows aren't in any catalog — their feed URL rides along
+  void getPreviewEpisodes(show.id, show.feedUrl).then((episodes) => {
     if (episodes.length === 0) return player.fail(meta);
     const episode = episodes[pickIndex(episodes.length, Math.random())];
     player.play(

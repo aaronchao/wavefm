@@ -32,7 +32,10 @@ const SIMILAR = {
   degraded: false,
 };
 
-async function stub(page: Page, over: { topPicks?: { picks?: unknown[] } } = {}) {
+async function stub(
+  page: Page,
+  over: { topPicks?: { picks?: unknown[]; degraded?: boolean } } = {},
+) {
   await page.route("**/api/**", (r) => r.fulfill({ json: {} }));
   await page.route("**/api/catalog/search**", (r) => r.fulfill({ json: SEARCH }));
   await page.route("**/api/catalog/similar**", (r) => r.fulfill({ json: SIMILAR }));

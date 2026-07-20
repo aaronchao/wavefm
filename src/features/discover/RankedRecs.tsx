@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { SimilarShow } from "@/src/data/catalog/types";
 import { previewShowTopEpisodeMiddle } from "@/src/features/player/preview";
 import { Chip, CoverTile, SettleIn } from "@/src/ui";
@@ -65,10 +66,18 @@ export function RankedRow({ pick, rank }: { pick: SimilarShow; rank: number }) {
         <span className="w-8 shrink-0 text-center font-mono text-lg font-bold tabular-nums text-zinc-300 dark:text-zinc-600">
           {String(rank).padStart(2, "0")}
         </span>
-        <CoverTile src={pick.coverUrl} size={56} />
+        <Link href={`/show/${pick.id}`} className="shrink-0" aria-label={`Open ${pick.title}`}>
+          <CoverTile src={pick.coverUrl} size={56} />
+        </Link>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{pick.title}</p>
-          <p className="truncate text-sm text-zinc-500">{pick.author}</p>
+          {/* the title IS the door into the show — episodes, links, similar */}
+          <Link
+            href={`/show/${pick.id}`}
+            className="block truncate font-semibold hover:text-accent hover:underline underline-offset-2"
+          >
+            {pick.title}
+          </Link>
+          <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{pick.author}</p>
           <Evidence show={pick} className="mt-1" />
         </div>
         <button

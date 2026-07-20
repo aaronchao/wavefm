@@ -6,6 +6,7 @@ import { defaultTopics } from "@/src/core/recommend";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
 import { useSession } from "@/src/state/useSession";
 import { Charts } from "./Charts";
+import { EpisodeCharts } from "./EpisodeCharts";
 import { RankedRecs } from "./RankedRecs";
 import { SavedRails } from "./SavedRails";
 import { SurpriseDeck } from "./SurpriseDeck";
@@ -23,8 +24,17 @@ export function MachineLabel({
 }) {
   return (
     <span
-      className={`font-brand text-[11px] uppercase tracking-[0.22em] text-zinc-400 ${className}`}
+      className={`font-brand text-[11px] uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-300 ${className}`}
     >
+      {children}
+    </span>
+  );
+}
+
+/** High-contrast section heading (dot-matrix) — readable, not whispery. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="font-brand text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
       {children}
     </span>
   );
@@ -93,7 +103,7 @@ export function DiscoverPage() {
 
       {/* Mood lens — start from a feeling */}
       <div className="mb-6">
-        <MachineLabel>How do you want to feel?</MachineLabel>
+        <SectionLabel>How do you want to feel?</SectionLabel>
         <div className="mt-2 flex flex-wrap gap-2">
           {MOODS.map((m) => (
             <TopicChip
@@ -108,7 +118,7 @@ export function DiscoverPage() {
 
       {/* Topic lens — English + 中文 */}
       <div className="mb-8">
-        <MachineLabel>Or pick a topic</MachineLabel>
+        <SectionLabel>Or pick a topic</SectionLabel>
         <div className="mt-2 flex flex-wrap gap-2">
           <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
           {[...TOPICS, ...CN_TOPICS].map((t) => (
@@ -125,8 +135,11 @@ export function DiscoverPage() {
       {/* The payoff: today's picks, several at a glance, each with its reason */}
       <TodaysPicks key={topic ?? "all"} picks={heroPicks} />
 
-      {/* Charts up top for visibility — the crowd's leaderboards */}
-      <Charts />
+      {/* Charts up top for visibility — show boards beside the episode board */}
+      <div className="mb-12 grid items-start gap-10 lg:grid-cols-2">
+        <Charts />
+        <EpisodeCharts />
+      </div>
 
       {/* The rest of the personalized ranking */}
       <RankedRecs
@@ -161,7 +174,7 @@ function TopicChip({
       className={`font-brand rounded-pill border px-3 py-1.5 text-xs uppercase tracking-wider transition-colors ${
         active
           ? "border-accent bg-accent text-white"
-          : "border-surface-border bg-surface text-zinc-500 hover:text-foreground"
+          : "border-surface-border bg-surface text-zinc-700 hover:text-foreground dark:text-zinc-200"
       }`}
     >
       {label}

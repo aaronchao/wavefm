@@ -103,6 +103,87 @@ export async function xyzrankChart(): Promise<XyzChartEntry[] | null> {
   return chartIndex();
 }
 
+/** One hot episode on 中文播客榜's episode board. */
+export type XyzEpisodeEntry = {
+  rank: number;
+  title: string;
+  showTitle?: string;
+  plays?: number;
+  comments?: number;
+  url?: string;
+};
+
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" && v.trim() ? v.trim() : undefined;
+}
+
+/** Defensive parse of the hot-episodes payload (schema not guaranteed). */
+function extractEpisodes(json: unknown): XyzEpisodeEntry[] {
+  const arrays: unknown[][] = [];
+  const walk = (node: unknown, depth: number) => {
+    if (depth > 3 || !node) return;
+    if (Array.isArray(node)) {
+      arrays.push(node);
+      return;
+    }
+    if (typeof node === "object") {
+      for (const v of Object.values(node as Record<string, unknown>)) walk(v, depth + 1);
+    }
+  };
+  walk(json, 0);
+
+  for (const arr of arrays) {
+    const out: XyzEpisodeEntry[] = [];
+    for (const raw of arr) {
+      if (!raw || typeof raw !== "object") continue;
+      const r = raw as Record<string, unknown>;
+      const title = asString(r.title) ?? asString(r.name) ?? asString(r.episodeName);
+      if (!title) continue;
+      const link = asString(r.link) ?? asString(r.url) ?? asString(r.episodeUrl);
+      out.push({
+        rank: out.length + 1,
+        title,
+        showTitle:
+          asString(r.podcastName) ?? asString(r.podcast_name) ??
+          asString(r.podcast) ?? asString(r.showTitle) ?? asString(r.show),
+        plays: asNumber(r.plays) ?? asNumber(r.playCount) ?? asNumber(r.play_count),
+        comments: asNumber(r.comments) ?? asNumber(r.commentCount) ?? asNumber(r.comment_count),
+        url: link?.startsWith("http") ? link : undefined,
+      });
+    }
+    if (out.length > 0) return out;
+  }
+  return [];
+}
+
+let memoEpisodes: Promise<XyzEpisodeEntry[] | null> | null = null;
+
+/** 中文播客榜's hot-episodes board (best-effort, cached daily). */
+export async function xyzrankHotEpisodes(): Promise<XyzEpisodeEntry[] | null> {
+  memoEpisodes ??= (async () => {
+    try {
+      const res = await fetch("https://xyzrank.com/api/episodes", {
+        next: { revalidate: REVALIDATE_SECONDS },
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+          Accept: "application/json, text/plain, */*",
+          "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+          Referer: "https://xyzrank.com/",
+        },
+      });
+      if (!res.ok) return null;
+      const entries = extractEpisodes(await res.json());
+      return entries.length > 0 ? entries : null;
+    } catch {
+      return null;
+    }
+  })();
+  const eps = await memoEpisodes;
+  if (!eps) memoEpisodes = null; // retry next request rather than cache failure
+  return eps;
+}
+
 /** Rank + 小宇宙 stats for a show title, or null when unlisted/unreachable. */
 export async function xyzrankBuzz(title: string): Promise<BuzzInput | null> {
   const chart = await chartIndex();

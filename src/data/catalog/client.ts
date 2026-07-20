@@ -5,6 +5,7 @@ import type {
   CatalogShowResponse,
   ChineseChartsResponse,
   DiscussedChartsResponse,
+  EpisodeChartsResponse,
   EpisodesRankedResponse,
   GlobalChartsResponse,
   PreviewEpisode,
@@ -47,9 +48,13 @@ export async function getShow(id: string): Promise<CatalogShow | null> {
   }
 }
 
-export async function getPreviewEpisodes(id: string): Promise<PreviewEpisode[]> {
+export async function getPreviewEpisodes(
+  id: string,
+  feedUrl?: string,
+): Promise<PreviewEpisode[]> {
   try {
-    const res = await fetch(`/api/catalog/preview?id=${encodeURIComponent(id)}`);
+    const feed = feedUrl ? `&feedUrl=${encodeURIComponent(feedUrl)}` : "";
+    const res = await fetch(`/api/catalog/preview?id=${encodeURIComponent(id)}${feed}`);
     if (!res.ok) return [];
     const json = (await res.json()) as Partial<PreviewResponse>;
     return asArray<PreviewEpisode>(json.episodes);
@@ -100,6 +105,17 @@ export async function getDiscussedCharts(limit = 24): Promise<DiscussedChartsRes
     return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
   } catch {
     return { shows: [], degraded: true };
+  }
+}
+
+export async function getEpisodeCharts(limit = 20): Promise<EpisodeChartsResponse> {
+  try {
+    const res = await fetch(`/api/catalog/charts/episodes?limit=${limit}`);
+    if (!res.ok) return { episodes: [], degraded: true };
+    const json = (await res.json()) as Partial<EpisodeChartsResponse>;
+    return { episodes: asArray(json.episodes), degraded: Boolean(json.degraded) };
+  } catch {
+    return { episodes: [], degraded: true };
   }
 }
 

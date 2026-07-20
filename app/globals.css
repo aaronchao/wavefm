@@ -25,16 +25,19 @@
   --radius-pill: 9999px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --surface: #18181b;
-    --surface-border: #27272a;
-    --accent: #ff453a; /* Signal Red, brightened for dark surfaces */
-    --accent-soft: #3a0f0c;
-  }
+/* Dark theme is driven by data-theme (set pre-paint from the stored choice,
+   falling back to the system preference) so the header toggle governs both
+   the CSS variables AND every Tailwind `dark:` class. */
+:root[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --surface: #18181b;
+  --surface-border: #27272a;
+  --accent: #ff453a; /* Signal Red, brightened for dark surfaces */
+  --accent-soft: #3a0f0c;
 }
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 body {
   background: var(--background);
