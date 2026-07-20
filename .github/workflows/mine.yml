@@ -1,0 +1,37 @@
+name: Mine community recommendations
+
+# Offline harvest → extract → rec_edges. Runs on GitHub's runners (long-lived,
+# disposable IPs), writing to Supabase with the service-role key. Everything is
+# best-effort: without secrets or catalog data the script logs and exits 0.
+
+on:
+  schedule:
+    - cron: "17 * * * *" # hourly, off the top of the hour
+  workflow_dispatch: {} # manual "Run workflow" button
+
+concurrency:
+  group: mine-community
+  cancel-in-progress: false
+
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run mining pass
+        run: npx -y tsx scripts/mine.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Douban via RSSHub (self-host for reliability); comma-separated group ids
+          RSSHUB_BASE: ${{ secrets.RSSHUB_BASE }}
+          DOUBAN_GROUPS: ${{ secrets.DOUBAN_GROUPS }}
+          # Reddit application-only OAuth (optional; anonymous fallback otherwise)
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_SECRET: ${{ secrets.REDDIT_SECRET }}
