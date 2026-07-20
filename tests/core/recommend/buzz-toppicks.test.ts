@@ -29,6 +29,16 @@ describe("buzzScore", () => {
     expect(buzzScore({ xyzrankRank: 200 })!).toBeLessThan(0.01);
   });
 
+  it("weights human discussion above raw popularity within a show", () => {
+    // strong 小宇宙 comments (discussion≈1), worst chart rank (popularity≈0)
+    const s = buzzScore({ comments: 10000, xyzrankRank: 200 })!;
+    expect(s).toBeGreaterThan(0.6); // 0.65·1 + 0.35·~0; a 50/50 blend would be ~0.5
+  });
+
+  it("leads the 'why' with a discussion source over a popularity one", () => {
+    expect(buzzWhy({ redditPosts: 9, xyzrankRank: 2, listenScore: 90 })).toContain("Reddit");
+  });
+
   it("uses Listen Notes' Listen Score (0..100)", () => {
     expect(buzzScore({ listenScore: 90 })!).toBeCloseTo(0.9);
     expect(buzzScore({ listenScore: 0 })!).toBe(0);

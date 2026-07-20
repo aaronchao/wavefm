@@ -12,6 +12,7 @@ import {
   unsaveShow,
 } from "@/src/data/repos/savedShowsRepo";
 import { previewShow } from "@/src/features/player/preview";
+import { RatingBadges } from "@/src/features/show/RatingBadges";
 import { useSession } from "@/src/state/useSession";
 import { Chip, CoverTile, PlayableCard } from "@/src/ui";
 
@@ -88,6 +89,9 @@ function TopPickRow({ pick, rank }: { pick: SimilarShow; rank: number }) {
           <p className="truncate font-semibold">{pick.title}</p>
           <p className="truncate text-sm text-zinc-500">{pick.author}</p>
           <p className="truncate text-xs text-zinc-400">▶ {pick.why}</p>
+          <div className="mt-1">
+            <RatingBadges showId={pick.id} title={pick.title} />
+          </div>
         </div>
         <Link
           href={`/show/${pick.id}`}

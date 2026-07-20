@@ -24,6 +24,8 @@ export { rankSimilar, queryTermsForShow, qualityOf } from "./similar";
 export type { SimilarItemInput, RankedSimilar } from "./similar";
 export { buzzScore, buzzWhy } from "./buzz";
 export type { BuzzInput } from "./buzz";
+export { rankEpisodes } from "./episodes";
+export type { EpisodeInput, RankedEpisode, EpisodeBasis } from "./episodes";
 export { topPicks } from "./topPicks";
 export type { TopPick, TopPicksInput } from "./topPicks";
 

@@ -64,6 +64,23 @@ export type TopPicksResponse = {
   picks: SimilarShow[];
   degraded: boolean;
 };
+
+/** One ranked episode of a show (for the discovery "top episodes" list). */
+export type RankedEpisodeItem = {
+  id: string;
+  title: string;
+  audioUrl?: string;
+  durationSec?: number;
+  publishedAt?: string;
+  /** What actually drove the rank (no faked listen counts). */
+  basis: "discussion" | "rating" | "recent";
+  why: string;
+};
+
+export type EpisodesRankedResponse = {
+  episodes: RankedEpisodeItem[];
+  degraded: boolean;
+};
 export type SimilarEpisode = CatalogEpisode & { why: string };
 
 /** Response of /api/catalog/similar — ranked top to bottom. */

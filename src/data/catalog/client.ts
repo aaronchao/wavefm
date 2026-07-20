@@ -2,8 +2,10 @@ import type {
   CatalogSearchResponse,
   CatalogShow,
   CatalogShowResponse,
+  EpisodesRankedResponse,
   PreviewEpisode,
   PreviewResponse,
+  RankedEpisodeItem,
   SimilarResponse,
   TopPicksResponse,
 } from "./types";
@@ -57,6 +59,17 @@ export async function getTopPicks(seedIds: string[]): Promise<TopPicksResponse> 
     return { picks: asArray(json.picks), degraded: Boolean(json.degraded) };
   } catch {
     return { picks: [], degraded: true };
+  }
+}
+
+export async function getRankedEpisodes(id: string): Promise<RankedEpisodeItem[]> {
+  try {
+    const res = await fetch(`/api/catalog/episodes-ranked?id=${encodeURIComponent(id)}`);
+    if (!res.ok) return [];
+    const json = (await res.json()) as Partial<EpisodesRankedResponse>;
+    return asArray<RankedEpisodeItem>(json.episodes);
+  } catch {
+    return [];
   }
 }
 

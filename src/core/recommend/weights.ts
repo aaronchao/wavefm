@@ -16,4 +16,7 @@ export const WEIGHTS = {
   // topPicks (curated shelf)
   quality: 0.55,
   affinity: 0.45,
+  // buzz sub-blend — human discussion is prioritized over raw popularity
+  buzzDiscussion: 0.65,
+  buzzPopularity: 0.35,
 } as const;

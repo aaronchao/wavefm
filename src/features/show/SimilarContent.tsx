@@ -12,6 +12,7 @@ import {
 } from "@/src/data/repos/savedEpisodesRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { previewEpisode, previewShow } from "@/src/features/player/preview";
+import { RatingBadges } from "@/src/features/show/RatingBadges";
 import { Chip, CoverTile, PlayableCard } from "@/src/ui";
 
 /**
@@ -122,6 +123,9 @@ function SimilarShowRow({ show, rank }: { show: SimilarShow; rank: number }) {
           <p className="truncate font-semibold">{show.title}</p>
           <p className="truncate text-sm text-zinc-500">{show.author}</p>
           <p className="truncate text-xs text-zinc-400">▶ {show.why}</p>
+          <div className="mt-1">
+            <RatingBadges showId={show.id} title={show.title} />
+          </div>
         </div>
         <Link
           href={`/show/${show.id}`}
