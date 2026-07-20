@@ -24,8 +24,14 @@ export type PlayerState = {
   status: "idle" | "loading" | "playing" | "done" | "error";
   meta: PreviewMeta | null;
   audioUrl: string | null;
-  /** Clip start offset in seconds. */
+  /** Clip start offset in seconds (best-effort fallback). */
   startAt: number;
+  /**
+   * Optional 0..1 fraction of the real duration to start at, resolved
+   * against the CDN's true length on load. Wins over `startAt` when the
+   * duration is known — used for "random middle" clips.
+   */
+  startFraction: number | null;
   /** Bumps on every play request so effects re-run for repeat clicks. */
   token: number;
 };
@@ -35,6 +41,7 @@ const initial: PlayerState = {
   meta: null,
   audioUrl: null,
   startAt: 0,
+  startFraction: null,
   token: 0,
 };
 
@@ -49,11 +56,23 @@ function set(next: Partial<PlayerState>) {
 export const player = {
   /** Show the bar immediately while episode audio is being fetched. */
   startLoading(meta: PreviewMeta) {
-    set({ status: "loading", meta, audioUrl: null, startAt: 0, token: state.token + 1 });
+    set({
+      status: "loading",
+      meta,
+      audioUrl: null,
+      startAt: 0,
+      startFraction: null,
+      token: state.token + 1,
+    });
   },
-  /** Start a clip. `meta` refreshes so the bar can show the episode title. */
-  play(meta: PreviewMeta, audioUrl: string, startAt: number) {
-    set({ status: "playing", meta, audioUrl, startAt, token: state.token + 1 });
+  /**
+   * Start a clip. `meta` refreshes so the bar can show the episode title.
+   * `startFraction` (0..1) requests a seek to that share of the real
+   * duration — for "random middle" clips — and falls back to `startAt`
+   * seconds when the duration can't be read.
+   */
+  play(meta: PreviewMeta, audioUrl: string, startAt: number, startFraction: number | null = null) {
+    set({ status: "playing", meta, audioUrl, startAt, startFraction, token: state.token + 1 });
   },
   /** The 30 seconds ran out — keep the bar (and its links) around. */
   finish() {

@@ -10,6 +10,7 @@ import { recordEngagement } from "@/src/data/repos/engagementRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { RatingBadges } from "@/src/features/show/RatingBadges";
 import { SimilarContent } from "@/src/features/show/SimilarContent";
+import { TopEpisodes } from "@/src/features/show/TopEpisodes";
 import { Chip, CoverTile, SettleIn } from "@/src/ui";
 
 export default function ShowPage() {
@@ -135,6 +136,8 @@ function ShowDetail({ show }: { show: CatalogShow }) {
           </p>
         </section>
       )}
+
+      <TopEpisodes show={show} />
 
       <SimilarContent showId={show.id} />
     </SettleIn>

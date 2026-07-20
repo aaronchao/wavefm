@@ -1,8 +1,12 @@
 /** A show as returned by the catalog proxy (/api/catalog/*). */
 export type CatalogShow = {
-  /** iTunes collectionId as string, or `pi-<feedId>` for Podcast-Index-only shows. */
+  /**
+   * iTunes collectionId as string, `pi-<feedId>` for Podcast-Index-only
+   * shows, or `rss-<hash>` for feed-only shows (e.g. OPML imports that
+   * aren't in any catalog).
+   */
   id: string;
-  source: "itunes" | "podcastindex";
+  source: "itunes" | "podcastindex" | "rss";
   title: string;
   author: string;
   description?: string;
@@ -49,6 +53,8 @@ export type PreviewResponse = {
 
 export type CatalogSearchResponse = {
   shows: CatalogShow[];
+  /** Matching episodes for the query (one-click "Later" to queue them). */
+  episodes: CatalogEpisode[];
   /** True when every upstream provider failed (never a thrown error). */
   degraded: boolean;
 };
@@ -57,11 +63,59 @@ export type CatalogShowResponse = {
   show: CatalogShow | null;
 };
 
-export type SimilarShow = CatalogShow & { why: string };
+/** A real community discussion snippet behind a pick (tappable to open). */
+export type EvidenceItem = {
+  /** "Reddit", "V2EX", "小宇宙"… */
+  source: string;
+  /** A short quote or thread title. */
+  text: string;
+  /** Link to the actual thread/comment, when available. */
+  url?: string;
+};
+
+export type SimilarShow = CatalogShow & {
+  why: string;
+  /** Real discussion behind the pick — populated for discussion-first picks. */
+  evidence?: EvidenceItem[];
+};
 
 /** Response of /api/catalog/top-picks — curated, ranked top to bottom. */
 export type TopPicksResponse = {
   picks: SimilarShow[];
+  degraded: boolean;
+};
+
+/** Response of /api/catalog/charts/chinese — 中文播客榜, ranked top to bottom. */
+export type ChineseChartsResponse = {
+  shows: SimilarShow[];
+  degraded: boolean;
+};
+
+/** Response of /api/catalog/charts/global — English/Global chart, ranked. */
+export type GlobalChartsResponse = {
+  shows: SimilarShow[];
+  degraded: boolean;
+};
+
+/** Response of /api/catalog/charts/discussed — community discussion chart. */
+export type DiscussedChartsResponse = {
+  shows: SimilarShow[];
+  degraded: boolean;
+};
+
+/** One row of the hot-EPISODES board (小宇宙 play/comment data). */
+export type ChartEpisodeItem = {
+  id: string;
+  title: string;
+  showTitle?: string;
+  /** 小宇宙 episode page, when the board provides it. */
+  url?: string;
+  why: string;
+};
+
+/** Response of /api/catalog/charts/episodes — ranked hot episodes. */
+export type EpisodeChartsResponse = {
+  episodes: ChartEpisodeItem[];
   degraded: boolean;
 };
 

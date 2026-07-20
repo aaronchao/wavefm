@@ -97,8 +97,12 @@ async function itunesFetch(url: string): Promise<ItunesResult[] | null> {
   }
 }
 
-export async function itunesSearch(q: string): Promise<CatalogShow[] | null> {
-  const url = `https://itunes.apple.com/search?media=podcast&limit=25&term=${encodeURIComponent(q)}`;
+export async function itunesSearch(
+  q: string,
+  country?: string,
+): Promise<CatalogShow[] | null> {
+  const cc = country ? `&country=${encodeURIComponent(country)}` : "";
+  const url = `https://itunes.apple.com/search?media=podcast&limit=25${cc}&term=${encodeURIComponent(q)}`;
   const results = await itunesFetch(url);
   if (results === null) return null;
   return results.map(mapItunes).filter((s): s is CatalogShow => s !== null);
@@ -132,10 +136,11 @@ type ChartEntry = {
   genres?: { name?: string }[];
 };
 
-async function fetchTopChart(): Promise<ChartEntry[] | null> {
+async function fetchTopChart(country = "us"): Promise<ChartEntry[] | null> {
+  const cc = /^[a-z]{2}$/i.test(country) ? country.toLowerCase() : "us";
   try {
     const res = await fetch(
-      "https://rss.marketingtools.apple.com/api/v2/us/podcasts/top/100/podcasts.json",
+      `https://rss.marketingtools.apple.com/api/v2/${cc}/podcasts/top/100/podcasts.json`,
       { next: { revalidate: CHART_REVALIDATE_SECONDS } },
     );
     if (!res.ok) return null;
@@ -147,12 +152,13 @@ async function fetchTopChart(): Promise<ChartEntry[] | null> {
 }
 
 /**
- * Apple's top-podcasts chart (free RSS, no key). Returns collectionId ->
- * 1-based chart rank, or null when unreachable — a popularity proxy,
- * since real listen counts aren't public on any free API.
+ * Apple's top-podcasts chart (free RSS, no key) for a storefront (default
+ * US). Returns collectionId -> 1-based chart rank, or null when
+ * unreachable — a popularity proxy, since real listen counts aren't public
+ * on any free API.
  */
-export async function itunesTopChartRanks(): Promise<Map<string, number> | null> {
-  const entries = await fetchTopChart();
+export async function itunesTopChartRanks(country = "us"): Promise<Map<string, number> | null> {
+  const entries = await fetchTopChart(country);
   if (entries === null) return null;
   const ranks = new Map<string, number>();
   entries.forEach((entry, i) => {
@@ -162,8 +168,8 @@ export async function itunesTopChartRanks(): Promise<Map<string, number> | null>
 }
 
 /** The same chart as candidate shows (chart ids are iTunes collection ids). */
-export async function itunesTopChartShows(): Promise<CatalogShow[] | null> {
-  const entries = await fetchTopChart();
+export async function itunesTopChartShows(country = "us"): Promise<CatalogShow[] | null> {
+  const entries = await fetchTopChart(country);
   if (entries === null) return null;
   return entries
     .filter((e): e is ChartEntry & { id: string; name: string } =>
@@ -272,6 +278,13 @@ export async function piTrendingRanks(): Promise<Map<string, number> | null> {
     ranks.set(f.itunesId ? String(f.itunesId) : `pi-${f.id}`, i + 1);
   });
   return ranks;
+}
+
+/** Podcast Index trending shows (free key) — an independent, non-Apple pool. */
+export async function piTrendingShows(): Promise<CatalogShow[] | null> {
+  const feeds = await piFetch(`/podcasts/trending?max=100`);
+  if (feeds === null) return null;
+  return feeds.map(mapPi).filter((s): s is CatalogShow => s !== null);
 }
 
 export async function piLookup(id: string): Promise<CatalogShow | null> {

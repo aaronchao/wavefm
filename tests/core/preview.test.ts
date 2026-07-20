@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLIP_SECONDS,
   clipStart,
+  middleFraction,
   parseItunesDuration,
   pickIndex,
 } from "@/src/core/preview";
@@ -29,6 +30,21 @@ describe("clipStart", () => {
   it("clamps out-of-range random inputs", () => {
     expect(clipStart(1800, -1)).toBe(15);
     expect(clipStart(1800, 2)).toBe(15 + (1800 - CLIP_SECONDS - 30));
+  });
+});
+
+describe("middleFraction", () => {
+  it("stays inside the central fifth for every random value", () => {
+    for (const rand of [0, 0.5, 0.999, 1, -0.2, 3]) {
+      const f = middleFraction(rand);
+      expect(f).toBeGreaterThanOrEqual(0.4);
+      expect(f).toBeLessThanOrEqual(0.6 + 1e-9);
+    }
+  });
+
+  it("is deterministic and centered", () => {
+    expect(middleFraction(0.5)).toBeCloseTo(0.5);
+    expect(middleFraction(0.5)).toBe(middleFraction(0.5));
   });
 });
 

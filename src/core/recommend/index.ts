@@ -22,12 +22,16 @@ export type { SeedCluster } from "./cluster";
 export { diversify } from "./diversify";
 export { rankSimilar, queryTermsForShow, qualityOf } from "./similar";
 export type { SimilarItemInput, RankedSimilar } from "./similar";
-export { buzzScore, buzzWhy } from "./buzz";
+export { buzzScore, buzzWhy, discussionScore } from "./buzz";
 export type { BuzzInput } from "./buzz";
+export { rankByDiscussion } from "./discover";
+export type { DiscoverPick, DiscoverInput } from "./discover";
 export { rankEpisodes } from "./episodes";
 export type { EpisodeInput, RankedEpisode, EpisodeBasis } from "./episodes";
 export { topPicks } from "./topPicks";
 export type { TopPick, TopPicksInput } from "./topPicks";
+export { detectLang, sameLanguage, shouldLanguageFilter } from "./language";
+export type { Lang } from "./language";
 
 export type RecommendInput = {
   /** Shows to rank (from catalog search / trending / seeds). */

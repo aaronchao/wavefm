@@ -57,10 +57,14 @@ export function PreviewPlayer() {
     const onLoaded = () => {
       if (cancelled) return;
       // clamp the target against the real duration only when the browser
-      // knows it — an unknown (NaN) duration must not collapse it to 0
+      // knows it — an unknown (NaN) duration must not collapse it to 0.
+      // A startFraction ("random middle") resolves against the true length
+      // and wins over the seconds fallback whenever the duration is known.
       const known = Number.isFinite(audio.duration) && audio.duration > 0;
+      const base =
+        known && s.startFraction != null ? audio.duration * s.startFraction : s.startAt;
       targetRef.current = known
-        ? Math.min(s.startAt, Math.max(0, audio.duration - CLIP_SECONDS))
+        ? Math.min(base, Math.max(0, audio.duration - CLIP_SECONDS))
         : s.startAt;
       seekRequestedRef.current = targetRef.current > 0.5;
       if (seekRequestedRef.current) {
@@ -121,7 +125,7 @@ export function PreviewPlayer() {
       audio.pause();
     };
     // token bumps on every play request, even for the same URL
-  }, [s.token, s.status, s.audioUrl, s.startAt]);
+  }, [s.token, s.status, s.audioUrl, s.startAt, s.startFraction]);
 
   const links = s.meta
     ? platformLinks(s.meta.searchTitle, { apple: s.meta.appleUrl })
@@ -148,7 +152,7 @@ export function PreviewPlayer() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 96, opacity: 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 32 }}
-            className="fixed inset-x-0 bottom-0 z-50 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95"
+            className="fixed inset-x-0 bottom-16 z-50 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95"
           >
             <div className="mx-auto flex max-w-2xl flex-col gap-2 p-3 sm:px-8">
               <div className="flex items-center gap-3">

@@ -5,8 +5,8 @@
   --foreground: #171717;
   --surface: #f4f4f5;
   --surface-border: #e4e4e7;
-  --accent: #7c3aed; /* wavr violet */
-  --accent-soft: #ede9fe;
+  --accent: #ff3b30; /* Signal Red — the single Wavr accent */
+  --accent-soft: #ffeae8;
 }
 
 @theme inline {
@@ -18,25 +18,35 @@
   --color-accent-soft: var(--accent-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-brand: var(--font-doto);
   /* playful, generously rounded shapes */
   --radius-tile: 1rem;
   --radius-card: 1.25rem;
   --radius-pill: 9999px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --surface: #18181b;
-    --surface-border: #27272a;
-    --accent: #a78bfa;
-    --accent-soft: #2e1065;
-  }
+/* Dark theme is driven by data-theme (set pre-paint from the stored choice,
+   falling back to the system preference) so the header toggle governs both
+   the CSS variables AND every Tailwind `dark:` class. */
+:root[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --surface: #18181b;
+  --surface-border: #27272a;
+  --accent: #ff453a; /* Signal Red, brightened for dark surfaces */
+  --accent-soft: #3a0f0c;
 }
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Nothing-brand dot-matrix display face for logo, headings, labels & nav. */
+.font-brand {
+  font-family: var(--font-doto), var(--font-geist-sans), sans-serif;
+  letter-spacing: 0.02em;
 }
