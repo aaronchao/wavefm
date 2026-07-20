@@ -9,17 +9,17 @@ import {
 } from "@/src/data/catalog/client";
 import { SettleIn } from "@/src/ui";
 import { MachineLabel } from "./DiscoverPage";
-import { RankedRow } from "./RankedRecs";
+import { ShowRowCompact } from "./ShowRowCompact";
 
 type Tab = "discussed" | "chinese" | "global";
 
 /**
- * Charts — the crowd's leaderboards, community-first. We lead with the
- * boards ranked by real discussion (社区热议: Reddit + V2EX + 小宇宙; and
- * 中文播客榜, the 小宇宙 leaderboard) and keep the Apple-based board last —
- * you've already scrolled Apple, that's why you're here. Each row is a real
- * show: playable, saveable, openable to episodes, with tappable evidence.
- * Hidden only when every board is unreachable.
+ * Charts — the crowd's leaderboards, community-first. 社区热议 is the Chinese
+ * discussion board (豆瓣 + V2EX + Dcard/PTT/LIHKG + 小宇宙); 小宇宙 is the
+ * 中文播客榜 leaderboard; Hot Buzz is what's talked about in English (Reddit +
+ * Listen Score) — the Apple chart comes last because you've already scrolled
+ * it. Each row is a real show: playable, saveable, openable, with tappable
+ * evidence. Hidden only when every board is unreachable.
  */
 export function Charts() {
   const [picked, setPicked] = useState<Tab | null>(null);
@@ -65,14 +65,14 @@ export function Charts() {
         <MachineLabel>ranked by the crowd, not the charts</MachineLabel>
       </div>
       <p className="mb-3 text-sm text-zinc-500">
-        Community-first: what people actually discuss on Reddit, V2EX & 小宇宙 —
-        Apple comes last.
+        Community-first: 中文 discussion on 豆瓣 · V2EX · 小宇宙, and English Hot
+        Buzz from Reddit — ranked by what people actually talk about.
       </p>
 
       <div className="mb-4 flex flex-wrap gap-2">
         <ChartTab label="社区热议" active={tab === "discussed"} onClick={() => setPicked("discussed")} />
         <ChartTab label="小宇宙" active={tab === "chinese"} onClick={() => setPicked("chinese")} />
-        <ChartTab label="Apple" active={tab === "global"} onClick={() => setPicked("global")} />
+        <ChartTab label="Hot Buzz" active={tab === "global"} onClick={() => setPicked("global")} />
       </div>
 
       {active.isLoading ? (
@@ -86,10 +86,10 @@ export function Charts() {
           This board is quiet right now — try another tab.
         </p>
       ) : (
-        <ol className="flex flex-col gap-3">
+        <ol className="flex flex-col gap-2.5">
           {shows.map((show, i) => (
             <SettleIn key={show.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-              <RankedRow pick={show} rank={i + 1} />
+              <ShowRowCompact show={show} rank={i + 1} />
             </SettleIn>
           ))}
         </ol>

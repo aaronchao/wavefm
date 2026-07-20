@@ -1,18 +1,34 @@
 "use client";
 
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import type { SimilarShow } from "@/src/data/catalog/types";
-import { previewShowTopEpisodeMiddle } from "@/src/features/player/preview";
-import { Chip, CoverTile, SettleIn } from "@/src/ui";
+import { useEffect, useState } from "react";
+import { getRankedEpisodes } from "@/src/data/catalog/client";
+import type { RankedEpisodeItem, SimilarShow } from "@/src/data/catalog/types";
+import {
+  isEpisodeSaved,
+  removeEpisode,
+  saveEpisode,
+} from "@/src/data/repos/savedEpisodesRepo";
+import { previewRankedEpisode } from "@/src/features/player/preview";
+import { SettleIn } from "@/src/ui";
 import { MachineLabel } from "./DiscoverPage";
-import { EpisodeList } from "./EpisodeList";
-import { Evidence } from "./Evidence";
-import { useSavedToggle } from "./useSavedToggle";
+import { ShowRowCompact } from "./ShowRowCompact";
+
+/** How many top shows we pull episodes from for the Episodes column. */
+const EP_SHOWS = 6;
+const BASIS_LABEL: Record<RankedEpisodeItem["basis"], string> = {
+  discussion: "Discussed",
+  rating: "Rated",
+  recent: "Recent",
+};
 
 /**
- * The ranked recommendation list (everything after the For-You hero),
- * ordered top to bottom; each row opens into its episodes. The hero and
- * the shared query live one level up so charts can sit between them.
+ * The ranked recommendations below the For-You hero — now Shows | Episodes
+ * side by side, matching the Charts and Search layouts. The left column ranks
+ * the shows (each a door into its page); the right column surfaces one
+ * talked-about episode from each of the top shows, playable and queueable in a
+ * tap. The hero and shared query live one level up so Charts can sit between.
  */
 export function RankedRecs({
   rest,
@@ -46,53 +62,159 @@ export function RankedRecs({
         </h2>
         <MachineLabel>{count} shows</MachineLabel>
       </div>
-      <ol className="flex flex-col gap-3">
-        {rest.map((pick, i) => (
-          <SettleIn key={pick.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-            <RankedRow pick={pick} rank={i + 2} />
-          </SettleIn>
-        ))}
-      </ol>
+      <div className="grid items-start gap-8 md:grid-cols-2">
+        <section>
+          <ColumnLabel>Shows</ColumnLabel>
+          <ol className="flex flex-col gap-2.5">
+            {rest.map((pick, i) => (
+              <SettleIn key={pick.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
+                <ShowRowCompact show={pick} rank={i + 2} />
+              </SettleIn>
+            ))}
+          </ol>
+        </section>
+        <section>
+          <ColumnLabel>Episodes to try</ColumnLabel>
+          <EpisodesColumn shows={rest} />
+        </section>
+      </div>
     </section>
   );
 }
 
-/** One ranked recommendation, openable into its episodes. */
-export function RankedRow({ pick, rank }: { pick: SimilarShow; rank: number }) {
-  const saved = useSavedToggle(pick);
+function ColumnLabel({ children }: { children: React.ReactNode }) {
   return (
-    <li className="rounded-card border border-surface-border bg-background p-3 shadow-sm">
-      <div className="flex items-center gap-3">
-        <span className="w-8 shrink-0 text-center font-mono text-lg font-bold tabular-nums text-zinc-300 dark:text-zinc-600">
-          {String(rank).padStart(2, "0")}
-        </span>
-        <Link href={`/show/${pick.id}`} className="shrink-0" aria-label={`Open ${pick.title}`}>
-          <CoverTile src={pick.coverUrl} size={56} />
+    <h3 className="font-brand mb-3 text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
+      {children}
+    </h3>
+  );
+}
+
+/**
+ * The Episodes column: one talked-about episode from each of the top ranked
+ * shows, flattened into a single readable list. Best-effort — a show whose
+ * feed can't be ranked simply contributes nothing.
+ */
+function EpisodesColumn({ shows }: { shows: SimilarShow[] }) {
+  const top = shows.slice(0, EP_SHOWS);
+  const results = useQueries({
+    queries: top.map((s) => ({
+      queryKey: ["catalog", "episodes-ranked", s.id],
+      queryFn: () => getRankedEpisodes(s.id),
+      staleTime: 6 * 60 * 60 * 1000,
+    })),
+  });
+
+  const rows = results
+    .map((r, i) => ({ ep: r.data?.[0], show: top[i] }))
+    .filter((r): r is { ep: RankedEpisodeItem; show: SimilarShow } => Boolean(r.ep));
+  const stillLoading = results.some((r) => r.isLoading);
+
+  if (stillLoading && rows.length === 0) {
+    return (
+      <div className="flex flex-col gap-2.5">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-16 animate-pulse rounded-card bg-surface" />
+        ))}
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-card border border-surface-border bg-surface px-3 py-6 text-center text-xs text-zinc-500">
+        Open a show on the left to hear its episodes.
+      </p>
+    );
+  }
+
+  return (
+    <ol className="flex flex-col gap-2.5">
+      {rows.map(({ ep, show }, i) => (
+        <SettleIn key={`${show.id}:${ep.id}`} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
+          <EpisodeColumnRow ep={ep} show={show} />
+        </SettleIn>
+      ))}
+    </ol>
+  );
+}
+
+function EpisodeColumnRow({ ep, show }: { ep: RankedEpisodeItem; show: SimilarShow }) {
+  const queryClient = useQueryClient();
+  const [queued, setQueued] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void isEpisodeSaved(ep.id).then((v) => !cancelled && setQueued(v));
+    return () => {
+      cancelled = true;
+    };
+  }, [ep.id]);
+
+  // ONE_CLICK: queue this episode straight into the Library
+  function toggleLater() {
+    const next = !queued;
+    setQueued(next);
+    void (next
+      ? saveEpisode({
+          id: ep.id,
+          title: ep.title,
+          showId: show.id,
+          showTitle: show.title,
+          coverUrl: show.coverUrl,
+          appleUrl: show.appleUrl,
+          audioUrl: ep.audioUrl,
+          durationSec: ep.durationSec,
+          publishedAt: ep.publishedAt,
+          categories: [],
+        })
+      : removeEpisode(ep.id)
+    ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
+  }
+
+  return (
+    <li className="flex items-start gap-2.5 rounded-card border border-surface-border bg-background p-2.5 shadow-sm">
+      <div className="min-w-0 flex-1">
+        <p className="line-clamp-2 text-sm font-semibold leading-snug">{ep.title}</p>
+        <Link
+          href={`/show/${show.id}`}
+          className="line-clamp-1 text-xs text-zinc-500 hover:text-accent dark:text-zinc-400"
+        >
+          {show.title} →
         </Link>
-        <div className="min-w-0 flex-1">
-          {/* the title IS the door into the show — episodes, links, similar */}
-          <Link
-            href={`/show/${pick.id}`}
-            className="block truncate font-semibold hover:text-accent hover:underline underline-offset-2"
+        <p className="line-clamp-1 text-[11px] text-zinc-400">
+          <span
+            className={`font-mono uppercase tracking-wider ${
+              ep.basis === "discussion" ? "text-accent" : ""
+            }`}
           >
-            {pick.title}
-          </Link>
-          <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{pick.author}</p>
-          <Evidence show={pick} className="mt-1" />
-        </div>
+            {BASIS_LABEL[ep.basis]}
+          </span>{" "}
+          · {ep.why}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-center gap-1.5">
         <button
           type="button"
-          onClick={() => previewShowTopEpisodeMiddle(pick)}
-          aria-label={`Play the most-discussed bit of ${pick.title}`}
-          className="shrink-0 rounded-full bg-accent px-3 py-2 text-sm font-semibold text-white transition-transform active:scale-95"
+          onClick={() => previewRankedEpisode(ep, show)}
+          disabled={!ep.audioUrl}
+          aria-label={`Play the middle of ${ep.title}`}
+          className="rounded-full bg-accent px-2.5 py-1.5 text-xs font-semibold text-white transition-transform active:scale-95 disabled:opacity-30"
         >
           ▶
         </button>
-        <Chip active={saved.saved} onClick={saved.toggle} className="shrink-0">
-          {saved.saved ? "✓" : "Save"}
-        </Chip>
+        <button
+          type="button"
+          onClick={() => toggleLater()}
+          aria-label={queued ? `Remove ${ep.title} from Later` : `Save ${ep.title} for later`}
+          className={`rounded-full border px-2 py-1 text-xs font-medium transition-colors ${
+            queued
+              ? "border-accent bg-accent-soft text-accent"
+              : "border-surface-border text-zinc-500 hover:border-accent hover:text-accent"
+          }`}
+        >
+          {queued ? "✓" : "+ Later"}
+        </button>
       </div>
-      <EpisodeList show={pick} />
     </li>
   );
 }
@@ -101,9 +223,13 @@ function SkeletonRows() {
   return (
     <section className="mb-12 animate-pulse">
       <div className="mb-4 h-6 w-40 rounded bg-surface" />
-      <div className="flex flex-col gap-3">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-20 rounded-card bg-surface" />
+      <div className="grid gap-8 md:grid-cols-2">
+        {[0, 1].map((col) => (
+          <div key={col} className="flex flex-col gap-2.5">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-16 rounded-card bg-surface" />
+            ))}
+          </div>
         ))}
       </div>
     </section>

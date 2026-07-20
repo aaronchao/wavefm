@@ -88,35 +88,37 @@ function EpisodeRow({ ep, rank }: { ep: ChartEpisodeItem; rank: number }) {
   }
 
   return (
-    <li className="flex items-center gap-2.5 rounded-card border border-surface-border bg-background p-2.5 shadow-sm">
-      <span className="font-brand w-7 shrink-0 text-center text-sm font-bold tabular-nums text-zinc-400 dark:text-zinc-500">
+    <li className="flex items-start gap-2.5 rounded-card border border-surface-border bg-background p-2.5 shadow-sm">
+      <span className="font-brand mt-0.5 w-6 shrink-0 text-center text-sm font-bold tabular-nums text-zinc-400 dark:text-zinc-500">
         {String(rank).padStart(2, "0")}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{ep.title}</p>
+        <p className="line-clamp-2 text-sm font-semibold leading-snug">{ep.title}</p>
         {ep.showTitle && (
           <Link
             href={`/search?q=${encodeURIComponent(ep.showTitle)}`}
-            className="truncate text-xs text-zinc-500 hover:text-accent dark:text-zinc-400"
+            className="line-clamp-1 text-xs text-zinc-500 hover:text-accent dark:text-zinc-400"
           >
             {ep.showTitle} →
           </Link>
         )}
-        <p className="truncate text-[11px] text-accent">◆ {ep.why}</p>
+        <p className="line-clamp-1 text-[11px] text-accent">◆ {ep.why}</p>
       </div>
-      {ep.url && (
-        <a
-          href={ep.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 rounded-pill bg-surface px-2.5 py-1 text-xs font-medium hover:opacity-80"
-        >
-          小宇宙 ↗
-        </a>
-      )}
-      <Chip active={queued} onClick={() => toggleLater()} className="shrink-0 !py-1 !text-xs">
-        {queued ? "✓" : "+ Later"}
-      </Chip>
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        {ep.url && (
+          <a
+            href={ep.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-pill bg-surface px-2.5 py-1 text-xs font-medium hover:opacity-80"
+          >
+            ↗
+          </a>
+        )}
+        <Chip active={queued} onClick={() => toggleLater()} className="!px-2 !py-1 !text-xs">
+          {queued ? "✓" : "+ Later"}
+        </Chip>
+      </div>
     </li>
   );
 }

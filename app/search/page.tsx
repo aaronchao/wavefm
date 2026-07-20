@@ -57,7 +57,7 @@ function SearchInner() {
   const topResult = data?.shows[0];
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 pb-40 sm:p-8 sm:pb-40">
+    <main className="mx-auto w-full max-w-5xl p-4 pb-40 sm:p-8 sm:pb-40">
       <h1 className="mb-4 text-2xl font-bold">Search</h1>
       <input
         value={input}
@@ -180,18 +180,18 @@ function EpisodeRow({ episode }: { episode: CatalogEpisode }) {
       >
         <CoverTile src={episode.coverUrl} size={56} />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{episode.title}</p>
+          <p className="line-clamp-2 font-semibold leading-snug">{episode.title}</p>
           {episode.showTitle &&
             (episode.showId ? (
               // into the show: details, top episodes, similar — one tap away
               <Link
                 href={`/show/${episode.showId}`}
-                className="relative z-10 block truncate text-sm text-zinc-500 hover:text-accent hover:underline underline-offset-2 dark:text-zinc-400"
+                className="relative z-10 line-clamp-1 text-sm text-zinc-500 hover:text-accent hover:underline underline-offset-2 dark:text-zinc-400"
               >
                 {episode.showTitle} →
               </Link>
             ) : (
-              <p className="truncate text-sm text-zinc-500">{episode.showTitle}</p>
+              <p className="line-clamp-1 text-sm text-zinc-500">{episode.showTitle}</p>
             ))}
           <p className="truncate text-xs text-zinc-400">▶ Click for a 30s clip</p>
         </div>
@@ -242,11 +242,11 @@ function ShowRow({ show }: { show: CatalogShow }) {
           {/* the title IS the door into the show — details + top episodes */}
           <Link
             href={`/show/${show.id}`}
-            className="relative z-10 block truncate font-semibold hover:text-accent hover:underline underline-offset-2"
+            className="relative z-10 line-clamp-2 font-semibold leading-snug hover:text-accent hover:underline underline-offset-2"
           >
             {show.title}
           </Link>
-          <p className="truncate text-sm text-zinc-500">{show.author}</p>
+          <p className="line-clamp-1 text-sm text-zinc-500">{show.author}</p>
           <p className="truncate text-xs text-zinc-400">▶ Click for a 30s clip</p>
         </div>
         <Chip

@@ -181,10 +181,11 @@ test("discover ranks recommendations and opens a show's episodes", async ({ page
   await expect(page.getByText("Where Should We Begin").first()).toBeVisible();
   await expect(page.getByText("Play the talked-about bit")).toBeVisible();
 
-  // opening a show reveals its discussion-first episode ranking
+  // opening a show reveals its discussion-first episode ranking (the same
+  // episodes also seed the side-by-side Episodes column, so scope to the first)
   await page.getByRole("button", { name: /Top episodes/ }).first().click();
-  await expect(page.getByText("The one everyone argues about")).toBeVisible();
-  await expect(page.getByText("Most discussed · 40 Reddit threads")).toBeVisible();
+  await expect(page.getByText("The one everyone argues about").first()).toBeVisible();
+  await expect(page.getByText("Most discussed · 40 Reddit threads").first()).toBeVisible();
 
   // tapping the reason badge expands the real community thread behind it
   await page.getByRole("button", { name: /Talked about on Reddit/ }).first().click();
@@ -288,7 +289,7 @@ test("discover Global chart tab ranks by community + metrics", async ({ page }) 
   );
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Apple" }).click();
+  await page.getByRole("button", { name: "Hot Buzz" }).click();
   await expect(page.getByText("Radiolab")).toBeVisible();
   await expect(page.getByText("Buzzing on Reddit · 3.4k threads")).toBeVisible();
 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { detectLang } from "@/src/core/recommend/language";
 import { rankByDiscussion, topPicks, type SimilarItemInput } from "@/src/core/recommend";
 import { dcardDiscussion } from "@/src/data/buzz/dcard";
 import {
@@ -25,31 +26,37 @@ import type {
 } from "@/src/data/catalog/types";
 
 /**
- * Proxy: 社区热议 / Discussed — a community chart ranked by real discussion
- * (Reddit + V2EX + 小宇宙), deliberately NOT the Apple top chart. The pool is
- * built from a reliable, key-free backbone (iTunes topical catalog search,
- * bilingual) widened with independent/community sources when reachable
- * (Podcast Index trending + the 中文播客榜/小宇宙 leaderboard). Candidates are
- * enriched with discussion and ranked discussion-first, Apple-charted shows
- * penalised. If no discussion signal is reachable at all (some hosts block
- * Reddit), it falls back to the non-chart quality ranker so the board is
- * never empty. Best-effort throughout — a dead upstream shrinks it, never errors.
+ * Proxy: 社区热议 / Discussed — a CHINESE community chart ranked by real
+ * discussion (豆瓣小组 + V2EX + Dcard/PTT/LIHKG + 小宇宙), deliberately NOT the
+ * Apple top chart. The pool is built from a Chinese, key-free backbone
+ * (iTunes 中文 topical search + the 中文播客榜/小宇宙 leaderboard) widened with
+ * Podcast Index trending when reachable. Candidates are enriched with
+ * discussion, ranked discussion-first, then filtered to Chinese-language
+ * shows so this board is distinctly 中文 (English buzz lives in the Hot Buzz
+ * tab). If no discussion signal is reachable it falls back to the quality
+ * ranker so the board is never empty. Best-effort — a dead upstream shrinks
+ * it, never errors.
  */
 const POOL_QUERIES = [
-  "storytelling",
-  "technology",
-  "true crime",
-  "society culture",
+  "播客",
   "商业 访谈",
   "文化 生活",
+  "故事 情感",
+  "科技 科学",
+  "历史 读书",
 ];
+
+/** A show reads as Chinese when its title/description is Han-heavy. */
+function isChinese(title: string, description?: string): boolean {
+  return detectLang(`${title} ${description ?? ""}`) === "zh";
+}
 
 export async function GET(request: Request) {
   const limitParam = Number(new URL(request.url).searchParams.get("limit"));
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 40) : 24;
 
   const [topicResults, piShows, xyzChart, chartRanks, trendRanks] = await Promise.all([
-    Promise.all(POOL_QUERIES.map((q) => itunesSearch(q))),
+    Promise.all(POOL_QUERIES.map((q) => itunesSearch(q, "cn"))),
     piTrendingShows(),
     xyzrankChart(),
     itunesTopChartRanks(),
@@ -147,12 +154,15 @@ export async function GET(request: Request) {
         }))
   );
 
+  const built = rows.map((r) => ({
+    ...showById.get(r.id)!,
+    why: r.why,
+    evidence: evidenceById.get(r.id),
+  }));
+  // 社区热议 is the Chinese board — keep only 中文 shows, but never empty it
+  const zhOnly = built.filter((s) => isChinese(s.title, s.description));
   const response: DiscussedChartsResponse = {
-    shows: rows.map((r) => ({
-      ...showById.get(r.id)!,
-      why: r.why,
-      evidence: evidenceById.get(r.id),
-    })),
+    shows: (zhOnly.length > 0 ? zhOnly : built).slice(0, limit),
     degraded: false,
   };
   return NextResponse.json(response, {
