@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { createHash } from "node:crypto";
 import {
   aliasesForShow,

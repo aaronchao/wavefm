@@ -9,6 +9,7 @@ import type { CatalogShow } from "@/src/data/catalog/types";
 import { recordEngagement } from "@/src/data/repos/engagementRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { RatingBadges } from "@/src/features/show/RatingBadges";
+import { CommunityRecs } from "@/src/features/show/CommunityRecs";
 import { SimilarContent } from "@/src/features/show/SimilarContent";
 import { TopEpisodes } from "@/src/features/show/TopEpisodes";
 import { Chip, CoverTile, SettleIn } from "@/src/ui";
@@ -138,6 +139,10 @@ function ShowDetail({ show }: { show: CatalogShow }) {
       )}
 
       <TopEpisodes show={show} />
+
+      {/* Community-mined recs first (renders nothing until edges exist), then
+          the live algorithmic Similar list as the always-there fallback. */}
+      <CommunityRecs seedId={show.id} />
 
       <SimilarContent showId={show.id} />
     </SettleIn>

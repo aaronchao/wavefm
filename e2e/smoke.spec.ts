@@ -294,6 +294,47 @@ test("discover Global chart tab ranks by community + metrics", async ({ page }) 
   await expect(page.getByText("Buzzing on Reddit · 3.4k threads")).toBeVisible();
 });
 
+test("show page surfaces community-mined recommendations above Similar", async ({ page }) => {
+  await stub(page);
+  await page.route("**/api/catalog/show**", (r) =>
+    r.fulfill({
+      json: {
+        show: show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"], {
+          feedUrl: "https://feeds/x",
+        }),
+      },
+    }),
+  );
+  await page.route("**/api/recs/community**", (r) =>
+    r.fulfill({
+      json: {
+        shows: [
+          show("777", "Where Should We Begin", "Esther Perel", ["Society & Culture"], {
+            why: "12 listeners on r/podcasts recommend this",
+            evidence: [
+              {
+                source: "r/podcasts",
+                text: "If you like Psychology In Seattle, try Where Should We Begin",
+                url: "https://www.reddit.com/r/podcasts/x",
+              },
+            ],
+          }),
+        ],
+        degraded: false,
+      },
+    }),
+  );
+
+  await page.goto("/show/222");
+  await expect(page.getByRole("heading", { name: "Listeners also recommend" })).toBeVisible();
+  await expect(page.getByText("Where Should We Begin").first()).toBeVisible();
+  // the reason is tappable and opens the real thread quote
+  await page.getByRole("button", { name: /12 listeners on r\/podcasts/ }).first().click();
+  await expect(
+    page.getByText("If you like Psychology In Seattle, try Where Should We Begin"),
+  ).toBeVisible();
+});
+
 test("library offers OPML import and export", async ({ page }) => {
   await stub(page);
   await page.goto("/library");

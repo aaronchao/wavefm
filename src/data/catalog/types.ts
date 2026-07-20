@@ -137,6 +137,12 @@ export type EpisodesRankedResponse = {
 };
 export type SimilarEpisode = CatalogEpisode & { why: string };
 
+/** Response of /api/recs/community — mined from real community discussion. */
+export type CommunityRecsResponse = {
+  shows: SimilarShow[];
+  degraded: boolean;
+};
+
 /** Response of /api/catalog/similar — ranked top to bottom. */
 export type SimilarResponse = {
   shows: SimilarShow[];

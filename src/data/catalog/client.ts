@@ -4,6 +4,7 @@ import type {
   CatalogShow,
   CatalogShowResponse,
   ChineseChartsResponse,
+  CommunityRecsResponse,
   DiscussedChartsResponse,
   EpisodeChartsResponse,
   EpisodesRankedResponse,
@@ -124,6 +125,22 @@ export async function getGlobalCharts(limit = 24): Promise<GlobalChartsResponse>
     const res = await fetch(`/api/catalog/charts/global?limit=${limit}`);
     if (!res.ok) return { shows: [], degraded: true };
     const json = (await res.json()) as Partial<GlobalChartsResponse>;
+    return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
+  } catch {
+    return { shows: [], degraded: true };
+  }
+}
+
+export async function getCommunityRecs(
+  seedId: string,
+  limit = 12,
+): Promise<CommunityRecsResponse> {
+  try {
+    const res = await fetch(
+      `/api/recs/community?seed=${encodeURIComponent(seedId)}&limit=${limit}`,
+    );
+    if (!res.ok) return { shows: [], degraded: true };
+    const json = (await res.json()) as Partial<CommunityRecsResponse>;
     return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
   } catch {
     return { shows: [], degraded: true };
