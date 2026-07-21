@@ -145,7 +145,9 @@ async function main(): Promise<void> {
 
   // 3. Harvest → dedup.
   const docs = await harvestAll(seeds);
-  console.log(`[mine] harvested ${docs.length} documents`);
+  const bySource: Record<string, number> = {};
+  for (const d of docs) bySource[d.source] = (bySource[d.source] ?? 0) + 1;
+  console.log(`[mine] harvested ${docs.length} documents by source: ${JSON.stringify(bySource)}`);
 
   // 4. Persist raw documents (dedup by content hash to respect the unique idx).
   const seenHash = new Set<string>();
