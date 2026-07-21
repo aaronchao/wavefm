@@ -7,6 +7,12 @@ import {
 } from "@/src/core/mining";
 import { getAdminSupabase } from "@/src/data/mining/admin";
 import { harvestAll, type Seed } from "@/src/data/mining/harvest";
+import {
+  itunesSearch,
+  itunesTopChartShows,
+  piTrendingShows,
+} from "@/src/data/catalog/server";
+import type { CatalogShow } from "@/src/data/catalog/types";
 
 /**
  * The offline mining run (GitHub Actions cron). Reads the catalog + seeds from
@@ -20,6 +26,53 @@ const HOT_POOL_FALLBACK = 50; // when few users have saved shows yet
 
 type ShowRow = { id: string; title: string; language: string | null };
 
+// Topical searches to widen the gazetteer (ZH first → cn storefront, then EN).
+const WIDEN_ZH = ["播客", "故事", "访谈", "科技", "商业", "历史", "读书", "情感"];
+const WIDEN_EN = ["podcast", "storytelling", "true crime", "comedy", "society culture", "technology", "interview", "science"];
+
+/**
+ * Widen the catalog so community discussion has known shows to connect. The
+ * extractor only draws an edge between two shows in the gazetteer, so a
+ * 59-show catalog almost never sees ≥2 of its shows co-recommended in a random
+ * thread. Pulling a few hundred popular podcasts (Apple US+CN charts, PI
+ * trending, topical searches) into `shows` massively raises the hit rate.
+ * Best-effort: a dead upstream just adds fewer shows.
+ */
+async function widenCatalog(
+  admin: NonNullable<ReturnType<typeof getAdminSupabase>>,
+): Promise<void> {
+  const lists = await Promise.all([
+    itunesTopChartShows("us"),
+    itunesTopChartShows("cn"),
+    piTrendingShows(),
+    ...WIDEN_ZH.map((q) => itunesSearch(q, "cn")),
+    ...WIDEN_EN.map((q) => itunesSearch(q)),
+  ]);
+  const byId = new Map<string, CatalogShow>();
+  for (const list of lists) {
+    for (const s of list ?? []) if (!byId.has(s.id)) byId.set(s.id, s);
+  }
+  const pool = [...byId.values()];
+  if (pool.length === 0) return;
+
+  const rows = pool.map((s) => ({
+    id: s.id,
+    itunes_id: s.source === "itunes" ? s.id : null,
+    feed_url: s.feedUrl ?? null,
+    title: s.title,
+    author: s.author || null,
+    description: s.description ?? null,
+    categories: s.categories,
+    cover_url: s.coverUrl ?? null,
+    platform_links: s.appleUrl ? { apple: s.appleUrl } : {},
+    updated_at: new Date().toISOString(),
+  }));
+  for (let i = 0; i < rows.length; i += 200) {
+    await admin.from("shows").upsert(rows.slice(i, i + 200), { onConflict: "id" });
+  }
+  console.log(`[mine] widened catalog with ${pool.length} popular shows`);
+}
+
 async function main(): Promise<void> {
   const admin = getAdminSupabase();
   if (!admin) {
@@ -32,13 +85,15 @@ async function main(): Promise<void> {
     [
       { id: "hackernews", name: "Hacker News", lang: "en", kind: "api" },
       { id: "v2ex", name: "V2EX", lang: "zh", kind: "api" },
+      { id: "ptt", name: "PTT", lang: "zh", kind: "forum" },
       { id: "reddit", name: "Reddit", lang: "en", kind: "api" },
       { id: "douban", name: "豆瓣小组", lang: "zh", kind: "rss" },
     ],
     { onConflict: "id", ignoreDuplicates: true },
   );
 
-  // 1. Known catalog → gazetteer (and sync the alias table).
+  // 1. Widen the catalog, then build the gazetteer from everything cached.
+  await widenCatalog(admin);
   const { data: showData } = await admin.from("shows").select("id,title,language");
   const shows = (showData ?? []) as ShowRow[];
   if (shows.length === 0) {

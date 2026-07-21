@@ -3,6 +3,7 @@ import { parseRedditListing } from "@/src/data/mining/harvest/reddit";
 import { parseRssDocs } from "@/src/data/mining/harvest/douban";
 import { parseHnHits } from "@/src/data/mining/harvest/hackernews";
 import { parseSov2ex } from "@/src/data/mining/harvest/v2ex";
+import { parsePttSearch, parsePttThread } from "@/src/data/mining/harvest/ptt";
 
 describe("parseRedditListing", () => {
   it("maps a search listing into RawDocs", () => {
@@ -130,5 +131,27 @@ describe("parseSov2ex (V2EX)", () => {
 
   it("returns [] on junk", () => {
     expect(parseSov2ex({})).toEqual([]);
+  });
+});
+
+describe("PTT parsers", () => {
+  it("parses board search rows", () => {
+    const html = `
+      <div class="r-ent"><div class="title"><a href="/bbs/Podcast/M.1.A.html">[推薦] 類似故事FM的節目</a></div></div>
+      <div class="r-ent"><div class="title"><a href="/bbs/Podcast/M.2.A.html">求推薦播客</a></div></div>`;
+    const rows = parsePttSearch(html);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toEqual({ href: "/bbs/Podcast/M.1.A.html", title: "[推薦] 類似故事FM的節目" });
+  });
+
+  it("parses a thread's body + author, dropping the signature/pushes", () => {
+    const html = `<div id="main-content" class="bbs-screen">作者</span><span class="article-meta-value">tester</span>
+      推薦 忽左忽右 和 声东击西，都很讚
+      <span class="f2">※ 發信站: 批踢踢實業坊</span>
+      <div class="push">推 someone: good</div></div>`;
+    const { body, author } = parsePttThread(html);
+    expect(author).toBe("tester");
+    expect(body).toContain("忽左忽右");
+    expect(body).not.toContain("someone");
   });
 });

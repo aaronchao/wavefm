@@ -1,6 +1,7 @@
 import type { RawDoc } from "@/src/core/mining";
 import { doubanSource } from "./douban";
 import { hackerNewsSource } from "./hackernews";
+import { pttSource } from "./ptt";
 import { redditSource } from "./reddit";
 import { v2exSource } from "./v2ex";
 import type { HarvestSource, Seed } from "./types";
@@ -10,6 +11,7 @@ export { parseRedditListing } from "./reddit";
 export { parseRssDocs } from "./douban";
 export { parseHnHits } from "./hackernews";
 export { parseSov2ex } from "./v2ex";
+export { parsePttSearch, parsePttThread } from "./ptt";
 
 /**
  * Harvest sources, all best-effort (null on failure). The two that use
@@ -21,6 +23,7 @@ export { parseSov2ex } from "./v2ex";
 export const SOURCES: HarvestSource[] = [
   hackerNewsSource,
   v2exSource,
+  pttSource,
   redditSource,
   doubanSource,
 ];
