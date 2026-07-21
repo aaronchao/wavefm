@@ -2,8 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { platformLinks } from "@/src/core/links";
 import { CLIP_SECONDS } from "@/src/core/preview";
+import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { player, usePlayerState } from "@/src/state/player";
 import { CoverTile } from "@/src/ui";
 
@@ -127,10 +127,6 @@ export function PreviewPlayer() {
     // token bumps on every play request, even for the same URL
   }, [s.token, s.status, s.audioUrl, s.startAt, s.startFraction]);
 
-  const links = s.meta
-    ? platformLinks(s.meta.searchTitle, { apple: s.meta.appleUrl })
-    : [];
-
   const statusLine =
     s.status === "loading"
       ? "Finding a clip…"
@@ -182,30 +178,17 @@ export function PreviewPlayer() {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-zinc-400">Listen in full:</span>
-                {links.map((link) =>
-                  link.url ? (
-                    <a
-                      key={link.id}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-pill bg-surface px-2.5 py-1 text-xs font-medium hover:opacity-80"
-                    >
-                      {link.label}
-                      {link.isSearch ? " ↗" : ""}
-                    </a>
-                  ) : (
-                    <span
-                      key={link.id}
-                      aria-disabled
-                      className="cursor-not-allowed rounded-pill bg-surface px-2.5 py-1 text-xs font-medium opacity-40"
-                    >
-                      {link.label}
-                    </span>
-                  ),
-                )}
+              {/* Icons only — no text labels — per the Play-bar spec. */}
+              <div className="flex items-center gap-2">
+                <span className="font-brand shrink-0 text-[10px] uppercase tracking-wider text-zinc-400">
+                  Listen in full
+                </span>
+                <OpenInLinks
+                  title={s.meta.searchTitle}
+                  appleUrl={s.meta.appleUrl}
+                  feedUrl={s.meta.feedUrl}
+                  label=""
+                />
               </div>
             </div>
           </motion.div>

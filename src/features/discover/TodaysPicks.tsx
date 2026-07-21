@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { SimilarShow } from "@/src/data/catalog/types";
 import { previewShowTopEpisodeMiddle } from "@/src/features/player/preview";
-import { Chip, CoverTile, SettleIn } from "@/src/ui";
+import { CoverTile, NothingToggle, PlayButton, SettleIn } from "@/src/ui";
 import { MachineLabel } from "./DiscoverPage";
 import { EpisodeList } from "./EpisodeList";
 import { Evidence } from "./Evidence";
@@ -103,16 +103,20 @@ function Spotlight({ pick }: { pick: SimilarShow }) {
           <p className="mt-0.5 text-sm text-zinc-500">{pick.author}</p>
           <Evidence show={pick} className="mt-3" />
           <div className="mt-5 flex flex-wrap items-center gap-2">
+            {/* Nothing-brand primary Play — sharp, monochrome, high contrast */}
             <button
               type="button"
               onClick={() => previewShowTopEpisodeMiddle(pick)}
-              className="rounded-pill bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:shadow-md active:scale-95"
+              className="font-brand inline-flex items-center gap-2 rounded-[2px] border border-foreground bg-foreground px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-background transition-colors hover:bg-background hover:text-foreground active:scale-95"
             >
-              ▶ Play the talked-about bit
+              <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor" aria-hidden>
+                <path d="M0 0l10 6-10 6z" />
+              </svg>
+              Play the talked-about bit
             </button>
-            <Chip active={saved.saved} onClick={saved.toggle}>
+            <NothingToggle active={saved.saved} onClick={saved.toggle}>
               {saved.saved ? "Saved ✓" : "Save"}
-            </Chip>
+            </NothingToggle>
             <Link
               href={`/show/${pick.id}`}
               className="text-sm font-medium text-zinc-500 hover:text-foreground"
@@ -141,17 +145,14 @@ function PickCard({ pick, rank }: { pick: SimilarShow; rank: number }) {
         <p className="truncate text-sm text-zinc-500">{pick.author}</p>
         <Evidence show={pick} className="mt-1" />
         <div className="mt-2 flex items-center gap-2">
-          <button
-            type="button"
+          <PlayButton
             onClick={() => previewShowTopEpisodeMiddle(pick)}
-            aria-label={`Play the most-discussed bit of ${pick.title}`}
-            className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-transform active:scale-95"
-          >
-            ▶ Play
-          </button>
-          <Chip active={saved.saved} onClick={saved.toggle} className="!py-1 !text-xs">
+            label={`Play the most-discussed bit of ${pick.title}`}
+            size="sm"
+          />
+          <NothingToggle active={saved.saved} onClick={saved.toggle}>
             {saved.saved ? "Saved ✓" : "Save"}
-          </Chip>
+          </NothingToggle>
         </div>
       </div>
     </div>

@@ -12,6 +12,7 @@ import {
 import { previewRankedEpisode } from "@/src/features/player/preview";
 
 const BASIS_LABEL: Record<RankedEpisodeItem["basis"], string> = {
+  listens: "Most listened",
   discussion: "Discussed",
   rating: "Rated",
   recent: "Recent",

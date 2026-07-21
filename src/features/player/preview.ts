@@ -24,6 +24,7 @@ export function previewShow(
     coverUrl: show.coverUrl,
     searchTitle: show.title,
     appleUrl: show.appleUrl,
+    feedUrl: show.feedUrl,
   };
   player.startLoading(meta);
   // rss- shows aren't in any catalog — their feed URL rides along

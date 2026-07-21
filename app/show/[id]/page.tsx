@@ -11,8 +11,9 @@ import { RatingBadges } from "@/src/features/show/RatingBadges";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { CommunityRecs } from "@/src/features/show/CommunityRecs";
 import { SimilarContent } from "@/src/features/show/SimilarContent";
+import { TagEditor } from "@/src/features/show/TagEditor";
 import { TopEpisodes } from "@/src/features/show/TopEpisodes";
-import { Chip, CoverTile, SettleIn } from "@/src/ui";
+import { CoverTile, NothingToggle, SettleIn } from "@/src/ui";
 
 export default function ShowPage() {
   const { id } = useParams<{ id: string }>();
@@ -47,7 +48,7 @@ function ShowDetail({ show }: { show: CatalogShow }) {
     };
   }, [show.id]);
 
-  // ONE_CLICK invariant for save / like / not-for-me
+  // ONE_CLICK invariant for save
   function toggleSave() {
     const next = !saved;
     setSaved(next);
@@ -80,25 +81,24 @@ function ShowDetail({ show }: { show: CatalogShow }) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Chip active={saved} onClick={toggleSave}>
+        <NothingToggle active={saved} onClick={toggleSave}>
           {saved ? "Saved ✓" : "Save"}
-        </Chip>
-        <Chip onClick={() => void recordEngagement(show, "like")} aria-label="Like">
-          👍 Like
-        </Chip>
-        <Chip onClick={() => void recordEngagement(show, "block")} aria-label="Not for me">
-          🚫 Not for me
-        </Chip>
+        </NothingToggle>
       </div>
 
+      <TagEditor showId={show.id} />
+
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+        <h2 className="font-brand mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
           Listen on
         </h2>
-        {/* icons only — saves horizontal space on mobile (no text labels) */}
+        {/* icons only, one horizontal row — brand colour when a stored link
+            exists, grayscale otherwise, plus an RSS copy for any-app import */}
         <OpenInLinks
           title={show.title}
           appleUrl={show.appleUrl}
+          feedUrl={show.feedUrl}
+          stored={show.platformLinks}
           label=""
           size="md"
           onOpen={onOpen}

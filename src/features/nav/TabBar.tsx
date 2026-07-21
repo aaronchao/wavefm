@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation";
 
 /**
  * App-style bottom navigation — the whole app lives in two places
- * (Discovery, Library) plus quick Search. Settings is a small icon up top,
- * not a tab, so the bar stays focused on what people actually do. Sits
- * under the preview player, above everything else.
+ * (Discovery, Library). Search is no longer a tab: it's a floating bar
+ * fixed to the bottom of both views. Settings is a small icon up top, not a
+ * tab, so the bar stays focused on what people actually do. Sits under the
+ * preview player, above everything else.
  */
 const TABS = [
   { href: "/", label: "Discovery", icon: CompassIcon, match: (p: string) => p === "/" },
-  { href: "/search", label: "Search", icon: SearchIcon, match: (p: string) => p.startsWith("/search") },
   { href: "/library", label: "Library", icon: LibraryIcon, match: (p: string) => p.startsWith("/library") },
 ];
 
@@ -20,7 +20,7 @@ export function TabBar() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-surface-border bg-background/90 backdrop-blur"
+      className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-surface-border bg-background/90 backdrop-blur"
     >
       <ul className="mx-auto flex max-w-md items-stretch justify-around">
         {TABS.map((t) => {
@@ -53,15 +53,6 @@ function CompassIcon({ className }: IconProps) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <circle cx="12" cy="12" r="9" />
       <path d="M15.5 8.5l-2 5-5 2 2-5 5-2z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function SearchIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <circle cx="11" cy="11" r="7" />
-      <path d="M20 20l-3.5-3.5" strokeLinecap="round" />
     </svg>
   );
 }

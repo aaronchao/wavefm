@@ -18,6 +18,8 @@ export type PreviewMeta = {
   searchTitle: string;
   /** Stored Apple Podcasts URL, when known. */
   appleUrl?: string;
+  /** Raw RSS feed URL — powers the Play bar's copy-to-clipboard RSS icon. */
+  feedUrl?: string;
 };
 
 export type PlayerState = {

@@ -133,7 +133,7 @@ test("queue an episode for later, then it appears in the Library", async ({ page
   ).toBeVisible();
 
   await page.goto("/library");
-  await page.getByRole("button", { name: "Listen later" }).click();
+  // Episodes now sit in their own column (no tab) — visible immediately
   await expect(page.getByText("Ep 12: Attachment styles")).toBeVisible();
 });
 

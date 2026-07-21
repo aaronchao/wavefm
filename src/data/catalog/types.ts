@@ -1,3 +1,11 @@
+/** Known player deep-links for a show, when the payload provides them. */
+export type PlatformLinks = {
+  apple?: string;
+  spotify?: string;
+  youtubeMusic?: string;
+  xiaoyuzhou?: string;
+};
+
 /** A show as returned by the catalog proxy (/api/catalog/*). */
 export type CatalogShow = {
   /**
@@ -19,6 +27,12 @@ export type CatalogShow = {
   lastEpisodeAt?: string;
   /** Total episodes published (iTunes trackCount; longevity signal). */
   episodeCount?: number;
+  /**
+   * Stored player deep-links from the payload. A present URL renders the
+   * icon in brand colour; a missing one renders grayscale/disabled. Never
+   * hardcoded — populated by the catalog/backend when known.
+   */
+  platformLinks?: PlatformLinks;
 };
 
 /** A single episode as returned by the catalog proxy (similar-content only). */
@@ -128,9 +142,14 @@ export type RankedEpisodeItem = {
   audioUrl?: string;
   durationSec?: number;
   publishedAt?: string;
-  /** What actually drove the rank (no faked listen counts). */
-  basis: "discussion" | "rating" | "recent";
+  /** What actually drove the rank. */
+  basis: "discussion" | "rating" | "recent" | "listens";
   why: string;
+  /**
+   * Total plays for this episode when the backend provides it. Drives the
+   * "most listened" ordering on the show page; absent → ranked by `basis`.
+   */
+  listens?: number;
 };
 
 export type EpisodesRankedResponse = {

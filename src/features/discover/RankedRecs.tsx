@@ -11,13 +11,14 @@ import {
   saveEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
 import { previewRankedEpisode } from "@/src/features/player/preview";
-import { SettleIn } from "@/src/ui";
+import { NothingToggle, PlayButton, SettleIn } from "@/src/ui";
 import { MachineLabel } from "./DiscoverPage";
 import { ShowRowCompact } from "./ShowRowCompact";
 
 /** How many top shows we pull episodes from for the Episodes column. */
 const EP_SHOWS = 6;
 const BASIS_LABEL: Record<RankedEpisodeItem["basis"], string> = {
+  listens: "Most listened",
   discussion: "Discussed",
   rating: "Rated",
   recent: "Recent",
@@ -193,27 +194,20 @@ function EpisodeColumnRow({ ep, show }: { ep: RankedEpisodeItem; show: SimilarSh
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-center gap-1.5">
-        <button
-          type="button"
+        <PlayButton
           onClick={() => previewRankedEpisode(ep, show)}
           disabled={!ep.audioUrl}
-          aria-label={`Play the middle of ${ep.title}`}
-          className="rounded-full bg-accent px-2.5 py-1.5 text-xs font-semibold text-white transition-transform active:scale-95 disabled:opacity-30"
-        >
-          ▶
-        </button>
-        <button
-          type="button"
+          label={`Play the middle of ${ep.title}`}
+          size="sm"
+        />
+        <NothingToggle
+          active={queued}
           onClick={() => toggleLater()}
-          aria-label={queued ? `Remove ${ep.title} from Later` : `Save ${ep.title} for later`}
-          className={`rounded-full border px-2 py-1 text-xs font-medium transition-colors ${
-            queued
-              ? "border-accent bg-accent-soft text-accent"
-              : "border-surface-border text-zinc-500 hover:border-accent hover:text-accent"
-          }`}
+          ariaLabel={queued ? `Remove ${ep.title} from Later` : `Save ${ep.title} for later`}
+          className="!px-2"
         >
           {queued ? "✓" : "+ Later"}
-        </button>
+        </NothingToggle>
       </div>
     </li>
   );

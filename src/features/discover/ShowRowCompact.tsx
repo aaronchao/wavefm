@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { SimilarShow } from "@/src/data/catalog/types";
 import { previewShowTopEpisodeMiddle } from "@/src/features/player/preview";
-import { Chip, CoverTile } from "@/src/ui";
+import { CoverTile, NothingToggle, PlayButton } from "@/src/ui";
 import { Evidence } from "./Evidence";
 import { useSavedToggle } from "./useSavedToggle";
 
@@ -42,17 +42,14 @@ export function ShowRowCompact({
         <Evidence show={show} className="mt-1" />
       </div>
       <div className="flex shrink-0 flex-col items-center gap-1.5">
-        <button
-          type="button"
+        <PlayButton
           onClick={() => previewShowTopEpisodeMiddle(show)}
-          aria-label={`Play the most-discussed bit of ${show.title}`}
-          className="rounded-full bg-accent px-2.5 py-1.5 text-xs font-semibold text-white transition-transform active:scale-95"
-        >
-          ▶
-        </button>
-        <Chip active={saved.saved} onClick={saved.toggle} className="!px-2 !py-1 !text-xs">
+          label={`Play the most-discussed bit of ${show.title}`}
+          size="sm"
+        />
+        <NothingToggle active={saved.saved} onClick={saved.toggle} className="!px-2">
           {saved.saved ? "✓" : "Save"}
-        </Chip>
+        </NothingToggle>
       </div>
     </li>
   );

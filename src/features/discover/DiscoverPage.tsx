@@ -6,6 +6,7 @@ import { defaultTopics } from "@/src/core/recommend";
 import { getDiscoverTopics } from "@/src/data/catalog/client";
 import type { DiscoverTopic } from "@/src/data/catalog/types";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
+import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
 import { Charts } from "./Charts";
 import { EpisodeCharts } from "./EpisodeCharts";
@@ -48,19 +49,6 @@ const CN_TOPICS = ["商业", "科技", "文化", "历史", "情感", "悬疑", "
 const STATIC_TOPICS: DiscoverTopic[] = [
   ...TOPICS.map((t) => ({ label: t, query: t, lang: "en" as const })),
   ...CN_TOPICS.map((t) => ({ label: t, query: t, lang: "zh" as const })),
-];
-
-/**
- * Mood entry points — discovery by feeling, not genre. Each `query` is a
- * bilingual bag of terms that lenses the search + filtering underneath.
- */
-const MOODS: { emoji: string; label: string; query: string }[] = [
-  { emoji: "😂", label: "make me laugh", query: "comedy 搞笑" },
-  { emoji: "🤯", label: "blow my mind", query: "science 脑洞" },
-  { emoji: "☕", label: "cozy", query: "cozy 治愈" },
-  { emoji: "🥊", label: "a good debate", query: "debate 辩论" },
-  { emoji: "😢", label: "cry a little", query: "emotional 情感" },
-  { emoji: "🕳️", label: "rabbit hole", query: "history 深度" },
 ];
 
 /**
@@ -119,25 +107,15 @@ export function DiscoverPage() {
         </button>
       </div>
 
-      {/* Mood lens — start from a feeling */}
-      <div className="mb-6">
-        <SectionLabel>How do you want to feel?</SectionLabel>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {MOODS.map((m) => (
-            <TopicChip
-              key={m.label}
-              label={`${m.emoji} ${m.label}`}
-              active={topic === m.query}
-              onClick={() => setTopic((cur) => (cur === m.query ? null : m.query))}
-            />
-          ))}
+      {/* Now — a live, horizontally-scrolling rail of trending community
+          topics. Tapping one re-lenses Today's Picks below via `topic`. */}
+      <section className="mb-8">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+          <SectionLabel>Now</SectionLabel>
+          <MachineLabel>trending in the community</MachineLabel>
         </div>
-      </div>
-
-      {/* Topic lens — a live English + 中文 mix from community discussion */}
-      <div className="mb-8">
-        <SectionLabel>Or pick a topic</SectionLabel>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:-mx-8 sm:px-8">
           <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
           {topicChips.map((t) => (
             <TopicChip
@@ -148,7 +126,7 @@ export function DiscoverPage() {
             />
           ))}
         </div>
-      </div>
+      </section>
 
       {/* The payoff: today's picks, several at a glance, each with its reason */}
       <TodaysPicks key={topic ?? "all"} picks={heroPicks} />
@@ -170,11 +148,30 @@ export function DiscoverPage() {
 
       <SavedRails saved={saved} />
 
+      {/* Topic — browse by a curated bilingual set; Trending sits right below. */}
+      <section className="mb-6">
+        <SectionLabel>Topic</SectionLabel>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
+          {STATIC_TOPICS.map((t) => (
+            <TopicChip
+              key={`${t.lang}:${t.label}`}
+              label={t.label}
+              active={topic === t.query}
+              onClick={() => setTopic((cur) => (cur === t.query ? null : t.query))}
+            />
+          ))}
+        </div>
+      </section>
+
       <TrendingShelf topic={topic} />
+
+      <FloatingSearch />
     </main>
   );
 }
 
+/** Nothing-brand topic toggle — sharp edges, monochrome, dot-matrix type. */
 function TopicChip({
   label,
   active,
@@ -189,11 +186,8 @@ function TopicChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`font-brand rounded-pill border px-3 py-1.5 text-xs uppercase tracking-wider transition-colors ${
-        active
-          ? "border-accent bg-accent text-white"
-          : "border-surface-border bg-surface text-zinc-700 hover:text-foreground dark:text-zinc-200"
-      }`}
+      data-active={active}
+      className="nothing-toggle shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px]"
     >
       {label}
     </button>
