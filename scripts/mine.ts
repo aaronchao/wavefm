@@ -67,10 +67,14 @@ async function widenCatalog(
     platform_links: s.appleUrl ? { apple: s.appleUrl } : {},
     updated_at: new Date().toISOString(),
   }));
+  let wrote = 0;
   for (let i = 0; i < rows.length; i += 200) {
-    await admin.from("shows").upsert(rows.slice(i, i + 200), { onConflict: "id" });
+    const chunk = rows.slice(i, i + 200);
+    const { error } = await admin.from("shows").upsert(chunk, { onConflict: "id" });
+    if (error) console.error(`[mine] shows upsert failed: ${error.message}`);
+    else wrote += chunk.length;
   }
-  console.log(`[mine] widened catalog with ${pool.length} popular shows`);
+  console.log(`[mine] widened catalog: ${wrote}/${pool.length} popular shows written`);
 }
 
 async function main(): Promise<void> {
@@ -80,8 +84,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Register the sources (FK target for raw_documents), idempotent.
-  await admin.from("mining_sources").upsert(
+  // Register the sources (FK target for raw_documents), idempotent. This is
+  // also our write-permission probe: if it fails, the key can't write and
+  // nothing downstream will persist — almost always the anon key in the
+  // SUPABASE_SERVICE_ROLE_KEY secret instead of the real service_role key.
+  const { error: writeErr } = await admin.from("mining_sources").upsert(
     [
       { id: "hackernews", name: "Hacker News", lang: "en", kind: "api" },
       { id: "v2ex", name: "V2EX", lang: "zh", kind: "api" },
@@ -91,6 +98,13 @@ async function main(): Promise<void> {
     ],
     { onConflict: "id", ignoreDuplicates: true },
   );
+  if (writeErr) {
+    console.error(
+      `[mine] ⚠️ WRITE FAILED — is SUPABASE_SERVICE_ROLE_KEY the *service_role* key (not the anon/publishable key)? Postgres said: ${writeErr.message}`,
+    );
+  } else {
+    console.log("[mine] write check OK (service-role key can write)");
+  }
 
   // 1. Widen the catalog, then build the gazetteer from everything cached.
   await widenCatalog(admin);
@@ -151,14 +165,15 @@ async function main(): Promise<void> {
     });
   }
   if (docRows.length) {
-    await admin.from("raw_documents").upsert(docRows, { onConflict: "id" });
+    const { error } = await admin.from("raw_documents").upsert(docRows, { onConflict: "id" });
+    if (error) console.error(`[mine] raw_documents upsert failed: ${error.message}`);
   }
 
   // 5. Extract + aggregate → write edges.
   const edges = mineDocuments(docs, gaz);
   console.log(`[mine] ${edges.length} rec edges`);
   if (edges.length) {
-    await admin.from("rec_edges").upsert(
+    const { error } = await admin.from("rec_edges").upsert(
       edges.map((e) => ({
         seed_show_id: e.seedShowId,
         rec_show_id: e.recShowId,
@@ -171,6 +186,7 @@ async function main(): Promise<void> {
       })),
       { onConflict: "seed_show_id,rec_show_id" },
     );
+    if (error) console.error(`[mine] rec_edges upsert failed: ${error.message}`);
   }
   console.log("[mine] done.");
 }
