@@ -52,6 +52,9 @@ const contains = (hay: string, needle: string) =>
   hay.toLowerCase().includes(needle.trim().toLowerCase());
 
 async function harvest(seed: Seed): Promise<RawDoc[] | null> {
+  // PTT is a Traditional-Chinese (Taiwan) board — skip non-Chinese seeds so we
+  // don't waste fetches (and hammer the board) on shows it won't carry.
+  if (!/\p{sc=Han}/u.test(seed.title)) return [];
   const searchHtml = await fetchText(
     `https://www.ptt.cc/bbs/Podcast/search?q=${encodeURIComponent(seed.title)}`,
   );

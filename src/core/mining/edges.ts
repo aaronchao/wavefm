@@ -1,5 +1,5 @@
 import { type Gazetteer, type RawMatch, scan } from "./gazetteer";
-import { detectThreadSeed, hasCueNear, hasRecIntentTitle } from "./intent";
+import { detectThreadSeed, hasCueNear } from "./intent";
 import { normalize } from "./normalize";
 import { sentimentOf } from "./sentiment";
 import {
@@ -117,8 +117,11 @@ export function extractEdges(
     return [...best.values()];
   }
 
-  // 2. Co-mention: only inside a rec-intent thread that names ≥2 shows.
-  if (!hasRecIntentTitle(normTitle)) return [];
+  // 2. Co-mention: any document that names ≥2 known shows pairs them up
+  // (undirected, lower weight) — shows discussed together are a real signal,
+  // even when the title isn't an explicit "podcasts like X?". Short/ambiguous
+  // titles still need a cue word (confidenceInThread), and author aggregation
+  // + the co-mention weight keep precision reasonable.
   const bestConf = new Map<string, number>();
   const consider = (showId: string, conf: number) => {
     if (conf < opts.minConfidence) return;

@@ -38,6 +38,8 @@ export function parseSov2ex(json: unknown): RawDoc[] {
 }
 
 async function harvest(seed: Seed): Promise<RawDoc[] | null> {
+  // V2EX is a Chinese community — skip non-Chinese seeds (fewer, politer calls).
+  if (!/\p{sc=Han}/u.test(seed.title)) return [];
   const q = encodeURIComponent(`${seed.title} 播客`);
   try {
     const res = await fetch(

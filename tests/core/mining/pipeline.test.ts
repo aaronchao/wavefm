@@ -38,26 +38,25 @@ describe("extractEdges (per document)", () => {
     expect(edges.every((e) => e.sentiment > 0)).toBe(true); // 好听
   });
 
-  it("excludes self-edges and non-rec threads", () => {
+  it("yields nothing when a doc names fewer than two known shows", () => {
     expect(
-      extractEdges(doc({ title: "故事FM 最新一期", body: "忽左忽右" }), gaz),
-    ).toEqual([]); // not a rec thread → nothing
+      extractEdges(doc({ title: "故事FM 最新一期", body: "又更新了一集" }), gaz),
+    ).toEqual([]); // only one known show → no pair
     const selfOnly = extractEdges(
       doc({ title: "Podcasts like Reply All?", body: "just Reply All again" }),
       gaz,
     );
-    expect(selfOnly).toEqual([]); // only the seed appears → no self edge
+    expect(selfOnly).toEqual([]); // rec thread, but only the seed appears
   });
 
-  it("pairs up shows in a seedless rec-intent thread (co-mention)", () => {
-    // a "best podcasts" list names several shows but no single seed
+  it("pairs up shows co-mentioned in any thread (no rec-intent title needed)", () => {
     const edges = extractEdges(
-      doc({ title: "Best podcasts? Share your favorites", body: "Radiolab and Reply All" }),
+      doc({ title: "我的一天", body: "今天听了 忽左忽右 和 声东击西，都不错" }),
       gaz,
     );
-    const pairs = edges.map((e) => `${e.recShowId}`).sort();
-    // undirected: Radiolab <-> Reply All (both directions emitted)
-    expect(pairs).toEqual(["radiolab", "replyall"]);
+    const recs = [...new Set(edges.map((e) => e.recShowId))].sort();
+    // undirected: 忽左忽右 <-> 声东击西 (both directions emitted)
+    expect(recs).toEqual(["huzuo", "shengdong"]);
     expect(edges.every((e) => e.seedShowId !== e.recShowId)).toBe(true);
   });
 });
