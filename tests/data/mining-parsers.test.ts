@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseRedditListing } from "@/src/data/mining/harvest/reddit";
 import { parseRssDocs } from "@/src/data/mining/harvest/douban";
 import { parseHnHits } from "@/src/data/mining/harvest/hackernews";
+import { parseSov2ex } from "@/src/data/mining/harvest/v2ex";
 
 describe("parseRedditListing", () => {
   it("maps a search listing into RawDocs", () => {
@@ -96,5 +97,38 @@ describe("parseHnHits (Hacker News / Algolia)", () => {
   it("returns [] on junk", () => {
     expect(parseHnHits({})).toEqual([]);
     expect(parseHnHits(null)).toEqual([]);
+  });
+});
+
+describe("parseSov2ex (V2EX)", () => {
+  it("maps hits with post content + author into RawDocs", () => {
+    const json = {
+      hits: [
+        {
+          _source: {
+            id: 12345,
+            title: "求推荐类似故事FM的播客",
+            content: "最近在听 忽左忽右，还有声东击西",
+            member: "someone",
+          },
+        },
+        { _source: { title: "no id" } }, // skipped
+      ],
+    };
+    const docs = parseSov2ex(json);
+    expect(docs).toHaveLength(1);
+    expect(docs[0]).toMatchObject({
+      id: "v2ex:12345",
+      source: "v2ex",
+      lang: "zh",
+      title: "求推荐类似故事FM的播客",
+      body: "最近在听 忽左忽右，还有声东击西",
+      author: "v2ex:someone",
+      url: "https://www.v2ex.com/t/12345",
+    });
+  });
+
+  it("returns [] on junk", () => {
+    expect(parseSov2ex({})).toEqual([]);
   });
 });

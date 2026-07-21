@@ -31,6 +31,7 @@ async function main(): Promise<void> {
   await admin.from("mining_sources").upsert(
     [
       { id: "hackernews", name: "Hacker News", lang: "en", kind: "api" },
+      { id: "v2ex", name: "V2EX", lang: "zh", kind: "api" },
       { id: "reddit", name: "Reddit", lang: "en", kind: "api" },
       { id: "douban", name: "豆瓣小组", lang: "zh", kind: "rss" },
     ],
