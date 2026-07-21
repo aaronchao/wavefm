@@ -7,12 +7,12 @@ import { getShow } from "@/src/data/catalog/client";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { recordEngagement } from "@/src/data/repos/engagementRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
-import { RatingBadges } from "@/src/features/show/RatingBadges";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { CommunityRecs } from "@/src/features/show/CommunityRecs";
 import { SimilarContent } from "@/src/features/show/SimilarContent";
 import { TagEditor } from "@/src/features/show/TagEditor";
 import { TopEpisodes } from "@/src/features/show/TopEpisodes";
+import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { CoverTile, NothingToggle, SettleIn } from "@/src/ui";
 
 export default function ShowPage() {
@@ -23,7 +23,7 @@ export default function ShowPage() {
   });
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 pb-40 sm:p-8 sm:pb-40">
+    <main className="mx-auto w-full max-w-2xl p-4 pb-56 sm:p-8 sm:pb-56">
       {isLoading && <p className="text-zinc-500">Loading…</p>}
       {!isLoading && !show && (
         <p className="text-zinc-500">
@@ -31,6 +31,7 @@ export default function ShowPage() {
         </p>
       )}
       {show && <ShowDetail show={show} />}
+      <FloatingSearch />
     </main>
   );
 }
@@ -74,9 +75,6 @@ function ShowDetail({ show }: { show: CatalogShow }) {
               {show.categories.slice(0, 4).join(" · ")}
             </p>
           )}
-          <div className="mt-2">
-            <RatingBadges showId={show.id} title={show.title} />
-          </div>
         </div>
       </div>
 

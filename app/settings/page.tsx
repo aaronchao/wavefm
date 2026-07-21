@@ -2,20 +2,10 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { defaultTopics } from "@/src/core/recommend";
-import {
-  getPrefs,
-  setInterests,
-  setRatingSources,
-} from "@/src/data/repos/prefsRepo";
+import { getPrefs, setInterests } from "@/src/data/repos/prefsRepo";
 import { getSupabase } from "@/src/data/supabase/client";
 import { useSession } from "@/src/state/useSession";
-import { Chip } from "@/src/ui";
-
-const RATING_SOURCES = [
-  { id: "douban" as const, label: "Douban" },
-  { id: "xiaoyuzhou" as const, label: "小宇宙 Xiaoyuzhou" },
-];
+import { NothingToggle } from "@/src/ui";
 
 export default function SettingsPage() {
   const { session, loading, configured } = useSession();
@@ -25,7 +15,6 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       <InterestsSection />
-      <RatingSourcesSection />
 
       <section className="rounded-card border border-surface-border p-4">
         <h2 className="mb-3 font-semibold">Account &amp; sync</h2>
@@ -54,15 +43,17 @@ function usePrefs() {
   return { prefsQ, invalidate };
 }
 
+/**
+ * Interests are fully user-authored — no preset/trending chips. Whatever's
+ * added here drives the Discover page's "For You" rail and, by extension,
+ * Today's Picks (Section: "For You" logic maps these interests to filter
+ * recommendations).
+ */
 function InterestsSection() {
   const { prefsQ, invalidate } = usePrefs();
   const [edited, setEdited] = useState<string[] | null>(null);
   const [custom, setCustom] = useState("");
   const picked = edited ?? prefsQ.data?.interests ?? [];
-
-  const defaults = defaultTopics();
-  // trending chips + any custom interests the user already added
-  const topics = [...defaults, ...picked.filter((t) => !defaults.includes(t))];
 
   async function commit(next: string[]) {
     setEdited(next);
@@ -70,12 +61,8 @@ function InterestsSection() {
     await invalidate();
   }
 
-  function toggle(topic: string) {
-    void commit(
-      picked.includes(topic)
-        ? picked.filter((t) => t !== topic)
-        : [...picked, topic],
-    );
+  function remove(topic: string) {
+    void commit(picked.filter((t) => t !== topic));
   }
 
   function addCustom(e: FormEvent) {
@@ -89,20 +76,23 @@ function InterestsSection() {
     <section className="rounded-card border border-surface-border p-4">
       <h2 className="mb-1 font-semibold">Interests</h2>
       <p className="mb-3 text-sm text-zinc-500">
-        Feeds the recommendation engine — same toggles as Topics, plus add
-        your own.
+        Fully yours — add whatever you&apos;re into. Drives the &quot;For
+        You&quot; rail on Discover and tunes your recommendations.
       </p>
-      <div className="mb-3 flex flex-wrap gap-2">
-        {topics.map((topic) => (
-          <Chip
-            key={topic}
-            active={picked.includes(topic)}
-            onClick={() => toggle(topic)}
-          >
-            {topic}
-          </Chip>
-        ))}
-      </div>
+      {picked.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {picked.map((topic) => (
+            <NothingToggle
+              key={topic}
+              active
+              onClick={() => remove(topic)}
+              ariaLabel={`Remove interest ${topic}`}
+            >
+              {topic} ✕
+            </NothingToggle>
+          ))}
+        </div>
+      )}
       <form onSubmit={addCustom} className="flex gap-2">
         <input
           value={custom}
@@ -117,40 +107,6 @@ function InterestsSection() {
           Add
         </button>
       </form>
-    </section>
-  );
-}
-
-function RatingSourcesSection() {
-  const { prefsQ, invalidate } = usePrefs();
-  const [edited, setEdited] = useState<Record<string, boolean> | null>(null);
-  const sources = edited ?? prefsQ.data?.rating_sources ?? {};
-
-  async function toggle(id: "douban" | "xiaoyuzhou") {
-    const next = { ...sources, [id]: !(sources[id] ?? true) };
-    setEdited(next);
-    await setRatingSources(next);
-    await invalidate();
-  }
-
-  return (
-    <section className="rounded-card border border-surface-border p-4">
-      <h2 className="mb-1 font-semibold">Rating badges</h2>
-      <p className="mb-3 text-sm text-zinc-500">
-        Best-effort external ratings — badges disappear silently when a
-        source is off (or unreachable).
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {RATING_SOURCES.map((s) => (
-          <Chip
-            key={s.id}
-            active={sources[s.id] ?? true}
-            onClick={() => void toggle(s.id)}
-          >
-            {s.label} {(sources[s.id] ?? true) ? "on" : "off"}
-          </Chip>
-        ))}
-      </div>
     </section>
   );
 }

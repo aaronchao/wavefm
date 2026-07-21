@@ -13,10 +13,14 @@ import type { PlatformLinks } from "@/src/data/catalog/types";
  *   • Only a title-search fallback → the icon renders GRAYSCALE (still opens
  *     the platform search, so discovery never dead-ends).
  *   • No link at all → GRAYSCALE + disabled.
- * A generic RSS icon sits alongside: clicking it copies the raw feed URL to
- * the clipboard so it can be pasted into apps without a web add-by-URL flow
- * (e.g. YouTube Music). Links stop propagation so they work inside a
- * full-card play button.
+ * Reads `show.platformLinks.{spotify,youtubeMusic,xiaoyuzhou}` — audited to
+ * match the payload's actual key names so a real stored URL always resolves
+ * to its brand colour. A generic RSS icon always sits alongside (never
+ * conditionally hidden, matching every other platform icon's presence):
+ * clicking it copies the raw feed URL to the clipboard for apps without a
+ * web add-by-URL flow (e.g. YouTube Music); grayscale + disabled without a
+ * feed URL. Links stop propagation so they work inside a full-card play
+ * button.
  */
 export function OpenInLinks({
   title,
@@ -93,7 +97,10 @@ export function OpenInLinks({
           </a>
         );
       })}
-      {feedUrl && <RssCopyIcon feedUrl={feedUrl} box={box} glyph={glyph} />}
+      {/* Always present — matches the global icon design system (a platform
+          icon renders even when disabled, never disappears). Grayscale +
+          disabled without a feed; brand colour + copy action with one. */}
+      <RssCopyIcon feedUrl={feedUrl} box={box} glyph={glyph} />
     </div>
   );
 }
@@ -104,7 +111,7 @@ function RssCopyIcon({
   box,
   glyph,
 }: {
-  feedUrl: string;
+  feedUrl?: string;
   box: string;
   glyph: string;
 }) {
@@ -112,6 +119,7 @@ function RssCopyIcon({
   async function copy(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
+    if (!feedUrl) return;
     try {
       await navigator.clipboard.writeText(feedUrl);
       setCopied(true);
@@ -119,6 +127,17 @@ function RssCopyIcon({
     } catch {
       // clipboard blocked — fail silently, never a blocking error
     }
+  }
+  if (!feedUrl) {
+    return (
+      <span
+        aria-disabled
+        title="RSS feed — unavailable"
+        className={`flex ${box} shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-surface text-zinc-400 opacity-40`}
+      >
+        <RssIcon className={glyph} />
+      </span>
+    );
   }
   return (
     <button

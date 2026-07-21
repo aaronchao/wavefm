@@ -148,7 +148,11 @@ export function PreviewPlayer() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 96, opacity: 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 32 }}
-            className="fixed inset-x-0 bottom-16 z-50 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95"
+            // Liquid-glass Play bar: translucent + blurred so content shows
+            // through, with a hairline border for edge definition. z-45 sits
+            // above the tab bar (z-40) but strictly below the floating
+            // Search bar (z-50) in the stack.
+            className="fixed inset-x-0 bottom-16 z-[45] border-t border-white/30 bg-white/30 backdrop-blur-md dark:border-white/10 dark:bg-black/30"
           >
             <div className="mx-auto flex max-w-2xl flex-col gap-2 p-3 sm:px-8">
               <div className="flex items-center gap-3">
@@ -187,6 +191,7 @@ export function PreviewPlayer() {
                   title={s.meta.searchTitle}
                   appleUrl={s.meta.appleUrl}
                   feedUrl={s.meta.feedUrl}
+                  stored={s.meta.platformLinks}
                   label=""
                 />
               </div>

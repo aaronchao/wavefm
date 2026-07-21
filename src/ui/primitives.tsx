@@ -79,20 +79,3 @@ export function Chip({
     </Pressable>
   );
 }
-
-/** External-rating badge (Douban/Xiaoyuzhou). Renders nothing without a rating. */
-export function RatingBadge({
-  source,
-  rating,
-}: {
-  source: string;
-  rating: number | null | undefined;
-}) {
-  if (rating == null) return null;
-  return (
-    <span className="inline-flex items-center gap-1 rounded-pill bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
-      ★ <span className="font-brand">{rating.toFixed(1)}</span>
-      <span className="font-normal opacity-70">{source}</span>
-    </span>
-  );
-}

@@ -30,16 +30,26 @@ export type DiscoverPicks = {
  * With saved shows we personalise (discussion-first top-picks around your
  * taste); with none, we lead with the community-discussed board (Reddit /
  * V2EX / Dcard / 小宇宙) so a cold start still gets genuinely-discussed
- * picks — not thin catalog noise. A topic chip filters, keeping the full
- * set if nothing matches so the page is never empty.
+ * picks — not thin catalog noise.
+ *
+ * Filtering, in priority order:
+ *   1. An explicitly tapped topic chip (`topic`) — exact single-interest lens.
+ *   2. Otherwise, when the user has custom interests (Settings), the pool is
+ *      narrowed to ANY of them — "For You" logic driving Today's Picks by
+ *      default, with no click required.
+ *   3. If a filter ever produces zero matches, fall back to the full pool so
+ *      the page is never empty.
  */
 export function useDiscoverPicks({
   seedIds,
   topic,
+  interests = [],
   savedReady,
 }: {
   seedIds: string[];
   topic: string | null;
+  /** The user's custom interests from Settings — drives the default lens. */
+  interests?: string[];
   savedReady: boolean;
 }): DiscoverPicks {
   const hasSeeds = seedIds.length > 0;
@@ -59,14 +69,20 @@ export function useDiscoverPicks({
   });
 
   const all = hasSeeds ? (picksQ.data?.picks ?? []) : (discussedQ.data?.shows ?? []);
-  const filtered = topic ? all.filter((p) => matchesTopic(p, topic)) : all;
-  const picks = filtered.length > 0 ? filtered : all;
+
+  const topicFiltered = topic ? all.filter((p) => matchesTopic(p, topic)) : null;
+  const interestFiltered =
+    !topic && interests.length > 0
+      ? all.filter((p) => interests.some((i) => matchesTopic(p, i)))
+      : null;
+  const filtered = topicFiltered ?? interestFiltered;
+  const picks = filtered && filtered.length > 0 ? filtered : all;
 
   return {
     hero: picks[0] ?? null,
     rest: picks.slice(1),
     count: picks.length,
-    topicApplied: Boolean(topic) && filtered.length > 0,
+    topicApplied: Boolean(topic) && (topicFiltered?.length ?? 0) > 0,
     isLoading: hasSeeds ? picksQ.isLoading : discussedQ.isLoading,
   };
 }

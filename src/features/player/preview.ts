@@ -17,7 +17,10 @@ import { player, type PreviewMeta } from "@/src/state/player";
  */
 
 export function previewShow(
-  show: Pick<CatalogShow, "id" | "title" | "coverUrl" | "appleUrl" | "feedUrl">,
+  show: Pick<
+    CatalogShow,
+    "id" | "title" | "coverUrl" | "appleUrl" | "feedUrl" | "platformLinks"
+  >,
 ) {
   const meta: PreviewMeta = {
     title: show.title,
@@ -25,6 +28,7 @@ export function previewShow(
     searchTitle: show.title,
     appleUrl: show.appleUrl,
     feedUrl: show.feedUrl,
+    platformLinks: show.platformLinks,
   };
   player.startLoading(meta);
   // rss- shows aren't in any catalog — their feed URL rides along
@@ -46,13 +50,18 @@ export function previewShow(
  * A blocked feed keeps the bar up with "listen in full" links.
  */
 export function previewShowTopEpisodeMiddle(
-  show: Pick<CatalogShow, "id" | "title" | "coverUrl" | "appleUrl">,
+  show: Pick<
+    CatalogShow,
+    "id" | "title" | "coverUrl" | "appleUrl" | "feedUrl" | "platformLinks"
+  >,
 ) {
   const meta: PreviewMeta = {
     title: show.title,
     coverUrl: show.coverUrl,
     searchTitle: show.title,
     appleUrl: show.appleUrl,
+    feedUrl: show.feedUrl,
+    platformLinks: show.platformLinks,
   };
   player.startLoading(meta);
   void getRankedEpisodes(show.id).then((eps) => {
@@ -65,7 +74,7 @@ export function previewShowTopEpisodeMiddle(
 /** Play a random middle section of one already-ranked episode. */
 export function previewRankedEpisode(
   item: RankedEpisodeItem,
-  show: Pick<CatalogShow, "title" | "coverUrl" | "appleUrl">,
+  show: Pick<CatalogShow, "title" | "coverUrl" | "appleUrl" | "feedUrl" | "platformLinks">,
 ) {
   const meta: PreviewMeta = {
     title: item.title,
@@ -73,6 +82,8 @@ export function previewRankedEpisode(
     coverUrl: show.coverUrl,
     searchTitle: item.title,
     appleUrl: show.appleUrl,
+    feedUrl: show.feedUrl,
+    platformLinks: show.platformLinks,
   };
   if (!item.audioUrl) return player.fail(meta);
   playMiddle(meta, item);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import type { PlatformLinks } from "@/src/data/catalog/types";
 
 /**
  * Ephemeral preview-player state (never a copy of DB rows). A tiny
@@ -20,6 +21,8 @@ export type PreviewMeta = {
   appleUrl?: string;
   /** Raw RSS feed URL — powers the Play bar's copy-to-clipboard RSS icon. */
   feedUrl?: string;
+  /** Stored player deep-links — brand-coloured icons in the Play bar. */
+  platformLinks?: PlatformLinks;
 };
 
 export type PlayerState = {

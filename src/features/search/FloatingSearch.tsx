@@ -57,13 +57,15 @@ export function FloatingSearch() {
   return (
     <div
       ref={rootRef}
-      // above the tab bar; the safe-area inset lifts it clear of the home bar
-      className="fixed inset-x-0 z-30 px-4 sm:px-8"
+      // Strictly above the Play bar (z-[45]) and tab bar (z-40) in the
+      // stack — the floating Search bar always wins visually.
+      className="fixed inset-x-0 z-50 px-4 sm:px-8"
       style={{ bottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}
     >
       <div className="mx-auto w-full max-w-3xl">
         {showResults && (
-          <div className="mb-2 max-h-[60vh] overflow-y-auto rounded-[2px] border border-foreground bg-background/98 p-3 shadow-2xl backdrop-blur">
+          // Liquid-glass search popup: translucent + blurred, subtle border
+          <div className="mb-2 max-h-[60vh] overflow-y-auto rounded-[2px] border border-white/30 bg-white/30 p-3 shadow-2xl backdrop-blur-md dark:border-white/10 dark:bg-black/30">
             {isFetching && shows.length === 0 && episodes.length === 0 && (
               <p className="px-1 py-3 text-sm text-zinc-400">Searching…</p>
             )}
@@ -100,7 +102,8 @@ export function FloatingSearch() {
           </div>
         )}
 
-        <div className="flex items-center gap-2 rounded-[2px] border border-foreground bg-background/95 px-3 py-2 shadow-xl backdrop-blur">
+        {/* Liquid-glass search bar: translucent + blurred, subtle border */}
+        <div className="flex items-center gap-2 rounded-[2px] border border-white/30 bg-white/30 px-3 py-2 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-black/30">
           <SearchIcon className="h-4 w-4 shrink-0 text-foreground" />
           <input
             value={input}

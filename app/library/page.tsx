@@ -6,6 +6,12 @@ import { useState } from "react";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { getShow } from "@/src/data/catalog/client";
 import {
+  addEpisodeTag,
+  listEpisodeTags,
+  removeEpisodeTag,
+  type EpisodeTagMap,
+} from "@/src/data/repos/episodeTagsRepo";
+import {
   listSavedEpisodes,
   removeEpisode,
   updateEpisodeProgress,
@@ -13,51 +19,81 @@ import {
 } from "@/src/data/repos/savedEpisodesRepo";
 import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import {
+  addShowTag,
   allTagsFrom,
   listShowTags,
+  removeShowTag,
   type ShowTagMap,
 } from "@/src/data/repos/showTagsRepo";
+import { renameTagEverywhere } from "@/src/data/repos/tagsRepo";
 import { ExportOpmlButton } from "@/src/features/library/ExportOpmlButton";
 import { ImportOpmlButton } from "@/src/features/library/ImportOpmlButton";
+import { InlineTagInput } from "@/src/features/library/InlineTagInput";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { previewEpisode, previewShow } from "@/src/features/player/preview";
 import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
-import { Chip, CoverTile, NothingToggle, PlayableCard } from "@/src/ui";
+import { NothingToggle, CoverTile, PlayableCard } from "@/src/ui";
 
 /**
- * Library: the collection system, now a single 2-column grid — Shows beside
- * Episodes (formerly "Listen later") — with a horizontal rail of the user's
- * own tags across the top. Tapping a tag filters both columns at once. Tags
- * are added on a show's page and sync here. Everything syncs via Supabase
- * when signed in, localStorage otherwise.
+ * Library: the collection system, a single 2-column grid — Shows beside
+ * Episodes — with a horizontal rail of the user's own tags across the top.
+ * Tapping a tag filters both columns at once; each tag chip can also be
+ * renamed in place (cascades to every show/episode carrying it). Each card
+ * carries its own low-friction inline tag input too, so tagging doesn't
+ * require leaving the Library. Everything syncs via Supabase when signed
+ * in, localStorage otherwise.
  */
 export default function LibraryPage() {
   const { session } = useSession();
   const scope = session?.user.id ?? "local";
+  const queryClient = useQueryClient();
 
   const savedQ = useQuery({ queryKey: ["saved", scope], queryFn: listSaved });
   const episodesQ = useQuery({
     queryKey: ["savedEpisodes", scope],
     queryFn: listSavedEpisodes,
   });
-  const tagsQ = useQuery({ queryKey: ["showTags", scope], queryFn: listShowTags });
+  const showTagsQ = useQuery({ queryKey: ["showTags", scope], queryFn: listShowTags });
+  const episodeTagsQ = useQuery({
+    queryKey: ["episodeTags", scope],
+    queryFn: listEpisodeTags,
+  });
 
   const saved = savedQ.data ?? [];
   const episodes = episodesQ.data ?? [];
-  const tagMap: ShowTagMap = tagsQ.data ?? {};
-  const allTags = allTagsFrom(tagMap);
+  const showTagMap: ShowTagMap = showTagsQ.data ?? {};
+  const episodeTagMap: EpisodeTagMap = episodeTagsQ.data ?? {};
+  const allTags = [...new Set([...allTagsFrom(showTagMap), ...allTagsFrom(episodeTagMap)])].sort(
+    (a, b) => a.localeCompare(b),
+  );
+
+  const invalidateTags = () => {
+    void queryClient.invalidateQueries({ queryKey: ["showTags"] });
+    void queryClient.invalidateQueries({ queryKey: ["episodeTags"] });
+  };
 
   const [activeTag, setActiveTag] = useState<string | null>(null);
   // a filter for a tag that no longer exists falls back to "All"
   const tag = activeTag && allTags.includes(activeTag) ? activeTag : null;
 
   const visibleSaved = tag
-    ? saved.filter((s) => tagMap[s.show.id]?.includes(tag))
+    ? saved.filter((s) => showTagMap[s.show.id]?.includes(tag))
     : saved;
+  // an episode matches on its own tags, or (falling back) its parent show's
   const visibleEpisodes = tag
-    ? episodes.filter((e) => e.showId != null && tagMap[e.showId]?.includes(tag))
+    ? episodes.filter(
+        (e) =>
+          episodeTagMap[e.episodeId]?.includes(tag) ||
+          (e.showId != null && showTagMap[e.showId]?.includes(tag)),
+      )
     : episodes;
+
+  async function renameTag(oldTag: string, newTag: string) {
+    if (activeTag === oldTag) setActiveTag(newTag.trim() || null);
+    await renameTagEverywhere(oldTag, newTag);
+    invalidateTags();
+  }
 
   return (
     <main className="mx-auto w-full max-w-5xl p-4 pb-56 sm:p-8 sm:pb-56">
@@ -70,27 +106,30 @@ export default function LibraryPage() {
       </div>
       <p className="mb-4 text-zinc-500">
         Shows you follow and episodes queued for later — synced when signed in.
-        Tag shows on their page to sort them here.
+        Tag them right on their card to sort your Library.
       </p>
 
-      <TagRail tags={allTags} active={tag} onPick={setActiveTag} />
+      <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
 
       <div className="grid items-start gap-8 md:grid-cols-2">
         <section>
           <ColumnHeading count={visibleSaved.length}>Shows</ColumnHeading>
           <ShowsColumn
             saved={visibleSaved}
-            tagMap={tagMap}
+            tagMap={showTagMap}
             loading={savedQ.isLoading}
             filtered={Boolean(tag)}
+            onTagsChanged={invalidateTags}
           />
         </section>
         <section>
           <ColumnHeading count={visibleEpisodes.length}>Episodes</ColumnHeading>
           <EpisodesColumn
             episodes={visibleEpisodes}
+            tagMap={episodeTagMap}
             loading={episodesQ.isLoading}
             filtered={Boolean(tag)}
+            onTagsChanged={invalidateTags}
           />
         </section>
       </div>
@@ -115,20 +154,29 @@ function ColumnHeading({
   );
 }
 
-/** Horizontal, scrollable rail of the user's own tags — the Library filter. */
+/**
+ * Horizontal, scrollable rail of the user's own tags — the Library filter.
+ * Each tag also has an "Edit Tag" (rename) affordance: click the pencil to
+ * turn that chip into an inline rename input; the mutation cascades to
+ * every show/episode carrying the old tag.
+ */
 function TagRail({
   tags,
   active,
   onPick,
+  onRename,
 }: {
   tags: string[];
   active: string | null;
   onPick: (t: string | null) => void;
+  onRename: (oldTag: string, newTag: string) => void;
 }) {
+  const [editing, setEditing] = useState<string | null>(null);
+
   if (tags.length === 0) {
     return (
       <p className="mb-5 rounded-[2px] border border-dashed border-surface-border px-3 py-2 text-xs text-zinc-500">
-        No tags yet — open a show and add your own to sort your Library.
+        No tags yet — add one right on a Show or Episode card below.
       </p>
     );
   }
@@ -141,17 +189,64 @@ function TagRail({
       >
         All
       </NothingToggle>
-      {tags.map((t) => (
-        <NothingToggle
-          key={t}
-          active={active === t}
-          onClick={() => onPick(active === t ? null : t)}
-          className="shrink-0 whitespace-nowrap"
-        >
-          #{t}
-        </NothingToggle>
-      ))}
+      {tags.map((t) =>
+        editing === t ? (
+          <RenameInput
+            key={t}
+            initial={t}
+            onCommit={(next) => {
+              setEditing(null);
+              if (next && next !== t) onRename(t, next);
+            }}
+          />
+        ) : (
+          <span key={t} className="inline-flex shrink-0 items-stretch">
+            <NothingToggle
+              active={active === t}
+              onClick={() => onPick(active === t ? null : t)}
+              className="whitespace-nowrap !rounded-r-none !border-r-0"
+            >
+              #{t}
+            </NothingToggle>
+            <button
+              type="button"
+              onClick={() => setEditing(t)}
+              aria-label={`Edit tag ${t}`}
+              title="Edit tag"
+              data-active={active === t}
+              className="nothing-toggle !rounded-l-none !border-l-0 px-1.5 text-[11px]"
+            >
+              ✎
+            </button>
+          </span>
+        ),
+      )}
     </div>
+  );
+}
+
+function RenameInput({
+  initial,
+  onCommit,
+}: {
+  initial: string;
+  onCommit: (next: string) => void;
+}) {
+  const [value, setValue] = useState(initial);
+  return (
+    <input
+      autoFocus
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onCommit(value.trim());
+        if (e.key === "Escape") onCommit(initial);
+      }}
+      onBlur={() => onCommit(value.trim())}
+      onFocus={(e) => e.currentTarget.select()}
+      aria-label={`Rename tag ${initial}`}
+      className="font-brand w-28 shrink-0 rounded-[2px] border border-foreground bg-background px-3 py-1.5 text-[11px] uppercase tracking-wider text-foreground focus:outline-none"
+    />
   );
 }
 
@@ -160,11 +255,13 @@ function ShowsColumn({
   tagMap,
   loading,
   filtered,
+  onTagsChanged,
 }: {
   saved: { show: CatalogShow; savedAt: string }[];
   tagMap: ShowTagMap;
   loading: boolean;
   filtered: boolean;
+  onTagsChanged: () => void;
 }) {
   const queryClient = useQueryClient();
 
@@ -189,11 +286,7 @@ function ShowsColumn({
   if (saved.length === 0) {
     return (
       <p className="text-zinc-500">
-        {filtered ? (
-          "No shows with this tag."
-        ) : (
-          <>Nothing saved yet — search below to find your first show.</>
-        )}
+        {filtered ? "No shows with this tag." : "Nothing saved yet — search below to find your first show."}
       </p>
     );
   }
@@ -208,6 +301,7 @@ function ShowsColumn({
           tags={tagMap[show.id] ?? []}
           fresh={freshById.get(show.id)}
           onRemove={() => remove(show.id)}
+          onTagsChanged={onTagsChanged}
         />
       ))}
     </ul>
@@ -220,15 +314,19 @@ function LibraryShowCard({
   tags,
   fresh,
   onRemove,
+  onTagsChanged,
 }: {
   show: CatalogShow;
   savedAt: string;
   tags: string[];
   fresh?: CatalogShow;
   onRemove: () => void;
+  onTagsChanged: () => void;
 }) {
   const latest = fresh?.lastEpisodeAt ?? show.lastEpisodeAt;
   const hasNew = Boolean(latest && Date.parse(latest) > Date.parse(savedAt));
+  // feed-only imports have no catalog page to open
+  const linkable = show.source !== "rss";
 
   return (
     <li>
@@ -240,7 +338,16 @@ function LibraryShowCard({
         <CoverTile src={show.coverUrl} size={56} />
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 font-semibold leading-snug">
-            {show.title}
+            {linkable ? (
+              <Link
+                href={`/show/${show.id}`}
+                className="relative z-10 hover:text-accent hover:underline underline-offset-2"
+              >
+                {show.title}
+              </Link>
+            ) : (
+              show.title
+            )}
             {hasNew && (
               <span className="ml-2 rounded-pill bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
                 New episode
@@ -248,18 +355,6 @@ function LibraryShowCard({
             )}
           </p>
           <p className="line-clamp-1 text-sm text-zinc-500">{show.author}</p>
-          {tags.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {tags.map((t) => (
-                <span
-                  key={t}
-                  className="font-brand rounded-[2px] border border-surface-border px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-zinc-500"
-                >
-                  #{t}
-                </span>
-              ))}
-            </div>
-          )}
           <OpenInLinks
             title={show.title}
             appleUrl={show.appleUrl}
@@ -267,19 +362,23 @@ function LibraryShowCard({
             stored={show.platformLinks}
             className="relative z-10 mt-1.5"
           />
+          <InlineTagInput
+            tags={tags}
+            onAdd={(t) => void addShowTag(show.id, t).then(onTagsChanged)}
+            onRemove={(t) => void removeShowTag(show.id, t).then(onTagsChanged)}
+          />
         </div>
-        {/* feed-only imports have no catalog page to open */}
-        {show.source !== "rss" && (
-          <Link
-            href={`/show/${show.id}`}
-            className="relative z-10 shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          >
-            Details →
-          </Link>
-        )}
-        <Chip onClick={onRemove} className="relative z-10 shrink-0">
-          Remove
-        </Chip>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          aria-label={`Remove ${show.title}`}
+          className="relative z-10 shrink-0 rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
+        >
+          ✕
+        </button>
       </PlayableCard>
     </li>
   );
@@ -287,12 +386,16 @@ function LibraryShowCard({
 
 function EpisodesColumn({
   episodes,
+  tagMap,
   loading,
   filtered,
+  onTagsChanged,
 }: {
   episodes: SavedEpisode[];
+  tagMap: EpisodeTagMap;
   loading: boolean;
   filtered: boolean;
+  onTagsChanged: () => void;
 }) {
   const queryClient = useQueryClient();
   const refresh = () =>
@@ -312,7 +415,13 @@ function EpisodesColumn({
   return (
     <ul className="flex flex-col gap-3">
       {episodes.map((e) => (
-        <EpisodeRow key={e.episodeId} episode={e} onChanged={refresh} />
+        <EpisodeRow
+          key={e.episodeId}
+          episode={e}
+          tags={tagMap[e.episodeId] ?? []}
+          onChanged={refresh}
+          onTagsChanged={onTagsChanged}
+        />
       ))}
     </ul>
   );
@@ -320,10 +429,14 @@ function EpisodesColumn({
 
 function EpisodeRow({
   episode,
+  tags,
   onChanged,
+  onTagsChanged,
 }: {
   episode: SavedEpisode;
+  tags: string[];
   onChanged: () => void;
+  onTagsChanged: () => void;
 }) {
   const finished = episode.status === "finished";
 
@@ -374,6 +487,11 @@ function EpisodeRow({
             title={episode.showTitle ? `${episode.showTitle} ${episode.title}` : episode.title}
             appleUrl={episode.appleUrl}
             className="relative z-10 mt-1.5"
+          />
+          <InlineTagInput
+            tags={tags}
+            onAdd={(t) => void addEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
+            onRemove={(t) => void removeEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
           />
         </div>
         <NothingToggle

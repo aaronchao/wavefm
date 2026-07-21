@@ -2,9 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { defaultTopics } from "@/src/core/recommend";
-import { getDiscoverTopics } from "@/src/data/catalog/client";
-import type { DiscoverTopic } from "@/src/data/catalog/types";
+import { getPrefs } from "@/src/data/repos/prefsRepo";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
 import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
@@ -43,14 +41,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-const TOPICS = defaultTopics();
-/** Chinese-language topic chips (drive same-language search + filtering). */
-const CN_TOPICS = ["商业", "科技", "文化", "历史", "情感", "悬疑", "喜剧", "读书", "新闻", "生活"];
-const STATIC_TOPICS: DiscoverTopic[] = [
-  ...TOPICS.map((t) => ({ label: t, query: t, lang: "en" as const })),
-  ...CN_TOPICS.map((t) => ({ label: t, query: t, lang: "zh" as const })),
-];
-
 /**
  * Discover: the ranked, discussion-first exploration surface. Recommended
  * shows are ordered top to bottom; one click plays a random middle section
@@ -69,16 +59,12 @@ export function DiscoverPage() {
   const [topic, setTopic] = useState<string | null>(null);
   const [deckOpen, setDeckOpen] = useState(false);
 
-  // "Pick a topic" — a live EN + 中文 trending mix from the discussion backend,
-  // falling back to the static set when the endpoint is unreachable.
-  const topicsQ = useQuery({
-    queryKey: ["discover", "topics"],
-    queryFn: getDiscoverTopics,
-    staleTime: 6 * 60 * 60 * 1000,
-  });
-  const topicChips =
-    topicsQ.data && topicsQ.data.topics.length > 0 ? topicsQ.data.topics : STATIC_TOPICS;
-  const picks = useDiscoverPicks({ seedIds, topic, savedReady: savedQ.isSuccess });
+  // "For You" — the user's own custom interests from Settings (no presets,
+  // no live trending fetch). These drive Today's Picks by default; tapping
+  // one narrows to just that interest, same mechanism as before.
+  const prefsQ = useQuery({ queryKey: ["prefs", scope], queryFn: getPrefs });
+  const interests = prefsQ.data?.interests ?? [];
+  const picks = useDiscoverPicks({ seedIds, topic, interests, savedReady: savedQ.isSuccess });
   const heroPicks = picks.hero ? [picks.hero, ...picks.rest] : [];
 
   return (
@@ -107,25 +93,36 @@ export function DiscoverPage() {
         </button>
       </div>
 
-      {/* Now — a live, horizontally-scrolling rail of trending community
-          topics. Tapping one re-lenses Today's Picks below via `topic`. */}
+      {/* For You — driven entirely by the user's own Settings interests, no
+          presets, no trending fetch. Tapping one narrows Today's Picks to
+          just that interest; "For you" clears back to the full blend. */}
       <section className="mb-8">
         <div className="mb-2 flex items-center gap-2">
           <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-          <SectionLabel>Now</SectionLabel>
-          <MachineLabel>trending in the community</MachineLabel>
+          <SectionLabel>For You</SectionLabel>
+          <MachineLabel>from your interests</MachineLabel>
         </div>
-        <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:-mx-8 sm:px-8">
-          <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
-          {topicChips.map((t) => (
-            <TopicChip
-              key={`${t.lang ?? "x"}:${t.label}`}
-              label={t.label}
-              active={topic === t.query}
-              onClick={() => setTopic((cur) => (cur === t.query ? null : t.query))}
-            />
-          ))}
-        </div>
+        {interests.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            Add interests in{" "}
+            <a href="/settings" className="text-foreground underline underline-offset-2">
+              Settings
+            </a>{" "}
+            to personalize this feed.
+          </p>
+        ) : (
+          <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:-mx-8 sm:px-8">
+            <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
+            {interests.map((i) => (
+              <TopicChip
+                key={i}
+                label={i}
+                active={topic === i}
+                onClick={() => setTopic((cur) => (cur === i ? null : i))}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* The payoff: today's picks, several at a glance, each with its reason */}
@@ -147,22 +144,6 @@ export function DiscoverPage() {
       />
 
       <SavedRails saved={saved} />
-
-      {/* Topic — browse by a curated bilingual set; Trending sits right below. */}
-      <section className="mb-6">
-        <SectionLabel>Topic</SectionLabel>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
-          {STATIC_TOPICS.map((t) => (
-            <TopicChip
-              key={`${t.lang}:${t.label}`}
-              label={t.label}
-              active={topic === t.query}
-              onClick={() => setTopic((cur) => (cur === t.query ? null : t.query))}
-            />
-          ))}
-        </div>
-      </section>
 
       <TrendingShelf topic={topic} />
 
