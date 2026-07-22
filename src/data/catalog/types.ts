@@ -127,6 +127,14 @@ export type ChartEpisodeItem = {
   why: string;
   /** Which forum or topic this episode is being discussed under. */
   context?: string;
+  /** Cover art, when the source provides it (the iTunes fallback does). */
+  coverUrl?: string;
+  /** Direct audio URL — lets the embedded play triangle use the real Play
+   *  Bar instead of a dead click. Absent on sources with no playable feed. */
+  audioUrl?: string;
+  durationSec?: number;
+  /** Parent show's catalog id, when known — powers "listen in full" links. */
+  showId?: string;
 };
 
 /** Response of /api/catalog/charts/episodes — ranked hot episodes. */

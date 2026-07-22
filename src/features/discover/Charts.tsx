@@ -93,7 +93,7 @@ export function Charts() {
           <ol className="flex flex-col gap-2.5">
             {(showAll ? shows : shows.slice(0, DEFAULT_VISIBLE)).map((show, i) => (
               <SettleIn key={show.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-                <ShowRowCompact show={show} rank={i + 1} />
+                <ShowRowCompact show={show} />
               </SettleIn>
             ))}
           </ol>

@@ -87,31 +87,29 @@ export function DiscoverPage() {
 
       {/* Masthead — compact so "For You" clears the fold on mobile */}
       <div className="mb-4 border-b border-surface-border pb-3">
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-          <MachineLabel>wavefm · Discovery Engine</MachineLabel>
-        </div>
-        <h1 className="font-brand mt-1 text-xl font-bold tracking-tight sm:text-2xl">
+        <h1 className="font-brand text-xl font-bold tracking-tight sm:text-2xl">
           Your next favorite show is hiding in here.
         </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
+        {configured && (
+          <div className="mt-2">
+            <InlineSync />
+          </div>
+        )}
+      </div>
+
+      {/* For You — your own interests drive everything below; Wavr (the
+          surprise-me deck) leads the row, add more interests inline */}
+      <section className="mb-2">
+        <SectionLabel>For You</SectionLabel>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setDeckOpen(true)}
             disabled={heroPicks.length === 0}
             className="font-brand rounded-pill bg-accent px-4 py-2 text-xs uppercase tracking-wider text-white shadow-sm transition-transform hover:shadow-md active:scale-95 disabled:opacity-40"
           >
-            ⤮ Surprise me
+            Wavr
           </button>
-          {configured && <InlineSync />}
-        </div>
-      </div>
-
-      {/* For You — your own interests drive everything below; add more inline */}
-      <section className="mb-2">
-        <SectionLabel>For You</SectionLabel>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
           {lenses.map((i) => (
             <TopicChip
               key={i}

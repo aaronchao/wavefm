@@ -21,7 +21,7 @@ export function Landing() {
           <div className="mb-5 flex items-center gap-2">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
             <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-zinc-400">
-              wavefm · Podcast Discovery
+              WaveFM · Podcast Discovery
             </span>
           </div>
 
@@ -40,7 +40,7 @@ export function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.6 }}
           >
-            wavefm ranks podcasts by the <span className="text-foreground">real human
+            WaveFM ranks podcasts by the <span className="text-foreground">real human
             discussion</span> behind them — Reddit, 豆瓣, 小宇宙, the charts — so you
             get what to listen to next, and why. One tap plays the bit people
             actually talk about.

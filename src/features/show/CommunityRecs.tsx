@@ -35,7 +35,7 @@ export function CommunityRecs({ seedId }: { seedId: string }) {
       <ol className="flex flex-col gap-2.5">
         {shows.map((s, i) => (
           <SettleIn key={s.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-            <ShowRowCompact show={s} rank={i + 1} />
+            <ShowRowCompact show={s} />
           </SettleIn>
         ))}
       </ol>

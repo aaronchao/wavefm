@@ -2,25 +2,25 @@
 
 import { motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getRankedEpisodes } from "@/src/data/catalog/client";
 import type { RankedEpisodeItem, SimilarShow } from "@/src/data/catalog/types";
 import { recordEngagement } from "@/src/data/repos/engagementRepo";
 import { saveShow } from "@/src/data/repos/savedShowsRepo";
-import { useAutoSnippet } from "@/src/features/player/snippet";
+import { previewRankedEpisode } from "@/src/features/player/preview";
 import { CoverTile } from "@/src/ui";
 
 /** One "episode to try" card — a ranked episode paired with its show. */
 type TryCard = { show: SimilarShow; episode: RankedEpisodeItem };
 
 /**
- * Surprise-me — a swipe-only keep-or-skip game over the "episodes to try"
- * pool. Each card auto-plays a 60-second, 1.2x community snippet on mount
- * (client-side HTML5 Audio — no server processing) and surfaces a real
- * community quote instead of a play/skip/keep button row: swipe right to
- * keep the show (saves it, teaches your taste), left to skip. Fully
- * gesture-driven; a reduced-motion viewer still keeps/skips via the header
- * shortcut, since dragging is unavailable.
+ * Wavr — a swipe-only keep-or-skip game over the "For You" episodes-to-try
+ * pool. Each card auto-plays through the app-wide Play Bar the moment it's
+ * on top (never its own <audio> — one source plays at a time, everywhere)
+ * and surfaces a real community quote instead of a play/skip/keep button
+ * row: swipe right to keep the show (saves it, teaches your taste), left to
+ * skip. Fully gesture-driven; a reduced-motion viewer still keeps/skips via
+ * the header shortcut, since dragging is unavailable.
  */
 export function SurpriseDeck({
   picks,
@@ -67,9 +67,7 @@ export function SurpriseDeck({
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background/80 p-4 backdrop-blur">
       <div className="mb-4 flex w-full max-w-sm items-center justify-between">
-        <span className="font-brand text-sm uppercase tracking-[0.18em] text-accent">
-          ⤮ Surprise me
-        </span>
+        <span className="font-brand text-sm uppercase tracking-[0.18em] text-accent">Wavr</span>
         <button
           type="button"
           onClick={onClose}
@@ -132,8 +130,10 @@ function SwipeCard({
   const skip = useTransform(x, [-130, -30], [1, 0]);
   const { quote, communityUsername } = quoteFor(card);
 
-  // Auto-play the 60s/1.2x community snippet the moment this card mounts.
-  useAutoSnippet(card.episode.audioUrl);
+  // Auto-play through the app-wide Play Bar the moment this card is on top.
+  useEffect(() => {
+    previewRankedEpisode(card.episode, card.show);
+  }, [card]);
 
   return (
     <motion.div

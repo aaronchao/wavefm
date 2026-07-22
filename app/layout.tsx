@@ -26,7 +26,7 @@ const doto = Doto({
 });
 
 export const metadata: Metadata = {
-  title: "wavefm",
+  title: "WaveFM",
   description: "Free, browser-based podcast discovery — what to listen to next, and why.",
 };
 
@@ -50,8 +50,12 @@ export default function RootLayout({
         />
         <Providers>
           <header className="flex items-center justify-between border-b border-surface-border px-4 py-3 sm:px-8">
-            <Link href="/" className="font-brand text-xl font-bold tracking-wide">
-              WAVEFM
+            <Link href="/" className="flex items-center gap-2">
+              <span
+                className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent"
+                aria-hidden
+              />
+              <span className="font-brand text-xl font-bold tracking-wide">WaveFM</span>
             </Link>
             <div className="flex items-center gap-1">
               <ThemeToggle />

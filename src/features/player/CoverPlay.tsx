@@ -1,23 +1,24 @@
 "use client";
 
-import { playSnippet } from "./snippet";
 import { CoverTile } from "@/src/ui";
 
 /**
  * A podcast cover with a centered play-triangle overlay — matching the
- * "For You" show-tile design (Trending/Saved rails). Tapping it starts the
- * 60s / 1.2x community snippet. Shared by Ranks, Charts, and the Library.
+ * "For You" show-tile design (Trending/Saved rails). Tapping it routes the
+ * clip through the app-wide Play Bar (`onPlay`) — never an inline <audio>
+ * of its own, so only one source ever plays at a time. Shared by Ranks,
+ * Charts, and the Library.
  */
 export function CoverPlay({
   src,
   size = 56,
-  audioUrl,
+  onPlay,
   label,
   className = "",
 }: {
   src?: string;
   size?: number;
-  audioUrl?: string;
+  onPlay: () => void;
   label: string;
   className?: string;
 }) {
@@ -26,7 +27,7 @@ export function CoverPlay({
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        playSnippet(audioUrl);
+        onPlay();
       }}
       aria-label={label}
       className={`group relative block shrink-0 overflow-hidden rounded-tile ${className}`}

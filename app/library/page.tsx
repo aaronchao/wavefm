@@ -34,7 +34,7 @@ import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode, previewShow } from "@/src/features/player/preview";
 import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
-import { NothingToggle, CoverTile, PlayableCard } from "@/src/ui";
+import { NothingToggle, PlayableCard } from "@/src/ui";
 
 /**
  * Library: the collection system, a single 2-column grid — Shows beside
@@ -337,7 +337,13 @@ function LibraryShowCard({
         // Show identity: sharp corners, square cover — Nothing-brand.
         className="cursor-pointer !rounded-[2px]"
       >
-        <CoverTile src={show.coverUrl} size={56} className="!rounded-[2px]" />
+        <CoverPlay
+          src={show.coverUrl}
+          size={56}
+          onPlay={() => previewShow(show)}
+          label={`Play a snippet of ${show.title}`}
+          className="relative z-10 !rounded-[2px]"
+        />
         <div className="min-w-0 flex-1">
           <p className="font-brand line-clamp-2 font-bold leading-snug">
             {linkable ? (
@@ -453,37 +459,47 @@ function EpisodeRow({
       ? `resume at ${Math.floor(episode.positionSec / 60)}:${String(episode.positionSec % 60).padStart(2, "0")}`
       : null;
 
+  const play = () =>
+    previewEpisode({
+      id: episode.episodeId,
+      title: episode.title,
+      showId: episode.showId,
+      showTitle: episode.showTitle,
+      coverUrl: episode.coverUrl,
+      appleUrl: episode.appleUrl,
+      audioUrl: episode.audioUrl,
+      durationSec: episode.durationSec,
+      categories: [],
+    });
+
   return (
     <li>
       <PlayableCard
-        onPlay={() =>
-          previewEpisode({
-            id: episode.episodeId,
-            title: episode.title,
-            showId: episode.showId,
-            showTitle: episode.showTitle,
-            coverUrl: episode.coverUrl,
-            appleUrl: episode.appleUrl,
-            audioUrl: episode.audioUrl,
-            durationSec: episode.durationSec,
-            categories: [],
-          })
-        }
+        onPlay={play}
         playLabel={`Preview ${episode.title}`}
-        // Episode identity: pill container, circular play — Nothing-brand.
-        className={`cursor-pointer !rounded-pill ${finished ? "opacity-60" : ""}`}
+        // Episode identity now matches Shows: sharp corners, square cover.
+        className={`cursor-pointer !rounded-[2px] ${finished ? "opacity-60" : ""}`}
       >
         <CoverPlay
           src={episode.coverUrl}
           size={56}
-          audioUrl={episode.audioUrl}
+          onPlay={play}
           label={`Play a snippet of ${episode.title}`}
-          className="relative z-10 !rounded-full"
+          className="relative z-10 !rounded-[2px]"
         />
         <div className="min-w-0 flex-1">
-          <p className={`line-clamp-3 font-semibold leading-snug ${finished ? "line-through" : ""}`}>
-            {episode.title}
-          </p>
+          {episode.showId ? (
+            <Link
+              href={`/show/${episode.showId}`}
+              className={`relative z-10 line-clamp-3 font-semibold leading-snug hover:text-accent hover:underline underline-offset-2 ${finished ? "line-through" : ""}`}
+            >
+              {episode.title}
+            </Link>
+          ) : (
+            <p className={`line-clamp-3 font-semibold leading-snug ${finished ? "line-through" : ""}`}>
+              {episode.title}
+            </p>
+          )}
           {episode.showTitle && (
             <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
           )}

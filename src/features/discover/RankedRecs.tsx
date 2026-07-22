@@ -11,6 +11,7 @@ import {
   saveEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
 import { CoverPlay } from "@/src/features/player/CoverPlay";
+import { previewRankedEpisode } from "@/src/features/player/preview";
 import { NothingToggle, SettleIn } from "@/src/ui";
 import { ShowMoreButton } from "./Charts";
 import { MachineLabel } from "./DiscoverPage";
@@ -61,36 +62,41 @@ export function RankedRecs({
   }
 
   const visible = showAll ? picks : picks.slice(0, SHOWS_CAP);
+  // A personal tag must surface individual Episodes, not whole Shows — the
+  // Shows column drops out and the Episodes column pulls a few per show.
+  const episodesOnly = topicApplied;
 
   return (
     <section className="mb-12">
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="text-lg font-semibold">
-          {topicApplied ? `More in ${topic}` : "More Ranks For You"}
+          {episodesOnly ? `Episodes for ${topic}` : "More Ranks For You"}
         </h2>
-        <MachineLabel>{count} shows</MachineLabel>
+        <MachineLabel>{episodesOnly ? `matching “${topic}”` : `${count} shows`}</MachineLabel>
       </div>
-      <div className="grid items-start gap-8 md:grid-cols-2">
-        <section>
-          <ColumnLabel>Shows</ColumnLabel>
-          <ol className="flex flex-col gap-2.5">
-            {visible.map((pick, i) => (
-              <SettleIn key={pick.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-                <ShowRowCompact show={pick} rank={i + 1} />
-              </SettleIn>
-            ))}
-          </ol>
-          {picks.length > SHOWS_CAP && (
-            <ShowMoreButton
-              expanded={showAll}
-              hiddenCount={picks.length - SHOWS_CAP}
-              onClick={() => setShowAll((v) => !v)}
-            />
-          )}
-        </section>
+      <div className={`grid items-start gap-8 ${episodesOnly ? "" : "md:grid-cols-2"}`}>
+        {!episodesOnly && (
+          <section>
+            <ColumnLabel>Shows</ColumnLabel>
+            <ol className="flex flex-col gap-2.5">
+              {visible.map((pick, i) => (
+                <SettleIn key={pick.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
+                  <ShowRowCompact show={pick} />
+                </SettleIn>
+              ))}
+            </ol>
+            {picks.length > SHOWS_CAP && (
+              <ShowMoreButton
+                expanded={showAll}
+                hiddenCount={picks.length - SHOWS_CAP}
+                onClick={() => setShowAll((v) => !v)}
+              />
+            )}
+          </section>
+        )}
         <section>
           <ColumnLabel>Episodes to try</ColumnLabel>
-          <EpisodesColumn shows={picks} />
+          <EpisodesColumn shows={picks} perShow={episodesOnly ? 3 : 1} />
         </section>
       </div>
     </section>
@@ -110,7 +116,15 @@ function ColumnLabel({ children }: { children: React.ReactNode }) {
  * shows, flattened into a single readable list. Best-effort — a show whose
  * feed can't be ranked simply contributes nothing.
  */
-function EpisodesColumn({ shows }: { shows: SimilarShow[] }) {
+function EpisodesColumn({
+  shows,
+  perShow = 1,
+}: {
+  shows: SimilarShow[];
+  /** How many ranked episodes to pull from each show (tag mode wants more
+   *  than one, since the whole column is standing in for the Shows list). */
+  perShow?: number;
+}) {
   const top = shows.slice(0, EP_SHOWS);
   const results = useQueries({
     queries: top.map((s) => ({
@@ -120,9 +134,9 @@ function EpisodesColumn({ shows }: { shows: SimilarShow[] }) {
     })),
   });
 
-  const rows = results
-    .map((r, i) => ({ ep: r.data?.[0], show: top[i] }))
-    .filter((r): r is { ep: RankedEpisodeItem; show: SimilarShow } => Boolean(r.ep));
+  const rows = results.flatMap((r, i) =>
+    (r.data ?? []).slice(0, perShow).map((ep) => ({ ep, show: top[i] })),
+  );
   const stillLoading = results.some((r) => r.isLoading);
 
   if (stillLoading && rows.length === 0) {
@@ -191,7 +205,7 @@ function EpisodeColumnRow({ ep, show }: { ep: RankedEpisodeItem; show: SimilarSh
       <CoverPlay
         src={show.coverUrl}
         size={48}
-        audioUrl={ep.audioUrl}
+        onPlay={() => previewRankedEpisode(ep, show)}
         label={`Play a snippet of ${ep.title}`}
       />
       <div className="min-w-0 flex-1">

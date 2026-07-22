@@ -248,7 +248,7 @@ test("Surprise-me deck shows a community quote and lets you keep a show", async 
   );
 
   await page.goto("/");
-  await page.getByRole("button", { name: /Surprise me/ }).first().click();
+  await page.getByRole("button", { name: "Wavr" }).first().click();
   await expect(page.getByText("Swipe → keep · ← skip")).toBeVisible();
   // a real community quote replaces the old skip/play/keep button row
   await expect(page.getByText("Changed how I think about relationships")).toBeVisible();
