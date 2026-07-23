@@ -208,38 +208,27 @@ test("discover ranks recommendations and surfaces evidence for its picks", async
   ).toBeVisible();
 });
 
-test("Surprise-me deck shows a community quote and lets you keep a show", async ({ page }) => {
-  const RANKED_PICKS = {
-    picks: [
-      show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"], {
-        why: "Talked about on Reddit (12 threads)",
-        evidence: [
-          {
-            source: "r/podcasts",
-            text: "Changed how I think about relationships",
-            url: "https://www.reddit.com/r/podcasts/x",
-          },
-        ],
-      }),
-      show("333", "Where Should We Begin", "Esther Perel", ["Society & Culture"], {
-        why: "Under the radar · Discussed on V2EX (4 threads)",
-      }),
-    ],
-    degraded: false,
-  };
-  await stub(page, { topPicks: RANKED_PICKS });
-  // cards are sourced from "episodes to try", not the shows directly
-  await page.route("**/api/catalog/episodes-ranked**", (r) =>
+test("Wavr deck plays a For-You episode and lets you keep it", async ({ page }) => {
+  await stub(page);
+  // Wavr now sources cards from the "For You" interest tags via episode
+  // search — one playable episode per swipe, not the ranked-shows list.
+  await page.route("**/api/catalog/search**", (r) =>
     r.fulfill({
       json: {
+        shows: [],
         episodes: [
           {
             id: "ep-x",
             title: "The one everyone argues about",
+            showId: "222",
+            showTitle: "Psychology In Seattle",
+            coverUrl: "https://cdn/cover.jpg",
+            appleUrl: "https://podcasts.apple.com/ep-x",
             audioUrl: "https://cdn/ep1.mp3",
             durationSec: 2400,
-            basis: "discussion",
-            why: "Most discussed · 40 Reddit threads",
+            publishedAt: "2026-07-20T00:00:00Z",
+            categories: [],
+            description: "A deep dive into the argument everyone has.",
           },
         ],
         degraded: false,
@@ -250,9 +239,11 @@ test("Surprise-me deck shows a community quote and lets you keep a show", async 
   await page.goto("/");
   await page.getByRole("button", { name: "Wavr" }).first().click();
   await expect(page.getByText("Swipe → keep · ← skip")).toBeVisible();
-  // a real community quote replaces the old skip/play/keep button row
-  await expect(page.getByText("Changed how I think about relationships")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Keep" })).toHaveCount(0);
+  // the card is a real For-You episode — and it's auto-playing, so its title
+  // also shows in the Play bar (two matches confirms the Play-Bar routing)
+  await expect(
+    page.getByRole("heading", { name: "The one everyone argues about" }),
+  ).toBeVisible();
 
   // swipe the top card right (drag gesture) to keep it
   const card = page.getByText("Swipe → keep · ← skip").locator("..");
@@ -265,6 +256,37 @@ test("Surprise-me deck shows a community quote and lets you keep a show", async 
   }
   // keep it -> the "Done · 1 saved" counter reflects the save
   await expect(page.getByText(/1 saved/)).toBeVisible();
+});
+
+test("selecting a For-You tag surfaces episodes for it, not shows", async ({ page }) => {
+  await stub(page);
+  // the tapped tag drives an episode search; those episodes fill the feed
+  await page.route("**/api/catalog/search**", (r) =>
+    r.fulfill({
+      json: {
+        shows: [show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"])],
+        episodes: [
+          {
+            id: "ep-topic",
+            title: "Latest on this very topic",
+            showId: "222",
+            showTitle: "Psychology In Seattle",
+            audioUrl: "https://cdn/topic.mp3",
+            durationSec: 1800,
+            publishedAt: "2026-07-21T00:00:00Z",
+            categories: [],
+          },
+        ],
+        degraded: false,
+      },
+    }),
+  );
+
+  await page.goto("/");
+  // tap the first "For You" interest tag (a fallback lens on a fresh browser)
+  await page.getByRole("button", { name: "墨尔本" }).click();
+  await expect(page.getByText(/Latest in/)).toBeVisible();
+  await expect(page.getByText("Latest on this very topic")).toBeVisible();
 });
 
 test("show detail lists the show's own top episodes", async ({ page }) => {

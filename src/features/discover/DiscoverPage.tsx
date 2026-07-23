@@ -12,6 +12,7 @@ import { EpisodeCharts } from "./EpisodeCharts";
 import { RankedRecs } from "./RankedRecs";
 import { SavedRails } from "./SavedRails";
 import { SurpriseDeck } from "./SurpriseDeck";
+import { TopicEpisodes } from "./TopicEpisodes";
 import { TrendingShelf } from "./TrendingShelf";
 import { useDiscoverPicks } from "./useDiscoverPicks";
 
@@ -83,7 +84,7 @@ export function DiscoverPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-44 pt-6 sm:px-8">
-      {deckOpen && <SurpriseDeck picks={heroPicks} onClose={() => setDeckOpen(false)} />}
+      {deckOpen && <SurpriseDeck terms={lenses} onClose={() => setDeckOpen(false)} />}
 
       {/* Masthead — compact so "For You" clears the fold on mobile */}
       <div className="mb-4 border-b border-surface-border pb-3">
@@ -105,7 +106,7 @@ export function DiscoverPage() {
           <button
             type="button"
             onClick={() => setDeckOpen(true)}
-            disabled={heroPicks.length === 0}
+            disabled={lenses.length === 0}
             className="font-brand rounded-pill bg-accent px-4 py-2 text-xs uppercase tracking-wider text-white shadow-sm transition-transform hover:shadow-md active:scale-95 disabled:opacity-40"
           >
             Wavr
@@ -122,18 +123,25 @@ export function DiscoverPage() {
         </div>
       </section>
 
-      {/* Trending — sits right under For You, no repeat heading */}
-      <TrendingShelf topic={topic} hideTitle />
+      {topic === null ? (
+        <>
+          {/* Trending — sits right under For You, no repeat heading */}
+          <TrendingShelf topic={topic} hideTitle />
 
-      {/* More Ranks For You — the full ranked list (#1 included, since
-          Today's Pick no longer spotlights it separately), capped + "Show more" */}
-      <RankedRecs
-        picks={heroPicks}
-        count={picks.count}
-        topic={topic}
-        topicApplied={picks.topicApplied}
-        isLoading={picks.isLoading}
-      />
+          {/* More Ranks For You — the full ranked list (#1 included, since
+              Today's Pick no longer spotlights it separately), capped. */}
+          <RankedRecs
+            picks={heroPicks}
+            count={picks.count}
+            topic={topic}
+            topicApplied={picks.topicApplied}
+            isLoading={picks.isLoading}
+          />
+        </>
+      ) : (
+        /* A tapped tag surfaces the latest EPISODES for it — not shows. */
+        <TopicEpisodes topic={topic} />
+      )}
 
       <SavedRails saved={saved} />
 

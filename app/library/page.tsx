@@ -112,8 +112,11 @@ export default function LibraryPage() {
 
       <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
 
+      {/* On mobile (single column) Episodes lead — the saved-shows list is
+          long, so the queue you actually reach for comes first; desktop keeps
+          Shows on the left via order overrides. */}
       <div className="grid items-start gap-8 md:grid-cols-2">
-        <section>
+        <section className="order-2 md:order-1">
           <ColumnHeading count={visibleSaved.length}>Shows</ColumnHeading>
           <ShowsColumn
             saved={visibleSaved}
@@ -123,7 +126,7 @@ export default function LibraryPage() {
             onTagsChanged={invalidateTags}
           />
         </section>
-        <section>
+        <section className="order-1 md:order-2">
           <ColumnHeading count={visibleEpisodes.length}>Episodes</ColumnHeading>
           <EpisodesColumn
             episodes={visibleEpisodes}

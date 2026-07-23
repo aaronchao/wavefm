@@ -29,8 +29,10 @@ export function TagEditor({ showId }: { showId: string }) {
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["showTags"] });
 
-  function commit() {
-    const tag = normalizeTag(draft);
+  // `raw` is passed on the comma path so we commit the just-typed character,
+  // not a state value React hasn't applied yet.
+  function commit(raw?: string) {
+    const tag = normalizeTag(raw ?? draft);
     if (!tag || tags.includes(tag)) {
       setDraft("");
       return;
@@ -72,8 +74,7 @@ export function TagEditor({ showId }: { showId: string }) {
             const v = e.target.value;
             // typing a comma commits the tag — no extra click needed
             if (v.endsWith(",")) {
-              setDraft(v.slice(0, -1));
-              queueMicrotask(commit);
+              commit(v.slice(0, -1));
             } else {
               setDraft(v);
             }
@@ -84,7 +85,7 @@ export function TagEditor({ showId }: { showId: string }) {
               commit();
             }
           }}
-          onBlur={commit}
+          onBlur={() => commit()}
           placeholder="+ add tag"
           aria-label="Add a tag"
           className="font-brand w-28 rounded-[2px] border border-dashed border-surface-border bg-transparent px-2.5 py-1 text-[11px] uppercase tracking-wider text-foreground placeholder:text-zinc-400 focus:border-foreground focus:outline-none"
