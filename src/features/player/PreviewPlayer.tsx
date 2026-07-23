@@ -1,9 +1,10 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { platformLinks } from "@/src/core/links";
 import { CLIP_SECONDS } from "@/src/core/preview";
+import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { player, usePlayerState } from "@/src/state/player";
 import { CoverTile } from "@/src/ui";
 
@@ -127,10 +128,6 @@ export function PreviewPlayer() {
     // token bumps on every play request, even for the same URL
   }, [s.token, s.status, s.audioUrl, s.startAt, s.startFraction]);
 
-  const links = s.meta
-    ? platformLinks(s.meta.searchTitle, { apple: s.meta.appleUrl })
-    : [];
-
   const statusLine =
     s.status === "loading"
       ? "Finding a clip…"
@@ -152,18 +149,35 @@ export function PreviewPlayer() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 96, opacity: 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 32 }}
-            className="fixed inset-x-0 bottom-16 z-50 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95"
+            // Liquid-glass Play bar: translucent + blurred so content shows
+            // through, with a hairline border for edge definition. z-45 sits
+            // above the tab bar (z-40) but strictly below the floating
+            // Search bar (z-50) in the stack.
+            className="fixed inset-x-0 bottom-16 z-[45] border-t border-white/30 bg-white/30 backdrop-blur-md dark:border-white/10 dark:bg-black/30"
           >
             <div className="mx-auto flex max-w-2xl flex-col gap-2 p-3 sm:px-8">
               <div className="flex items-center gap-3">
-                <CoverTile src={s.meta.coverUrl} size={44} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">
-                    {s.status === "playing" && "▶ "}
-                    {s.meta.title}
-                  </p>
-                  <p className="truncate text-xs text-zinc-500">{statusLine}</p>
-                </div>
+                {/* Cover + text route to the show's page when we know its id */}
+                {s.meta.showId ? (
+                  <Link
+                    href={`/show/${s.meta.showId}`}
+                    className="flex min-w-0 flex-1 items-center gap-3"
+                  >
+                    <CoverTile src={s.meta.coverUrl} size={44} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold hover:underline">{s.meta.title}</p>
+                      <p className="truncate text-xs text-zinc-500">{statusLine}</p>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <CoverTile src={s.meta.coverUrl} size={44} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{s.meta.title}</p>
+                      <p className="truncate text-xs text-zinc-500">{statusLine}</p>
+                    </div>
+                  </div>
+                )}
                 <button
                   onClick={() => player.dismiss()}
                   aria-label="Close preview"
@@ -182,30 +196,18 @@ export function PreviewPlayer() {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-zinc-400">Listen in full:</span>
-                {links.map((link) =>
-                  link.url ? (
-                    <a
-                      key={link.id}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-pill bg-surface px-2.5 py-1 text-xs font-medium hover:opacity-80"
-                    >
-                      {link.label}
-                      {link.isSearch ? " ↗" : ""}
-                    </a>
-                  ) : (
-                    <span
-                      key={link.id}
-                      aria-disabled
-                      className="cursor-not-allowed rounded-pill bg-surface px-2.5 py-1 text-xs font-medium opacity-40"
-                    >
-                      {link.label}
-                    </span>
-                  ),
-                )}
+              {/* Icons only — no text labels — per the Play-bar spec. */}
+              <div className="flex items-center gap-2">
+                <span className="font-brand shrink-0 text-[10px] uppercase tracking-wider text-zinc-400">
+                  Listen in full
+                </span>
+                <OpenInLinks
+                  title={s.meta.searchTitle}
+                  appleUrl={s.meta.appleUrl}
+                  feedUrl={s.meta.feedUrl}
+                  stored={s.meta.platformLinks}
+                  label=""
+                />
               </div>
             </div>
           </motion.div>

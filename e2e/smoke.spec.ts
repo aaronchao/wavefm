@@ -97,9 +97,9 @@ test("topics lead with trending; personal niche seeds are absent", async ({ page
   await expect(page.getByText("Asian gay podcasts")).toHaveCount(0);
 });
 
-test("settings offers custom interests, no personal seeds", async ({ page }) => {
+test("Discover offers custom interests inline, no personal seeds", async ({ page }) => {
   await stub(page);
-  await page.goto("/settings");
+  await page.goto("/");
   await expect(page.getByPlaceholder(/Add an interest/)).toBeVisible();
   await expect(page.getByText("Asian gay podcasts")).toHaveCount(0);
 });
@@ -133,7 +133,7 @@ test("queue an episode for later, then it appears in the Library", async ({ page
   ).toBeVisible();
 
   await page.goto("/library");
-  await page.getByRole("button", { name: "Listen later" }).click();
+  // Episodes now sit in their own column (no tab) — visible immediately
   await expect(page.getByText("Ep 12: Attachment styles")).toBeVisible();
 });
 
@@ -158,7 +158,7 @@ test("the marketing landing (/welcome) greets visitors with a discovery CTA", as
   await expect(page.getByText("Your feed, poured out")).toBeVisible();
 });
 
-test("discover ranks recommendations and opens a show's episodes", async ({ page }) => {
+test("discover ranks recommendations and surfaces evidence for its picks", async ({ page }) => {
   const RANKED_PICKS = {
     picks: [
       show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"], {
@@ -194,16 +194,12 @@ test("discover ranks recommendations and opens a show's episodes", async ({ page
   await page.route("**/api/catalog/episodes-ranked**", (r) => r.fulfill({ json: RANKED_EPS }));
 
   await page.goto("/");
-  // spotlight (#1) and a further pick (#2) are present, in order
-  await expect(page.getByRole("heading", { name: "Psychology In Seattle" })).toBeVisible();
+  // #1 and #2 both land in the ranked list, in order (Today's Pick no
+  // longer spotlights #1 separately — this is the only place it appears)
+  await expect(page.getByText("Psychology In Seattle").first()).toBeVisible();
   await expect(page.getByText("Where Should We Begin").first()).toBeVisible();
-  await expect(page.getByText("Play the talked-about bit")).toBeVisible();
-
-  // opening a show reveals its discussion-first episode ranking (the same
-  // episodes also seed the side-by-side Episodes column, so scope to the first)
-  await page.getByRole("button", { name: /Top episodes/ }).first().click();
+  // its ranked episode surfaces in the "Episodes to try" column
   await expect(page.getByText("The one everyone argues about").first()).toBeVisible();
-  await expect(page.getByText("Most discussed · 40 Reddit threads").first()).toBeVisible();
 
   // tapping the reason badge expands the real community thread behind it
   await page.getByRole("button", { name: /Talked about on Reddit/ }).first().click();
@@ -212,26 +208,85 @@ test("discover ranks recommendations and opens a show's episodes", async ({ page
   ).toBeVisible();
 });
 
-test("Surprise-me deck lets you keep a show", async ({ page }) => {
-  const RANKED_PICKS = {
-    picks: [
-      show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"], {
-        why: "Talked about on Reddit (12 threads)",
-      }),
-      show("333", "Where Should We Begin", "Esther Perel", ["Society & Culture"], {
-        why: "Under the radar · Discussed on V2EX (4 threads)",
-      }),
-    ],
-    degraded: false,
-  };
-  await stub(page, { topPicks: RANKED_PICKS });
+test("Wavr deck plays a For-You episode and lets you keep it", async ({ page }) => {
+  await stub(page);
+  // Wavr now sources cards from the "For You" interest tags via episode
+  // search — one playable episode per swipe, not the ranked-shows list.
+  await page.route("**/api/catalog/search**", (r) =>
+    r.fulfill({
+      json: {
+        shows: [],
+        episodes: [
+          {
+            id: "ep-x",
+            title: "The one everyone argues about",
+            showId: "222",
+            showTitle: "Psychology In Seattle",
+            coverUrl: "https://cdn/cover.jpg",
+            appleUrl: "https://podcasts.apple.com/ep-x",
+            audioUrl: "https://cdn/ep1.mp3",
+            durationSec: 2400,
+            publishedAt: "2026-07-20T00:00:00Z",
+            categories: [],
+            description: "A deep dive into the argument everyone has.",
+          },
+        ],
+        degraded: false,
+      },
+    }),
+  );
 
   await page.goto("/");
-  await page.getByRole("button", { name: /Surprise me/ }).first().click();
+  await page.getByRole("button", { name: "Wavr" }).first().click();
   await expect(page.getByText("Swipe → keep · ← skip")).toBeVisible();
+  // the card is a real For-You episode — and it's auto-playing, so its title
+  // also shows in the Play bar (two matches confirms the Play-Bar routing)
+  await expect(
+    page.getByRole("heading", { name: "The one everyone argues about" }),
+  ).toBeVisible();
+
+  // swipe the top card right (drag gesture) to keep it
+  const card = page.getByText("Swipe → keep · ← skip").locator("..");
+  const box = await card.boundingBox();
+  if (box) {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 260, box.y + box.height / 2, { steps: 12 });
+    await page.mouse.up();
+  }
   // keep it -> the "Done · 1 saved" counter reflects the save
-  await page.getByRole("button", { name: "Keep" }).click();
   await expect(page.getByText(/1 saved/)).toBeVisible();
+});
+
+test("selecting a For-You tag surfaces episodes for it, not shows", async ({ page }) => {
+  await stub(page);
+  // the tapped tag drives an episode search; those episodes fill the feed
+  await page.route("**/api/catalog/search**", (r) =>
+    r.fulfill({
+      json: {
+        shows: [show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"])],
+        episodes: [
+          {
+            id: "ep-topic",
+            title: "Latest on this very topic",
+            showId: "222",
+            showTitle: "Psychology In Seattle",
+            audioUrl: "https://cdn/topic.mp3",
+            durationSec: 1800,
+            publishedAt: "2026-07-21T00:00:00Z",
+            categories: [],
+          },
+        ],
+        degraded: false,
+      },
+    }),
+  );
+
+  await page.goto("/");
+  // tap the first "For You" interest tag (a fallback lens on a fresh browser)
+  await page.getByRole("button", { name: "墨尔本" }).click();
+  await expect(page.getByText(/Latest in/)).toBeVisible();
+  await expect(page.getByText("Latest on this very topic")).toBeVisible();
 });
 
 test("show detail lists the show's own top episodes", async ({ page }) => {

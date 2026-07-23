@@ -10,7 +10,9 @@ import {
   removeEpisode,
   saveEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
-import { Chip, SettleIn } from "@/src/ui";
+import { CoverPlay } from "@/src/features/player/CoverPlay";
+import { previewEpisode } from "@/src/features/player/preview";
+import { NothingToggle, SettleIn } from "@/src/ui";
 import { ShowMoreButton } from "./Charts";
 import { MachineLabel } from "./DiscoverPage";
 
@@ -55,7 +57,7 @@ export function EpisodeCharts() {
           <ol className="flex flex-col gap-2">
             {(showAll ? eps : eps.slice(0, DEFAULT_VISIBLE)).map((ep, i) => (
               <SettleIn key={ep.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-                <EpisodeRow ep={ep} rank={i + 1} />
+                <EpisodeRow ep={ep} />
               </SettleIn>
             ))}
           </ol>
@@ -72,7 +74,7 @@ export function EpisodeCharts() {
   );
 }
 
-function EpisodeRow({ ep, rank }: { ep: ChartEpisodeItem; rank: number }) {
+function EpisodeRow({ ep }: { ep: ChartEpisodeItem }) {
   const queryClient = useQueryClient();
   const [queued, setQueued] = useState(false);
 
@@ -92,9 +94,13 @@ function EpisodeRow({ ep, rank }: { ep: ChartEpisodeItem; rank: number }) {
       ? saveEpisode({
           id: ep.id,
           title: ep.title,
+          showId: ep.showId,
           showTitle: ep.showTitle,
+          coverUrl: ep.coverUrl,
           categories: [],
           appleUrl: ep.url,
+          audioUrl: ep.audioUrl,
+          durationSec: ep.durationSec,
         })
       : removeEpisode(ep.id)
     ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
@@ -102,11 +108,27 @@ function EpisodeRow({ ep, rank }: { ep: ChartEpisodeItem; rank: number }) {
 
   return (
     <li className="flex items-start gap-2.5 rounded-card border border-surface-border bg-background p-2.5 shadow-sm">
-      <span className="font-brand mt-0.5 w-6 shrink-0 text-center text-sm font-bold tabular-nums text-zinc-400 dark:text-zinc-500">
-        {String(rank).padStart(2, "0")}
-      </span>
+      {/* Matches the "More Ranks For You" episode row: cover + play triangle */}
+      <CoverPlay
+        src={ep.coverUrl}
+        size={48}
+        onPlay={() =>
+          previewEpisode({
+            id: ep.id,
+            title: ep.title,
+            showId: ep.showId,
+            showTitle: ep.showTitle,
+            coverUrl: ep.coverUrl,
+            appleUrl: ep.url,
+            audioUrl: ep.audioUrl,
+            durationSec: ep.durationSec,
+            categories: [],
+          })
+        }
+        label={`Play a snippet of ${ep.title}`}
+      />
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-sm font-semibold leading-snug">{ep.title}</p>
+        <p className="line-clamp-3 text-sm font-semibold leading-snug">{ep.title}</p>
         {ep.showTitle && (
           <Link
             href={`/search?q=${encodeURIComponent(ep.showTitle)}`}
@@ -123,13 +145,14 @@ function EpisodeRow({ ep, rank }: { ep: ChartEpisodeItem; rank: number }) {
         )}
         <p className="line-clamp-1 text-[11px] text-zinc-400">{ep.why}</p>
       </div>
-      <Chip
+      <NothingToggle
         active={queued}
         onClick={() => toggleLater()}
-        className="shrink-0 self-start !px-2 !py-1 !text-xs"
+        ariaLabel={queued ? "Queued" : "Save for later"}
+        className="shrink-0 !px-2"
       >
-        {queued ? "✓" : "+ Later"}
-      </Chip>
+        {queued ? "✓" : "+"}
+      </NothingToggle>
     </li>
   );
 }

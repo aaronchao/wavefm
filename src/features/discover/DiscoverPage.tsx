@@ -1,18 +1,18 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { defaultTopics } from "@/src/core/recommend";
-import { getDiscoverTopics } from "@/src/data/catalog/client";
-import type { DiscoverTopic } from "@/src/data/catalog/types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type FormEvent } from "react";
+import { getPrefs, setInterests } from "@/src/data/repos/prefsRepo";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
+import { getSupabase } from "@/src/data/supabase/client";
+import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
 import { Charts } from "./Charts";
 import { EpisodeCharts } from "./EpisodeCharts";
 import { RankedRecs } from "./RankedRecs";
 import { SavedRails } from "./SavedRails";
 import { SurpriseDeck } from "./SurpriseDeck";
-import { TodaysPicks } from "./TodaysPicks";
+import { TopicEpisodes } from "./TopicEpisodes";
 import { TrendingShelf } from "./TrendingShelf";
 import { useDiscoverPicks } from "./useDiscoverPicks";
 
@@ -42,38 +42,23 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-const TOPICS = defaultTopics();
-/** Chinese-language topic chips (drive same-language search + filtering). */
-const CN_TOPICS = ["商业", "科技", "文化", "历史", "情感", "悬疑", "喜剧", "读书", "新闻", "生活"];
-const STATIC_TOPICS: DiscoverTopic[] = [
-  ...TOPICS.map((t) => ({ label: t, query: t, lang: "en" as const })),
-  ...CN_TOPICS.map((t) => ({ label: t, query: t, lang: "zh" as const })),
-];
+/** Quick-start lenses when the user hasn't added interests yet — no API
+ *  call, no trending fetch. Unmounted the moment a personal tag is added. */
+const FALLBACK_INTERESTS = ["墨尔本", "奥德赛", "claude"];
 
 /**
- * Mood entry points — discovery by feeling, not genre. Each `query` is a
- * bilingual bag of terms that lenses the search + filtering underneath.
- */
-const MOODS: { emoji: string; label: string; query: string }[] = [
-  { emoji: "😂", label: "make me laugh", query: "comedy 搞笑" },
-  { emoji: "🤯", label: "blow my mind", query: "science 脑洞" },
-  { emoji: "☕", label: "cozy", query: "cozy 治愈" },
-  { emoji: "🥊", label: "a good debate", query: "debate 辩论" },
-  { emoji: "😢", label: "cry a little", query: "emotional 情感" },
-  { emoji: "🕳️", label: "rabbit hole", query: "history 深度" },
-];
-
-/**
- * Discover: the ranked, discussion-first exploration surface. Recommended
- * shows are ordered top to bottom; one click plays a random middle section
- * of the show's most-talked-about episode. Open a show to see its episodes
- * ranked by real signal (discussion → rating → recency), each labelled
- * honestly. Topic chips re-lens the Trending shelf. Nothing-brand identity:
- * monochrome machine type, a single Signal-Red accent, dot-matrix marks.
+ * Discover: the ranked, discussion-first exploration surface — and now
+ * Settings' whole reason to exist (interests + account sync) lives right
+ * here, inline, so there's nowhere else you need to go. Today's Pick is a
+ * swipeable card deck; the rest of the ranking follows underneath, Charts
+ * bringing up the rear since you've usually already scrolled past them.
+ * Nothing-brand identity: monochrome machine type, a single Signal-Red
+ * accent, dot-matrix marks.
  */
 export function DiscoverPage() {
-  const { session } = useSession();
+  const { session, configured } = useSession();
   const scope = session?.user.id ?? "local";
+  const queryClient = useQueryClient();
   const savedQ = useQuery({ queryKey: ["saved", scope], queryFn: listSaved });
   const saved = savedQ.data ?? [];
   const seedIds = saved.slice(0, 4).map((s) => s.show.id);
@@ -81,100 +66,185 @@ export function DiscoverPage() {
   const [topic, setTopic] = useState<string | null>(null);
   const [deckOpen, setDeckOpen] = useState(false);
 
-  // "Pick a topic" — a live EN + 中文 trending mix from the discussion backend,
-  // falling back to the static set when the endpoint is unreachable.
-  const topicsQ = useQuery({
-    queryKey: ["discover", "topics"],
-    queryFn: getDiscoverTopics,
-    staleTime: 6 * 60 * 60 * 1000,
-  });
-  const topicChips =
-    topicsQ.data && topicsQ.data.topics.length > 0 ? topicsQ.data.topics : STATIC_TOPICS;
-  const picks = useDiscoverPicks({ seedIds, topic, savedReady: savedQ.isSuccess });
+  // "For You" — user-authored interests (Settings, merged in). Falls back
+  // to three static suggestions when empty; never calls a trending API.
+  const prefsQ = useQuery({ queryKey: ["prefs", scope], queryFn: getPrefs });
+  const interests = prefsQ.data?.interests ?? [];
+  const lenses = interests.length > 0 ? interests : FALLBACK_INTERESTS;
+
+  const picks = useDiscoverPicks({ seedIds, topic, interests, savedReady: savedQ.isSuccess });
   const heroPicks = picks.hero ? [picks.hero, ...picks.rest] : [];
+
+  async function addInterest(raw: string) {
+    const t = raw.trim();
+    if (!t || interests.includes(t)) return;
+    await setInterests([...interests, t]);
+    await queryClient.invalidateQueries({ queryKey: ["prefs"] });
+  }
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-44 pt-6 sm:px-8">
-      {deckOpen && <SurpriseDeck picks={heroPicks} onClose={() => setDeckOpen(false)} />}
-      {/* Masthead */}
-      <div className="mb-8 border-b border-surface-border pb-6">
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-          <MachineLabel>wavefm · Discovery Engine</MachineLabel>
-        </div>
-        <h1 className="font-brand mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Discover</h1>
-        <p className="mt-2 max-w-lg text-zinc-500">
-          Rankings & recommendations are sourced from community &amp; forum
-          discussions —{" "}
-          <span className="text-foreground">Reddit · 豆瓣 · V2EX · PTT · Dcard · LIHKG · 小宇宙</span>,
-          not the charts. One tap plays the bit they actually argue about.
-        </p>
-        <button
-          type="button"
-          onClick={() => setDeckOpen(true)}
-          disabled={heroPicks.length === 0}
-          className="font-brand mt-4 rounded-pill bg-accent px-5 py-2.5 text-sm uppercase tracking-wider text-white shadow-sm transition-transform hover:shadow-md active:scale-95 disabled:opacity-40"
-        >
-          ⤮ Surprise me
-        </button>
+      {deckOpen && <SurpriseDeck terms={lenses} onClose={() => setDeckOpen(false)} />}
+
+      {/* Masthead — compact so "For You" clears the fold on mobile */}
+      <div className="mb-4 border-b border-surface-border pb-3">
+        <h1 className="font-brand text-xl font-bold tracking-tight sm:text-2xl">
+          Your next favorite show is hiding in here.
+        </h1>
+        {configured && (
+          <div className="mt-2">
+            <InlineSync />
+          </div>
+        )}
       </div>
 
-      {/* Mood lens — start from a feeling */}
-      <div className="mb-6">
-        <SectionLabel>How do you want to feel?</SectionLabel>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {MOODS.map((m) => (
+      {/* For You — your own interests drive everything below; Wavr (the
+          surprise-me deck) leads the row, add more interests inline */}
+      <section className="mb-2">
+        <SectionLabel>For You</SectionLabel>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDeckOpen(true)}
+            disabled={lenses.length === 0}
+            className="font-brand rounded-pill bg-accent px-4 py-2 text-xs uppercase tracking-wider text-white shadow-sm transition-transform hover:shadow-md active:scale-95 disabled:opacity-40"
+          >
+            Wavr
+          </button>
+          {lenses.map((i) => (
             <TopicChip
-              key={m.label}
-              label={`${m.emoji} ${m.label}`}
-              active={topic === m.query}
-              onClick={() => setTopic((cur) => (cur === m.query ? null : m.query))}
+              key={i}
+              label={i}
+              active={topic === i}
+              onClick={() => setTopic((cur) => (cur === i ? null : i))}
             />
           ))}
+          <InlineAddChip onAdd={addInterest} />
         </div>
-      </div>
+      </section>
 
-      {/* Topic lens — a live English + 中文 mix from community discussion */}
-      <div className="mb-8">
-        <SectionLabel>Or pick a topic</SectionLabel>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <TopicChip label="For you" active={topic === null} onClick={() => setTopic(null)} />
-          {topicChips.map((t) => (
-            <TopicChip
-              key={`${t.lang ?? "x"}:${t.label}`}
-              label={t.label}
-              active={topic === t.query}
-              onClick={() => setTopic((cur) => (cur === t.query ? null : t.query))}
-            />
-          ))}
-        </div>
-      </div>
+      {topic === null ? (
+        <>
+          {/* Trending — sits right under For You, no repeat heading */}
+          <TrendingShelf topic={topic} hideTitle />
 
-      {/* The payoff: today's picks, several at a glance, each with its reason */}
-      <TodaysPicks key={topic ?? "all"} picks={heroPicks} />
+          {/* More Ranks For You — the full ranked list (#1 included, since
+              Today's Pick no longer spotlights it separately), capped. */}
+          <RankedRecs
+            picks={heroPicks}
+            count={picks.count}
+            topic={topic}
+            topicApplied={picks.topicApplied}
+            isLoading={picks.isLoading}
+          />
+        </>
+      ) : (
+        /* A tapped tag surfaces the latest EPISODES for it — not shows. */
+        <TopicEpisodes topic={topic} />
+      )}
 
-      {/* Charts up top for visibility — show boards beside the episode board */}
+      <SavedRails saved={saved} />
+
+      {/* Charts — the crowd's leaderboards, at the very bottom */}
       <div className="mb-12 grid items-start gap-10 lg:grid-cols-2">
         <Charts />
         <EpisodeCharts />
       </div>
 
-      {/* The rest of the personalized ranking */}
-      <RankedRecs
-        rest={picks.rest}
-        count={picks.count}
-        topic={topic}
-        topicApplied={picks.topicApplied}
-        isLoading={picks.isLoading}
-      />
-
-      <SavedRails saved={saved} />
-
-      <TrendingShelf topic={topic} />
+      <FloatingSearch />
     </main>
   );
 }
 
+/** Inline magic-link sync — Settings' account section, merged into Discover. */
+function InlineSync() {
+  const { session } = useSession();
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+
+  if (session) {
+    return (
+      <button
+        type="button"
+        onClick={() => void getSupabase()?.auth.signOut()}
+        className="font-brand rounded-pill border border-surface-border px-3 py-1.5 text-xs uppercase tracking-wider text-zinc-500 hover:text-foreground"
+      >
+        Synced as {session.user.email} · Sign out
+      </button>
+    );
+  }
+  if (status === "sent") {
+    return (
+      <span className="text-xs text-zinc-500">Check {email} for your link ✓</span>
+    );
+  }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    const sb = getSupabase();
+    if (!sb || !email.trim()) return;
+    setStatus("sending");
+    const { error } = await sb.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.origin },
+    });
+    setStatus(error ? "error" : "sent");
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex items-center gap-1.5">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@email.com — sync your picks"
+        className="font-brand w-48 rounded-pill border border-surface-border bg-surface px-3 py-1.5 text-xs outline-none focus:border-accent"
+      />
+      <button
+        type="submit"
+        disabled={status === "sending"}
+        className="nothing-toggle px-3 py-1.5 text-[11px]"
+      >
+        {status === "sending" ? "…" : "Sync"}
+      </button>
+      {status === "error" && <span className="text-xs text-red-500">Failed</span>}
+    </form>
+  );
+}
+
+/** Low-friction inline add for a new "For You" interest — always one tap
+ *  (type + Enter), no extra click to reveal the field. */
+function InlineAddChip({ onAdd }: { onAdd: (t: string) => void }) {
+  const [draft, setDraft] = useState("");
+
+  function commit() {
+    const t = draft.trim();
+    setDraft("");
+    if (t) onAdd(t);
+  }
+
+  return (
+    <input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        }
+        if (e.key === "Escape") {
+          setDraft("");
+        }
+      }}
+      onBlur={commit}
+      placeholder="Add an interest…"
+      aria-label="Add an interest"
+      className="font-brand w-32 shrink-0 rounded-[2px] border border-dashed border-surface-border bg-transparent px-2.5 py-1.5 text-[11px] uppercase tracking-wider text-foreground placeholder:text-zinc-400 focus:border-foreground focus:outline-none"
+    />
+  );
+}
+
+/** Nothing-brand topic toggle — sharp edges, monochrome, dot-matrix type. */
 function TopicChip({
   label,
   active,
@@ -189,11 +259,8 @@ function TopicChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`font-brand rounded-pill border px-3 py-1.5 text-xs uppercase tracking-wider transition-colors ${
-        active
-          ? "border-accent bg-accent text-white"
-          : "border-surface-border bg-surface text-zinc-700 hover:text-foreground dark:text-zinc-200"
-      }`}
+      data-active={active}
+      className="nothing-toggle shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px]"
     >
       {label}
     </button>

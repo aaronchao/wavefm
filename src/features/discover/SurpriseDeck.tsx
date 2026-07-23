@@ -2,56 +2,73 @@
 
 import { motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import type { SimilarShow } from "@/src/data/catalog/types";
-import { recordEngagement } from "@/src/data/repos/engagementRepo";
-import { saveShow } from "@/src/data/repos/savedShowsRepo";
-import { previewShowTopEpisodeMiddle } from "@/src/features/player/preview";
+import { useEffect, useState } from "react";
+import type { CatalogEpisode } from "@/src/data/catalog/types";
+import { saveEpisode } from "@/src/data/repos/savedEpisodesRepo";
+import { previewEpisode } from "@/src/features/player/preview";
+import { player } from "@/src/state/player";
 import { CoverTile } from "@/src/ui";
-import { Evidence } from "./Evidence";
+import { useInterestEpisodes } from "./useInterestEpisodes";
 
 /**
- * Surprise-me — a keep-or-skip card game over the discussion-first picks.
- * Swipe (or tap ✕ / ♥) to blow through hidden gems fast; keeping saves the
- * show and teaches your taste, skipping tunes it the other way. Playful by
- * design, but fully operable with buttons under prefers-reduced-motion.
+ * Wavr — a swipe-only keep-or-skip game over the "For You" episodes, sourced
+ * straight from the interest tags in that section (not the ranked-shows list).
+ * Each card is a single episode that auto-plays through the app-wide Play Bar
+ * the moment it's on top (one source plays at a time, everywhere): swipe right
+ * to keep it (queues it into your Library), left to skip. Fully gesture-driven;
+ * a reduced-motion viewer keeps/skips via the header shortcut instead.
  */
 export function SurpriseDeck({
-  picks,
+  terms,
   onClose,
 }: {
-  picks: SimilarShow[];
+  /** The active "For You" interest lenses — the deck's episode pool. */
+  terms: string[];
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { episodes, isLoading } = useInterestEpisodes(terms, { perTerm: 8 });
+
   const [index, setIndex] = useState(0);
   const [kept, setKept] = useState(0);
-  const current = picks[index];
-  const next = picks[index + 1];
+  const current = episodes[index];
+  const next = episodes[index + 1];
+  const loading = isLoading && episodes.length === 0;
 
   function decide(dir: "keep" | "skip") {
-    const show = picks[index];
-    if (!show) return;
+    const ep = episodes[index];
+    if (!ep) return;
     if (dir === "keep") {
-      void saveShow(show);
-      void recordEngagement(show, "like");
-      void queryClient.invalidateQueries({ queryKey: ["saved"] });
+      void saveEpisode({
+        id: ep.id,
+        title: ep.title,
+        showId: ep.showId,
+        showTitle: ep.showTitle,
+        coverUrl: ep.coverUrl,
+        appleUrl: ep.appleUrl,
+        audioUrl: ep.audioUrl,
+        durationSec: ep.durationSec,
+        publishedAt: ep.publishedAt,
+        categories: ep.categories ?? [],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
       setKept((k) => k + 1);
-    } else {
-      void recordEngagement(show, "block");
     }
     setIndex((i) => i + 1);
+  }
+
+  function close() {
+    player.dismiss(); // stop the auto-playing snippet as the deck leaves
+    onClose();
   }
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background/80 p-4 backdrop-blur">
       <div className="mb-4 flex w-full max-w-sm items-center justify-between">
-        <span className="font-brand text-sm uppercase tracking-[0.18em] text-accent">
-          ⤮ Surprise me
-        </span>
+        <span className="font-brand text-sm uppercase tracking-[0.18em] text-accent">Wavr</span>
         <button
           type="button"
-          onClick={onClose}
+          onClick={close}
           className="rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
           aria-label="Close"
         >
@@ -60,10 +77,14 @@ export function SurpriseDeck({
       </div>
 
       <div className="relative h-[26rem] w-full max-w-sm">
-        {current ? (
+        {loading ? (
+          <div className="flex h-full items-center justify-center rounded-card border border-surface-border bg-background">
+            <p className="text-sm text-zinc-400">Finding episodes for you…</p>
+          </div>
+        ) : current ? (
           <>
-            {next && <PeekCard key={next.id} show={next} />}
-            <SwipeCard key={current.id} show={current} onDecide={decide} />
+            {next && <PeekCard key={next.id} ep={next} />}
+            <SwipeCard key={current.id} ep={current} onDecide={decide} />
           </>
         ) : (
           <div className="flex h-full flex-col items-center justify-center rounded-card border border-surface-border bg-background p-6 text-center">
@@ -73,7 +94,7 @@ export function SurpriseDeck({
             </p>
             <button
               type="button"
-              onClick={onClose}
+              onClick={close}
               className="mt-4 rounded-pill bg-accent px-5 py-2.5 text-sm font-semibold text-white active:scale-95"
             >
               Back to Discover
@@ -81,33 +102,15 @@ export function SurpriseDeck({
           </div>
         )}
       </div>
-
-      {current && (
-        <div className="mt-5 flex items-center gap-5">
-          <DeckButton label="Skip" onClick={() => decide("skip")}>
-            ✕
-          </DeckButton>
-          <button
-            type="button"
-            onClick={() => previewShowTopEpisodeMiddle(current)}
-            className="rounded-full bg-accent px-4 py-3 text-sm font-semibold text-white shadow-sm active:scale-95"
-          >
-            ▶ Play
-          </button>
-          <DeckButton label="Keep" accent onClick={() => decide("keep")}>
-            ♥
-          </DeckButton>
-        </div>
-      )}
     </div>
   );
 }
 
 function SwipeCard({
-  show,
+  ep,
   onDecide,
 }: {
-  show: SimilarShow;
+  ep: CatalogEpisode;
   onDecide: (dir: "keep" | "skip") => void;
 }) {
   const reduce = useReducedMotion();
@@ -115,6 +118,12 @@ function SwipeCard({
   const rotate = useTransform(x, [-220, 220], [-14, 14]);
   const keep = useTransform(x, [30, 130], [0, 1]);
   const skip = useTransform(x, [-130, -30], [1, 0]);
+  const blurb = plainText(ep.description);
+
+  // Auto-play the episode through the app-wide Play Bar as the card lands.
+  useEffect(() => {
+    previewEpisode({ ...ep, categories: ep.categories ?? [] });
+  }, [ep]);
 
   return (
     <motion.div
@@ -146,10 +155,16 @@ function SwipeCard({
           </motion.span>
         </>
       )}
-      <CoverTile src={show.coverUrl} size={120} className="!h-40 !w-full !rounded-tile" />
-      <h3 className="mt-4 text-xl font-bold leading-tight">{show.title}</h3>
-      <p className="text-sm text-zinc-500">{show.author}</p>
-      <Evidence show={show} className="mt-3" />
+      <CoverTile src={ep.coverUrl} size={120} className="!h-40 !w-full !rounded-tile" />
+      <h3 className="mt-4 text-xl font-bold leading-tight line-clamp-2">{ep.title}</h3>
+      {ep.showTitle && <p className="text-sm text-zinc-500">{ep.showTitle}</p>}
+      {blurb ? (
+        <blockquote className="mt-3 border-l-2 border-accent-soft pl-3 text-sm italic text-foreground/80 line-clamp-4">
+          {blurb}
+        </blockquote>
+      ) : (
+        <p className="mt-3 text-sm text-zinc-500">▶ Playing a preview — swipe if it clicks.</p>
+      )}
       <p className="mt-auto pt-3 text-center font-brand text-[10px] uppercase tracking-[0.18em] text-zinc-400">
         Swipe → keep · ← skip
       </p>
@@ -158,38 +173,21 @@ function SwipeCard({
 }
 
 /** A dimmed peek of the next card behind the active one. */
-function PeekCard({ show }: { show: SimilarShow }) {
+function PeekCard({ ep }: { ep: CatalogEpisode }) {
   return (
     <div className="absolute inset-0 scale-95 rounded-card border border-surface-border bg-surface/60 p-5 opacity-60">
-      <CoverTile src={show.coverUrl} size={120} className="!h-40 !w-full !rounded-tile" />
-      <h3 className="mt-4 truncate text-xl font-bold">{show.title}</h3>
+      <CoverTile src={ep.coverUrl} size={120} className="!h-40 !w-full !rounded-tile" />
+      <h3 className="mt-4 truncate text-xl font-bold">{ep.title}</h3>
     </div>
   );
 }
 
-function DeckButton({
-  children,
-  label,
-  accent = false,
-  onClick,
-}: {
-  children: React.ReactNode;
-  label: string;
-  accent?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      className={`flex h-14 w-14 items-center justify-center rounded-full border text-xl shadow-sm transition-transform active:scale-90 ${
-        accent
-          ? "border-accent bg-accent-soft text-accent"
-          : "border-surface-border bg-background text-zinc-500"
-      }`}
-    >
-      {children}
-    </button>
-  );
+/** Strip HTML tags/entities from a feed description for a clean card blurb. */
+function plainText(html?: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&(nbsp|amp|lt|gt|quot|#39);/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }

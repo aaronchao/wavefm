@@ -10,14 +10,19 @@ import {
   removeEpisode,
   saveEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
+import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewRankedEpisode } from "@/src/features/player/preview";
-import { SettleIn } from "@/src/ui";
+import { NothingToggle, SettleIn } from "@/src/ui";
+import { ShowMoreButton } from "./Charts";
 import { MachineLabel } from "./DiscoverPage";
 import { ShowRowCompact } from "./ShowRowCompact";
 
 /** How many top shows we pull episodes from for the Episodes column. */
 const EP_SHOWS = 6;
+/** "More Ranks For You" starts collapsed to this many shows. */
+const SHOWS_CAP = 5;
 const BASIS_LABEL: Record<RankedEpisodeItem["basis"], string> = {
+  listens: "Most listened",
   discussion: "Discussed",
   rating: "Rated",
   recent: "Recent",
@@ -31,18 +36,21 @@ const BASIS_LABEL: Record<RankedEpisodeItem["basis"], string> = {
  * tap. The hero and shared query live one level up so Charts can sit between.
  */
 export function RankedRecs({
-  rest,
+  picks,
   count,
   topic,
   topicApplied,
   isLoading,
 }: {
-  rest: SimilarShow[];
+  /** The full ranked list, #1 included — Today's Pick no longer has its own
+   *  spotlight, so this is the only place the top pick appears. */
+  picks: SimilarShow[];
   count: number;
   topic: string | null;
   topicApplied: boolean;
   isLoading: boolean;
 }) {
+  const [showAll, setShowAll] = useState(false);
   if (isLoading) return <SkeletonRows />;
   if (count === 0) {
     return (
@@ -52,13 +60,14 @@ export function RankedRecs({
       </p>
     );
   }
-  if (rest.length === 0) return null; // only the hero survived; nothing more to list
+
+  const visible = showAll ? picks : picks.slice(0, SHOWS_CAP);
 
   return (
     <section className="mb-12">
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="text-lg font-semibold">
-          {topicApplied ? `More in ${topic}` : "More ranked for you"}
+          {topicApplied ? `More in ${topic}` : "More Ranks For You"}
         </h2>
         <MachineLabel>{count} shows</MachineLabel>
       </div>
@@ -66,16 +75,23 @@ export function RankedRecs({
         <section>
           <ColumnLabel>Shows</ColumnLabel>
           <ol className="flex flex-col gap-2.5">
-            {rest.map((pick, i) => (
+            {visible.map((pick, i) => (
               <SettleIn key={pick.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-                <ShowRowCompact show={pick} rank={i + 2} />
+                <ShowRowCompact show={pick} />
               </SettleIn>
             ))}
           </ol>
+          {picks.length > SHOWS_CAP && (
+            <ShowMoreButton
+              expanded={showAll}
+              hiddenCount={picks.length - SHOWS_CAP}
+              onClick={() => setShowAll((v) => !v)}
+            />
+          )}
         </section>
         <section>
           <ColumnLabel>Episodes to try</ColumnLabel>
-          <EpisodesColumn shows={rest} />
+          <EpisodesColumn shows={picks} />
         </section>
       </div>
     </section>
@@ -173,8 +189,14 @@ function EpisodeColumnRow({ ep, show }: { ep: RankedEpisodeItem; show: SimilarSh
 
   return (
     <li className="flex items-start gap-2.5 rounded-card border border-surface-border bg-background p-2.5 shadow-sm">
+      <CoverPlay
+        src={show.coverUrl}
+        size={48}
+        onPlay={() => previewRankedEpisode(ep, show)}
+        label={`Play a snippet of ${ep.title}`}
+      />
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-sm font-semibold leading-snug">{ep.title}</p>
+        <p className="line-clamp-3 text-sm font-semibold leading-snug">{ep.title}</p>
         <Link
           href={`/show/${show.id}`}
           className="line-clamp-1 text-xs text-zinc-500 hover:text-accent dark:text-zinc-400"
@@ -192,29 +214,14 @@ function EpisodeColumnRow({ ep, show }: { ep: RankedEpisodeItem; show: SimilarSh
           · {ep.why}
         </p>
       </div>
-      <div className="flex shrink-0 flex-col items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => previewRankedEpisode(ep, show)}
-          disabled={!ep.audioUrl}
-          aria-label={`Play the middle of ${ep.title}`}
-          className="rounded-full bg-accent px-2.5 py-1.5 text-xs font-semibold text-white transition-transform active:scale-95 disabled:opacity-30"
-        >
-          ▶
-        </button>
-        <button
-          type="button"
-          onClick={() => toggleLater()}
-          aria-label={queued ? `Remove ${ep.title} from Later` : `Save ${ep.title} for later`}
-          className={`rounded-full border px-2 py-1 text-xs font-medium transition-colors ${
-            queued
-              ? "border-accent bg-accent-soft text-accent"
-              : "border-surface-border text-zinc-500 hover:border-accent hover:text-accent"
-          }`}
-        >
-          {queued ? "✓" : "+ Later"}
-        </button>
-      </div>
+      <NothingToggle
+        active={queued}
+        onClick={() => toggleLater()}
+        ariaLabel={queued ? `Remove ${ep.title} from Later` : `Save ${ep.title} for later`}
+        className="shrink-0 !px-2"
+      >
+        {queued ? "✓" : "+"}
+      </NothingToggle>
     </li>
   );
 }

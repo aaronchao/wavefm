@@ -55,8 +55,8 @@ export function SimilarContent({
             <p className="text-sm text-zinc-500">No similar shows surfaced.</p>
           ) : (
             <ol className="flex flex-col gap-2.5">
-              {data.shows.map((s, i) => (
-                <ShowRowCompact key={s.id} show={s} rank={i + 1} />
+              {data.shows.map((s) => (
+                <ShowRowCompact key={s.id} show={s} />
               ))}
             </ol>
           )}

@@ -3,9 +3,14 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { type Group, groupByCategory, groupByVibe } from "@/src/core/library/organize";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { getShow } from "@/src/data/catalog/client";
+import {
+  addEpisodeTag,
+  listEpisodeTags,
+  removeEpisodeTag,
+  type EpisodeTagMap,
+} from "@/src/data/repos/episodeTagsRepo";
 import {
   listSavedEpisodes,
   removeEpisode,
@@ -13,27 +18,88 @@ import {
   type SavedEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
 import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
+import {
+  addShowTag,
+  allTagsFrom,
+  listShowTags,
+  removeShowTag,
+  type ShowTagMap,
+} from "@/src/data/repos/showTagsRepo";
+import { renameTagEverywhere } from "@/src/data/repos/tagsRepo";
 import { ExportOpmlButton } from "@/src/features/library/ExportOpmlButton";
 import { ImportOpmlButton } from "@/src/features/library/ImportOpmlButton";
+import { InlineTagInput } from "@/src/features/library/InlineTagInput";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
+import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode, previewShow } from "@/src/features/player/preview";
+import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
-import { Chip, CoverTile, PlayableCard } from "@/src/ui";
+import { NothingToggle, PlayableCard } from "@/src/ui";
 
 /**
- * Library: the collection system. The Shows tab auto-organizes a growing pile
- * of follows two ways — by Category (中文 / topics) or by Vibe (🕳️ Rabbit
- * holes, ☕ Cozy corner…), so it never becomes one endless scroll. Listen later
- * holds queued episodes with status + resume point. Everything syncs via
- * Supabase when signed in, localStorage otherwise.
+ * Library: the collection system, a single 2-column grid — Shows beside
+ * Episodes — with a horizontal rail of the user's own tags across the top.
+ * Tapping a tag filters both columns at once; each tag chip can also be
+ * renamed in place (cascades to every show/episode carrying it). Each card
+ * carries its own low-friction inline tag input too, so tagging doesn't
+ * require leaving the Library. Everything syncs via Supabase when signed
+ * in, localStorage otherwise.
  */
 export default function LibraryPage() {
-  const [tab, setTab] = useState<"shows" | "episodes">("shows");
+  const { session } = useSession();
+  const scope = session?.user.id ?? "local";
+  const queryClient = useQueryClient();
+
+  const savedQ = useQuery({ queryKey: ["saved", scope], queryFn: listSaved });
+  const episodesQ = useQuery({
+    queryKey: ["savedEpisodes", scope],
+    queryFn: listSavedEpisodes,
+  });
+  const showTagsQ = useQuery({ queryKey: ["showTags", scope], queryFn: listShowTags });
+  const episodeTagsQ = useQuery({
+    queryKey: ["episodeTags", scope],
+    queryFn: listEpisodeTags,
+  });
+
+  const saved = savedQ.data ?? [];
+  const episodes = episodesQ.data ?? [];
+  const showTagMap: ShowTagMap = showTagsQ.data ?? {};
+  const episodeTagMap: EpisodeTagMap = episodeTagsQ.data ?? {};
+  const allTags = [...new Set([...allTagsFrom(showTagMap), ...allTagsFrom(episodeTagMap)])].sort(
+    (a, b) => a.localeCompare(b),
+  );
+
+  const invalidateTags = () => {
+    void queryClient.invalidateQueries({ queryKey: ["showTags"] });
+    void queryClient.invalidateQueries({ queryKey: ["episodeTags"] });
+  };
+
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  // a filter for a tag that no longer exists falls back to "All"
+  const tag = activeTag && allTags.includes(activeTag) ? activeTag : null;
+
+  const visibleSaved = tag
+    ? saved.filter((s) => showTagMap[s.show.id]?.includes(tag))
+    : saved;
+  // an episode matches on its own tags, or (falling back) its parent show's
+  const visibleEpisodes = tag
+    ? episodes.filter(
+        (e) =>
+          episodeTagMap[e.episodeId]?.includes(tag) ||
+          (e.showId != null && showTagMap[e.showId]?.includes(tag)),
+      )
+    : episodes;
+
+  async function renameTag(oldTag: string, newTag: string) {
+    if (activeTag === oldTag) setActiveTag(newTag.trim() || null);
+    await renameTagEverywhere(oldTag, newTag);
+    invalidateTags();
+  }
 
   return (
-    <main className="mx-auto w-full max-w-3xl p-4 pb-40 sm:p-8 sm:pb-40">
+    <main className="mx-auto w-full max-w-5xl p-4 pb-56 sm:p-8 sm:pb-56">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Library</h1>
+        <h1 className="font-brand text-2xl font-bold">Library</h1>
         <div className="flex flex-wrap items-center gap-2">
           <ImportOpmlButton />
           <ExportOpmlButton />
@@ -41,33 +107,167 @@ export default function LibraryPage() {
       </div>
       <p className="mb-4 text-zinc-500">
         Shows you follow and episodes queued for later — synced when signed in.
-        Import from another app, or export any time to take them elsewhere.
+        Tag them right on their card to sort your Library.
       </p>
-      <div className="mb-5 flex gap-2">
-        <Chip active={tab === "shows"} onClick={() => setTab("shows")}>
-          Shows
-        </Chip>
-        <Chip active={tab === "episodes"} onClick={() => setTab("episodes")}>
-          Listen later
-        </Chip>
+
+      <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
+
+      {/* On mobile (single column) Episodes lead — the saved-shows list is
+          long, so the queue you actually reach for comes first; desktop keeps
+          Shows on the left via order overrides. */}
+      <div className="grid items-start gap-8 md:grid-cols-2">
+        <section className="order-2 md:order-1">
+          <ColumnHeading count={visibleSaved.length}>Shows</ColumnHeading>
+          <ShowsColumn
+            saved={visibleSaved}
+            tagMap={showTagMap}
+            loading={savedQ.isLoading}
+            filtered={Boolean(tag)}
+            onTagsChanged={invalidateTags}
+          />
+        </section>
+        <section className="order-1 md:order-2">
+          <ColumnHeading count={visibleEpisodes.length}>Episodes</ColumnHeading>
+          <EpisodesColumn
+            episodes={visibleEpisodes}
+            tagMap={episodeTagMap}
+            loading={episodesQ.isLoading}
+            filtered={Boolean(tag)}
+            onTagsChanged={invalidateTags}
+          />
+        </section>
       </div>
-      {tab === "shows" ? <ShowsTab /> : <EpisodesTab />}
+
+      <FloatingSearch />
     </main>
   );
 }
 
-/** Below this many follows, grouping is noise — show a plain list. */
-const GROUP_THRESHOLD = 4;
+function ColumnHeading({
+  children,
+  count,
+}: {
+  children: React.ReactNode;
+  count: number;
+}) {
+  return (
+    <h2 className="font-brand mb-3 flex items-baseline gap-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
+      {children}
+      <span className="text-[11px] tracking-[0.2em] text-zinc-400">{count}</span>
+    </h2>
+  );
+}
 
-function ShowsTab() {
-  const { session } = useSession();
+/**
+ * Horizontal, scrollable rail of the user's own tags — the Library filter.
+ * Each tag also has an "Edit Tag" (rename) affordance: click the pencil to
+ * turn that chip into an inline rename input; the mutation cascades to
+ * every show/episode carrying the old tag.
+ */
+function TagRail({
+  tags,
+  active,
+  onPick,
+  onRename,
+}: {
+  tags: string[];
+  active: string | null;
+  onPick: (t: string | null) => void;
+  onRename: (oldTag: string, newTag: string) => void;
+}) {
+  const [editing, setEditing] = useState<string | null>(null);
+
+  if (tags.length === 0) {
+    return (
+      <p className="mb-5 rounded-[2px] border border-dashed border-surface-border px-3 py-2 text-xs text-zinc-500">
+        No tags yet — add one right on a Show or Episode card below.
+      </p>
+    );
+  }
+  return (
+    <div className="-mx-4 mb-5 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:-mx-8 sm:px-8">
+      <NothingToggle
+        active={active === null}
+        onClick={() => onPick(null)}
+        className="shrink-0 whitespace-nowrap"
+      >
+        All
+      </NothingToggle>
+      {tags.map((t) =>
+        editing === t ? (
+          <RenameInput
+            key={t}
+            initial={t}
+            onCommit={(next) => {
+              setEditing(null);
+              if (next && next !== t) onRename(t, next);
+            }}
+          />
+        ) : (
+          <span key={t} className="inline-flex shrink-0 items-stretch">
+            <NothingToggle
+              active={active === t}
+              onClick={() => onPick(active === t ? null : t)}
+              className="whitespace-nowrap !rounded-r-none !border-r-0"
+            >
+              #{t}
+            </NothingToggle>
+            <button
+              type="button"
+              onClick={() => setEditing(t)}
+              aria-label={`Edit tag ${t}`}
+              title="Edit tag"
+              data-active={active === t}
+              className="nothing-toggle !rounded-l-none !border-l-0 px-1.5 text-[11px]"
+            >
+              ✎
+            </button>
+          </span>
+        ),
+      )}
+    </div>
+  );
+}
+
+function RenameInput({
+  initial,
+  onCommit,
+}: {
+  initial: string;
+  onCommit: (next: string) => void;
+}) {
+  const [value, setValue] = useState(initial);
+  return (
+    <input
+      autoFocus
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onCommit(value.trim());
+        if (e.key === "Escape") onCommit(initial);
+      }}
+      onBlur={() => onCommit(value.trim())}
+      onFocus={(e) => e.currentTarget.select()}
+      aria-label={`Rename tag ${initial}`}
+      className="font-brand w-28 shrink-0 rounded-[2px] border border-foreground bg-background px-3 py-1.5 text-[11px] uppercase tracking-wider text-foreground focus:outline-none"
+    />
+  );
+}
+
+function ShowsColumn({
+  saved,
+  tagMap,
+  loading,
+  filtered,
+  onTagsChanged,
+}: {
+  saved: { show: CatalogShow; savedAt: string }[];
+  tagMap: ShowTagMap;
+  loading: boolean;
+  filtered: boolean;
+  onTagsChanged: () => void;
+}) {
   const queryClient = useQueryClient();
-  const scope = session?.user.id ?? "local";
-  const savedQ = useQuery({ queryKey: ["saved", scope], queryFn: listSaved });
-  const saved = savedQ.data ?? [];
-
-  const [view, setView] = useState<"category" | "vibe">("category");
-  const [filter, setFilter] = useState<string | null>(null);
 
   // fresh lastEpisodeAt per saved show (cached; capped for politeness)
   const freshQ = useQueries({
@@ -86,142 +286,79 @@ function ShowsTab() {
       queryClient.invalidateQueries({ queryKey: ["saved"] }),
     );
 
-  if (savedQ.isLoading) return <p className="text-zinc-500">Loading…</p>;
+  if (loading) return <p className="text-zinc-500">Loading…</p>;
   if (saved.length === 0) {
     return (
       <p className="text-zinc-500">
-        Nothing saved yet — find your first show in{" "}
-        <Link href="/search" className="underline">
-          Search
-        </Link>
-        .
+        {filtered ? "No shows with this tag." : "Nothing saved yet — search below to find your first show."}
       </p>
     );
   }
 
-  const shows = saved.map((s) => s.show);
-  const savedAtById = new Map(saved.map((s) => [s.show.id, s.savedAt]));
-  const grouped = saved.length >= GROUP_THRESHOLD;
-  const groups: Group<CatalogShow>[] = !grouped
-    ? [{ key: "", items: shows }]
-    : view === "category"
-      ? groupByCategory(shows)
-      : groupByVibe(shows);
-  const visible = filter ? groups.filter((g) => g.key === filter) : groups;
-
   return (
-    <div>
-      {grouped && (
-        <div className="mb-5 flex flex-col gap-3">
-          <ViewSwitcher
-            view={view}
-            onChange={(v) => {
-              setView(v);
-              setFilter(null);
-            }}
-          />
-          {view === "category" && groups.length > 1 && (
-            <div className="flex flex-wrap gap-2">
-              <Chip active={filter === null} onClick={() => setFilter(null)}>
-                All
-              </Chip>
-              {groups.map((g) => (
-                <Chip
-                  key={g.key}
-                  active={filter === g.key}
-                  onClick={() => setFilter((cur) => (cur === g.key ? null : g.key))}
-                >
-                  {g.key} · {g.items.length}
-                </Chip>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="flex flex-col gap-8">
-        {visible.map((group) => (
-          <section key={group.key || "all"}>
-            {grouped && group.key && (
-              <h2 className="mb-3 flex items-baseline gap-2">
-                <span className="text-base font-semibold">
-                  {group.emoji ? `${group.emoji} ` : ""}
-                  {group.key}
-                </span>
-                <span className="font-brand text-[11px] uppercase tracking-[0.2em] text-zinc-400">
-                  {group.items.length}
-                </span>
-              </h2>
-            )}
-            <ul className="flex flex-col gap-3">
-              {group.items.map((show) => (
-                <LibraryShowCard
-                  key={show.id}
-                  show={show}
-                  savedAt={savedAtById.get(show.id)!}
-                  fresh={freshById.get(show.id)}
-                  onRemove={() => remove(show.id)}
-                />
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ViewSwitcher({
-  view,
-  onChange,
-}: {
-  view: "category" | "vibe";
-  onChange: (v: "category" | "vibe") => void;
-}) {
-  return (
-    <div className="inline-flex w-fit rounded-pill border border-surface-border bg-surface p-0.5">
-      {(["category", "vibe"] as const).map((v) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => onChange(v)}
-          aria-pressed={view === v}
-          className={`font-brand rounded-pill px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
-            view === v ? "bg-accent text-white" : "text-zinc-500 hover:text-foreground"
-          }`}
-        >
-          {v === "category" ? "Categories" : "Vibes"}
-        </button>
+    <ul className="flex flex-col gap-3">
+      {saved.map(({ show, savedAt }) => (
+        <LibraryShowCard
+          key={show.id}
+          show={show}
+          savedAt={savedAt}
+          tags={tagMap[show.id] ?? []}
+          fresh={freshById.get(show.id)}
+          onRemove={() => remove(show.id)}
+          onTagsChanged={onTagsChanged}
+        />
       ))}
-    </div>
+    </ul>
   );
 }
 
 function LibraryShowCard({
   show,
   savedAt,
+  tags,
   fresh,
   onRemove,
+  onTagsChanged,
 }: {
   show: CatalogShow;
   savedAt: string;
+  tags: string[];
   fresh?: CatalogShow;
   onRemove: () => void;
+  onTagsChanged: () => void;
 }) {
   const latest = fresh?.lastEpisodeAt ?? show.lastEpisodeAt;
   const hasNew = Boolean(latest && Date.parse(latest) > Date.parse(savedAt));
+  // feed-only imports have no catalog page to open
+  const linkable = show.source !== "rss";
 
   return (
     <li>
       <PlayableCard
         onPlay={() => previewShow(show)}
         playLabel={`Preview ${show.title}`}
-        className="cursor-pointer"
+        // Show identity: sharp corners, square cover — Nothing-brand.
+        className="cursor-pointer !rounded-[2px]"
       >
-        <CoverTile src={show.coverUrl} size={56} />
+        <CoverPlay
+          src={show.coverUrl}
+          size={56}
+          onPlay={() => previewShow(show)}
+          label={`Play a snippet of ${show.title}`}
+          className="relative z-10 !rounded-[2px]"
+        />
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 font-semibold leading-snug">
-            {show.title}
+          <p className="font-brand line-clamp-2 font-bold leading-snug">
+            {linkable ? (
+              <Link
+                href={`/show/${show.id}`}
+                className="relative z-10 hover:text-accent hover:underline underline-offset-2"
+              >
+                {show.title}
+              </Link>
+            ) : (
+              show.title
+            )}
             {hasNew && (
               <span className="ml-2 rounded-pill bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
                 New episode
@@ -229,53 +366,59 @@ function LibraryShowCard({
             )}
           </p>
           <p className="line-clamp-1 text-sm text-zinc-500">{show.author}</p>
-          {latest && (
-            <p className="truncate text-xs text-zinc-400">
-              Latest: {new Date(latest).toLocaleDateString()}
-            </p>
-          )}
           <OpenInLinks
             title={show.title}
             appleUrl={show.appleUrl}
+            feedUrl={show.feedUrl}
+            stored={show.platformLinks}
             className="relative z-10 mt-1.5"
           />
+          <InlineTagInput
+            tags={tags}
+            onAdd={(t) => void addShowTag(show.id, t).then(onTagsChanged)}
+            onRemove={(t) => void removeShowTag(show.id, t).then(onTagsChanged)}
+          />
         </div>
-        {/* feed-only imports have no catalog page to open */}
-        {show.source !== "rss" && (
-          <Link
-            href={`/show/${show.id}`}
-            className="relative z-10 shrink-0 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          >
-            Details →
-          </Link>
-        )}
-        <Chip onClick={onRemove} className="relative z-10 shrink-0">
-          Remove
-        </Chip>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          aria-label={`Remove ${show.title}`}
+          className="relative z-10 shrink-0 rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
+        >
+          ✕
+        </button>
       </PlayableCard>
     </li>
   );
 }
 
-function EpisodesTab() {
-  const { session } = useSession();
+function EpisodesColumn({
+  episodes,
+  tagMap,
+  loading,
+  filtered,
+  onTagsChanged,
+}: {
+  episodes: SavedEpisode[];
+  tagMap: EpisodeTagMap;
+  loading: boolean;
+  filtered: boolean;
+  onTagsChanged: () => void;
+}) {
   const queryClient = useQueryClient();
-  const scope = session?.user.id ?? "local";
-  const { data, isLoading } = useQuery({
-    queryKey: ["savedEpisodes", scope],
-    queryFn: listSavedEpisodes,
-  });
-  const episodes = data ?? [];
-
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
 
-  if (isLoading) return <p className="text-zinc-500">Loading…</p>;
+  if (loading) return <p className="text-zinc-500">Loading…</p>;
   if (episodes.length === 0) {
     return (
       <p className="text-zinc-500">
-        No episodes queued — tap “+ Later” on any episode in Search or a
-        show page.
+        {filtered
+          ? "No episodes with this tag."
+          : "No episodes queued — tap “+ Later” on any episode."}
       </p>
     );
   }
@@ -283,7 +426,13 @@ function EpisodesTab() {
   return (
     <ul className="flex flex-col gap-3">
       {episodes.map((e) => (
-        <EpisodeRow key={e.episodeId} episode={e} onChanged={refresh} />
+        <EpisodeRow
+          key={e.episodeId}
+          episode={e}
+          tags={tagMap[e.episodeId] ?? []}
+          onChanged={refresh}
+          onTagsChanged={onTagsChanged}
+        />
       ))}
     </ul>
   );
@@ -291,10 +440,14 @@ function EpisodesTab() {
 
 function EpisodeRow({
   episode,
+  tags,
   onChanged,
+  onTagsChanged,
 }: {
   episode: SavedEpisode;
+  tags: string[];
   onChanged: () => void;
+  onTagsChanged: () => void;
 }) {
   const finished = episode.status === "finished";
 
@@ -309,32 +462,49 @@ function EpisodeRow({
       ? `resume at ${Math.floor(episode.positionSec / 60)}:${String(episode.positionSec % 60).padStart(2, "0")}`
       : null;
 
+  const play = () =>
+    previewEpisode({
+      id: episode.episodeId,
+      title: episode.title,
+      showId: episode.showId,
+      showTitle: episode.showTitle,
+      coverUrl: episode.coverUrl,
+      appleUrl: episode.appleUrl,
+      audioUrl: episode.audioUrl,
+      durationSec: episode.durationSec,
+      categories: [],
+    });
+
   return (
     <li>
       <PlayableCard
-        onPlay={() =>
-          previewEpisode({
-            id: episode.episodeId,
-            title: episode.title,
-            showId: episode.showId,
-            showTitle: episode.showTitle,
-            coverUrl: episode.coverUrl,
-            appleUrl: episode.appleUrl,
-            audioUrl: episode.audioUrl,
-            durationSec: episode.durationSec,
-            categories: [],
-          })
-        }
+        onPlay={play}
         playLabel={`Preview ${episode.title}`}
-        className={`cursor-pointer ${finished ? "opacity-60" : ""}`}
+        // Episode identity now matches Shows: sharp corners, square cover.
+        className={`cursor-pointer !rounded-[2px] ${finished ? "opacity-60" : ""}`}
       >
-        <CoverTile src={episode.coverUrl} size={56} />
+        <CoverPlay
+          src={episode.coverUrl}
+          size={56}
+          onPlay={play}
+          label={`Play a snippet of ${episode.title}`}
+          className="relative z-10 !rounded-[2px]"
+        />
         <div className="min-w-0 flex-1">
-          <p className={`line-clamp-2 font-semibold leading-snug ${finished ? "line-through" : ""}`}>
-            {episode.title}
-          </p>
+          {episode.showId ? (
+            <Link
+              href={`/show/${episode.showId}`}
+              className={`relative z-10 line-clamp-3 font-semibold leading-snug hover:text-accent hover:underline underline-offset-2 ${finished ? "line-through" : ""}`}
+            >
+              {episode.title}
+            </Link>
+          ) : (
+            <p className={`line-clamp-3 font-semibold leading-snug ${finished ? "line-through" : ""}`}>
+              {episode.title}
+            </p>
+          )}
           {episode.showTitle && (
-            <p className="line-clamp-1 text-sm text-zinc-500">{episode.showTitle}</p>
+            <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
           )}
           <p className="truncate text-xs text-zinc-400">
             {finished ? "Finished" : episode.status === "in_progress" ? "In progress" : "Queued"}
@@ -346,30 +516,33 @@ function EpisodeRow({
             appleUrl={episode.appleUrl}
             className="relative z-10 mt-1.5"
           />
+          <InlineTagInput
+            tags={tags}
+            onAdd={(t) => void addEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
+            onRemove={(t) => void removeEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
+          />
         </div>
-        {episode.appleUrl && (
-          <a
-            href={episode.appleUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="relative z-10 shrink-0 rounded-pill bg-surface px-3 py-1.5 text-sm font-medium hover:opacity-80"
-          >
-            Full ↗
-          </a>
-        )}
-        <Chip
+        <NothingToggle
           active={finished}
-          onClick={() => toggleFinished()}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleFinished();
+          }}
           className="relative z-10 shrink-0"
         >
           {finished ? "Finished ✓" : "Done?"}
-        </Chip>
-        <Chip
-          onClick={() => void removeEpisode(episode.episodeId).then(onChanged)}
-          className="relative z-10 shrink-0"
+        </NothingToggle>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            void removeEpisode(episode.episodeId).then(onChanged);
+          }}
+          aria-label={`Remove ${episode.title}`}
+          className="relative z-10 shrink-0 rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
         >
           ✕
-        </Chip>
+        </button>
       </PlayableCard>
     </li>
   );

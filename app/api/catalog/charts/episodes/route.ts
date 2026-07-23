@@ -54,6 +54,10 @@ export async function GET(request: Request) {
           showTitle: ep.showTitle,
           why: whyForFresh(ep.publishedAt),
           context: `Topic · ${FALLBACK_QUERIES[qi]}`,
+          coverUrl: ep.coverUrl,
+          audioUrl: ep.audioUrl,
+          durationSec: ep.durationSec,
+          showId: ep.showId,
         },
       });
     }

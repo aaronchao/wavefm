@@ -26,7 +26,7 @@ const doto = Doto({
 });
 
 export const metadata: Metadata = {
-  title: "wavefm",
+  title: "WaveFM",
   description: "Free, browser-based podcast discovery — what to listen to next, and why.",
 };
 
@@ -50,21 +50,15 @@ export default function RootLayout({
         />
         <Providers>
           <header className="flex items-center justify-between border-b border-surface-border px-4 py-3 sm:px-8">
-            <Link href="/" className="font-brand text-xl font-bold tracking-wide">
-              WAVEFM
+            <Link href="/" className="flex items-center gap-2">
+              <span
+                className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent"
+                aria-hidden
+              />
+              <span className="font-brand text-xl font-bold tracking-wide">WaveFM</span>
             </Link>
             <div className="flex items-center gap-1">
               <ThemeToggle />
-              <Link
-                href="/settings"
-                aria-label="Settings"
-                className="rounded-full p-2 text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
-              >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" strokeLinejoin="round" />
-                </svg>
-              </Link>
             </div>
           </header>
           <div className="flex-1 pb-16">{children}</div>

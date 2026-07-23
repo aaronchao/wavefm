@@ -16,7 +16,15 @@ const DEFAULT_TREND = "technology";
  * browse — no personalization — so the discovery page always has fresh
  * territory to wander into. Tapping a tile plays its talked-about middle.
  */
-export function TrendingShelf({ topic }: { topic: string | null }) {
+export function TrendingShelf({
+  topic,
+  hideTitle = false,
+}: {
+  topic: string | null;
+  /** Hide the "Trending" heading text — used when the shelf sits directly
+   *  under another section (e.g. "For You") and a second title is noise. */
+  hideTitle?: boolean;
+}) {
   const query = topic ?? DEFAULT_TREND;
   const q = useQuery({
     queryKey: ["catalog", "search", query],
@@ -29,10 +37,12 @@ export function TrendingShelf({ topic }: { topic: string | null }) {
 
   return (
     <section className="mb-6">
-      <div className="mb-3 flex items-baseline gap-2">
-        <h2 className="text-lg font-semibold">Trending</h2>
-        <MachineLabel>in {query}</MachineLabel>
-      </div>
+      {!hideTitle && (
+        <div className="mb-3 flex items-baseline gap-2">
+          <h2 className="text-lg font-semibold">Trending</h2>
+          <MachineLabel>in {query}</MachineLabel>
+        </div>
+      )}
       <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:-mx-8 sm:px-8">
         {q.isLoading
           ? [0, 1, 2, 3].map((i) => (
