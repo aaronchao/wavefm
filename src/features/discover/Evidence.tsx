@@ -3,14 +3,11 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import type { SimilarShow } from "@/src/data/catalog/types";
-import { RatingBadges } from "@/src/features/show/RatingBadges";
 
 /**
- * Why-this-pick evidence — the reworked "rating badge" concept. The reason
- * always shows; when we have the actual community threads behind it, the
- * reason chip becomes a tap-to-expand panel with real Reddit / V2EX quotes
- * you can open. Proof, not just a number. A star rating rides alongside
- * when a source has one.
+ * Why-this-pick evidence. The reason always shows; when we have the actual
+ * community threads behind it, the reason chip becomes a tap-to-expand panel
+ * with real Reddit / V2EX quotes you can open. Proof, not just a number.
  */
 export function Evidence({
   show,
@@ -47,7 +44,6 @@ export function Evidence({
             </span>
           )}
         </button>
-        <RatingBadges showId={show.id} title={show.title} />
       </div>
 
       <AnimatePresence initial={false}>

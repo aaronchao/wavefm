@@ -23,6 +23,8 @@
   --radius-tile: 1rem;
   --radius-card: 1.25rem;
   --radius-pill: 9999px;
+  /* Nothing-brand: sharp, engineered edges for actionable controls */
+  --radius-sharp: 2px;
 }
 
 /* Dark theme is driven by data-theme (set pre-paint from the stored choice,
@@ -49,4 +51,71 @@ body {
 .font-brand {
   font-family: var(--font-doto), var(--font-geist-sans), sans-serif;
   letter-spacing: 0.02em;
+}
+
+/* iOS/Android safe-area helpers for the floating, bottom-fixed chrome
+   (search bar, tab bar) so the keyboard and home indicator never overlap. */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.bottom-safe {
+  bottom: env(safe-area-inset-bottom);
+}
+
+/* Nothing-brand actionable controls — strict monochrome, high contrast,
+   sharp engineered edges. `foreground`/`background` invert automatically
+   between light and dark, so the same class reads black-on-white in light
+   and white-on-black in dark. Reused by Play, Later and every toggle. */
+.nothing-toggle {
+  border: 1px solid var(--foreground);
+  border-radius: var(--radius-sharp);
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-doto), var(--font-geist-sans), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.nothing-toggle:hover {
+  background: var(--foreground);
+  color: var(--background);
+}
+.nothing-toggle[data-active="true"] {
+  background: var(--foreground);
+  color: var(--background);
+}
+.nothing-circle {
+  border: 1px solid var(--foreground);
+  border-radius: 9999px;
+  background: var(--foreground);
+  color: var(--background);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
+  box-shadow: 0 0 0 0 var(--accent);
+}
+/* Delightful micro-interaction: a magnetic little glow-and-lift on hover,
+   so the Play button feels alive before you even click it. */
+.nothing-circle:hover {
+  background: var(--background);
+  color: var(--foreground);
+  transform: translateY(-1px) scale(1.06);
+  box-shadow: 0 0 14px 1px var(--accent);
+}
+.nothing-circle:active {
+  transform: scale(0.92);
+  box-shadow: 0 0 4px 0 var(--accent);
+}
+.nothing-circle:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+  transform: none;
+  box-shadow: none;
 }

@@ -36,7 +36,7 @@ export function DeckEmpty({ variant }: { variant: DeckEmptyVariant }) {
             Back to Discover
           </Link>
           <Link
-            href="/settings"
+            href="/"
             className="rounded-pill bg-surface px-4 py-2 text-sm font-semibold"
           >
             Tune interests
@@ -55,7 +55,7 @@ export function DeckEmpty({ variant }: { variant: DeckEmptyVariant }) {
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           <Link
-            href="/settings"
+            href="/"
             className="rounded-pill bg-accent px-4 py-2 text-sm font-semibold text-white"
           >
             Tune interests
