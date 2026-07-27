@@ -16,6 +16,11 @@ is made by ear, not by cover art.
 
 - **Swipe right → save the episode to Library** (`saved_episodes`, `queued`).
 - **Swipe left → dismiss/skip** (negative engagement, excluded from future decks).
+- **Hold → the camera pulls back to the whole deck**; keep holding and move to scrub to
+  a distant card, release to land on it (§6.7).
+- The background is an **audio-reactive field** driven by the playing clip (§6.6).
+- Swapping clips between cards is **gap-free** — the next clip is decoded, buffered and
+  pre-seeked before you swipe (§5.2, §5.7).
 
 Wavr is the *committed* mode of discovery. Discover stays the browsing surface (rails,
 charts, topics); Wavr is the focus mode. Positioned between them in the nav because
@@ -100,9 +105,13 @@ idle on `/wavr` and the deck can use the full `bottom-16 → header` band.
 Mobile-first. Deck viewport = `100dvh − header(57px) − tabbar(64px)`, expressed as
 `h-[calc(100dvh-121px)]` on the deck container, `max-w-sm mx-auto`.
 
+Behind everything sits the **WaveField** (§6.6) — a full-bleed, audio-reactive glow
+that moves with the playing clip. It is `pointer-events-none`, `aria-hidden`, and never
+sits under card text (the card is opaque).
+
 ```
 ┌──────────────────────────────────────┐
-│ WAVR ·  12 LEFT              [tune]  │  MachineLabel row, 32px
+│ WAVR ·  12 LEFT           [⌸] [tune] │  MachineLabel row, 32px; ⌸ = overview
 │ ⟨ psychology ⟩ ⟨ 悬疑 ⟩ ⟨ storytelling ⟩ │  active lens chips, h-scroll, 36px
 ├──────────────────────────────────────┤
 │  ┌────────────────────────────────┐  │
@@ -123,6 +132,15 @@ Mobile-first. Deck viewport = `100dvh − header(57px) − tabbar(64px)`, expres
 ├──────────────────────────────────────┤
 │      ✕          ▶/❚❚          ♥      │  56/64/56 px circles, 20px gaps
 │    dismiss      play        save     │
+│   swipe · hold to see all cards      │  hint, fades after 3 decks (localStorage)
+└──────────────────────────────────────┘
+
+              ── hold ──▶                 §6.7 overview
+
+┌──────────────────────────────────────┐
+│  ░░  ░▒  ▓▓  ▒░  ░░     +7           │  fan around scrubIndex, ≤11 rendered,
+│      ⌄ card 7 of 19 ⌄                │  centre ringed in accent; move to scrub,
+│  ● ● ● ● ◉ ● ● ● ●                   │  release to land; detent haptic per card
 └──────────────────────────────────────┘
 ```
 
@@ -139,17 +157,21 @@ Desktop (`sm:`): same deck, `max-w-md`, centred, with a persistent keyboard-hint
 ```
 src/features/wavr/
   WavrPage.tsx        route shell: query, gating, empty/degraded states, undo toast
-  WavrDeck.tsx        the stack: renders top + 2 peek, owns deck reducer
+  WavrDeck.tsx        the stack: renders top + 2 peek, owns deck reducer + <audio> ring
   SwipeCard.tsx       ONE draggable card + overlays; all motion lives here
   PeekCard.tsx        static behind-card, driven by the top card's motion value
-  CardFace.tsx        presentational card body (art, titles, quote, tags, progress)
+  CardFace.tsx        presentational card body; variant "full" | "compact"
   QuoteBlock.tsx      the community quote + source attribution + ↗ link
   DeckControls.tsx    ✕ / ▶ / ♥ buttons (the a11y-canonical controls)
-  LensBar.tsx         active interest-tag chips + "tune" → /settings#interests
+  LensBar.tsx         active interest-tag chips + overview button + "tune"
   DeckEmpty.tsx       exhausted / no-tags / degraded states
-  useDeckAudio.ts     A/B <audio> ping-pong, autoplay unlock, clip window
+  WaveField.tsx       audio-reactive background canvases (§6.6)
+  DeckOverview.tsx    zoomed-out fan + scrub rail (§6.7)
+  useDeckAudio.ts     3-slot <audio> ring, hot-parking, crossfade, unlock (§5)
+  useWaveAnalyser.ts  AudioContext graph + CORS probe + rAF frame data (§6.6)
+  useLongPressScrub.ts long-press → overview → index scrub (§6.7)
   useWavrFeed.ts      TanStack Query wrapper over /api/wavr/feed
-  useSwipeDeck.ts     reducer + decision side-effects (save/skip/undo)
+  useSwipeDeck.ts     reducer + decision side-effects (save/skip/undo/jump)
 ```
 
 ### 3.1 Props (exact)
@@ -204,9 +226,15 @@ visit is a new deck. Nothing about the deck goes into a global store.
 
 ```ts
 type Decision = "save" | "skip";
+type DeckMode = "deck" | "overview";
 
 type DeckState = {
+  /** Pending cards in presentation order. Mutated ONLY by `jump` (a reorder). */
+  queue: WavrCard[];
   index: number;
+  mode: DeckMode;
+  /** Candidate index while long-press scrubbing; null outside overview. */
+  scrubIndex: number | null;
   decided: { card: WavrCard; decision: Decision }[];   // append-only, for undo + telemetry
   undoable: { card: WavrCard; decision: Decision; at: number } | null;
   flying: { id: string; dir: -1 | 1 } | null;          // card mid-exit
@@ -217,7 +245,12 @@ type DeckAction =
   | { t: "flownOut" }        // exit animation finished → advance index
   | { t: "undo" }
   | { t: "expireUndo" }
-  | { t: "reset"; };
+  | { t: "append"; cards: WavrCard[] }
+  | { t: "openOverview" }
+  | { t: "scrub"; to: number }
+  | { t: "jump"; to: number }        // commit the scrub — a REORDER, never a decision
+  | { t: "closeOverview" }           // cancel; index unchanged
+  | { t: "reset" };
 ```
 
 **Advance timing:** `decide` sets `flying` and *does not* bump `index`. `index`
@@ -225,6 +258,24 @@ increments on `flownOut` (fired by framer-motion's `onAnimationComplete`), so th
 under it doesn't jump forward while the top card is still on screen. If the exit
 animation never completes (tab backgrounded), a 600ms `setTimeout` guard dispatches
 `flownOut` — the deck must never wedge.
+
+**Audio does not wait for that.** The clip swap happens on `decide`, not on
+`flownOut` (§5.6) — the next card is already audible while the old one is still
+flying off. Sound leads the visual; that's what makes it feel instant.
+
+**`jump` is a reorder, not a decision.** Scrubbing to a far card must never silently
+discard the cards you passed over — that would be data loss from a gesture nobody
+confirmed. It is a single-item move; skipped cards keep their relative order directly
+behind the picked one and come back next.
+
+```ts
+case "jump": {
+  const q = [...s.queue];
+  const [picked] = q.splice(a.to, 1);
+  q.splice(s.index, 0, picked);
+  return { ...s, queue: q, mode: "deck", scrubIndex: null };
+}
+```
 
 ### 4.2 Decision side-effects (fire-and-forget, never block the animation)
 
@@ -283,18 +334,47 @@ useless here — the whole point is hearing it.
 If `play()` rejects at any later point, the card **silently falls to the quote-only
 state** with a small `preview unavailable` line. Audio failure never blocks a swipe.
 
-### 5.2 Prefetch — A/B ping-pong
+### 5.2 Zero-gap playback — the 3-slot ring
 
-Two `<audio>` elements, roles swapped on advance:
+The requirement is *no delay when swiping*. Naive prefetch doesn't achieve it, because
+the swap still pays for a **seek**: podcast clips start mid-file, and seeking a remote
+MP3 issues a fresh `Range` request — one full RTT (80–400ms on mobile) at exactly the
+worst moment. The fix is to pay every cost *before* the swipe.
+
+**Three persistent `<audio>` elements** in a ring — `prev` / `cur` / `next`:
 
 ```
-elA ── playing card[i]   (preload="auto", src set, seeked to clip origin)
-elB ── buffering card[i+1] (preload="metadata" → "auto" once card[i] is playing)
+prev ── card[i-1]  paused, still src'd + seeked   → makes UNDO instant too
+cur  ── card[i]    playing
+next ── card[i+1]  HOT-PARKED (see below)
 ```
 
-On advance: pause+reset the outgoing element, swap the role refs, call `play()` on the
-newly-primary element (already buffered → near-instant), then prime the freed element
-with `card[i+2]`. Only ever **one audible element**; `elB.muted = true` until promoted.
+Three, not two, because undo has to be instant as well — and with an A/B pair the
+outgoing element gets re-primed for `card[i+2]` immediately, throwing away the one
+thing undo needs.
+
+**Hot-parking** — a `next` element is only "ready" when all four are true:
+
+1. `src` assigned with `preload="auto"`
+2. `loadedmetadata` fired → `currentTime` set to the clip origin
+3. `seeked` fired → the Range request for the clip region is **already served**
+4. `readyState >= HAVE_FUTURE_DATA (3)`, and one muted `play()`→`pause()` warm-up
+   cycle has completed so the decoder is spun up and the element carries its own
+   activation grant
+
+After the warm-up the element is re-seeked to the origin and left paused. A swap is
+then `el.play()` on an element that is decoded, buffered and positioned — it starts
+within one audio callback.
+
+**Do not keep `next` silently playing.** It's the tempting "true zero" answer, but it
+drifts past the clip origin while you deliberate, burns mobile data on a card you may
+never see, and doubles decode cost. Hot-paused is imperceptibly different and honest
+about resources.
+
+**The elements are persistent and live in `WavrDeck`, never inside `SwipeCard`.**
+Rendering `<audio>` inside the card component would remount it on every advance —
+new element, full reload, and every millisecond of this section thrown away. This is
+the single easiest way to regress the feature; it belongs in a code comment.
 
 Never prefetch more than one ahead — mobile data and the repo's "good citizen" rule.
 
@@ -331,6 +411,48 @@ A 30s progress bar drawn on the cover scrim (`h-1`, `bg-white/30`, fill
 `bg-accent`), plus `0:12 / 0:30`. When the clip finishes the card does **not**
 auto-advance — the user still decides. The bar fills and a `↺ replay` control appears
 in place of ▶.
+
+### 5.6 The swap — 120ms equal-power crossfade
+
+Because both elements are already in the Web Audio graph (§6.6), each gets its own
+`GainNode` and the swap is a crossfade rather than a cut:
+
+```
+on decide (NOT on flownOut):
+  next.play()                                   // hot-parked → starts immediately
+  gainNext.gain.setValueCurveAtTime(fadeIn,  t, 0.12)   // equal-power: sin/cos curve
+  gainCur .gain.setValueCurveAtTime(fadeOut, t, 0.12)
+  after 140ms: cur.pause()  → becomes `prev` (src retained for undo)
+  rotate refs; prime the freed element with card[i+2]
+```
+
+A hard cut on an MP3 mid-waveform is an audible click; the crossfade removes it and
+masks any residual scheduling jitter. When the graph is unavailable (CORS-tainted
+source, §6.6) fall back to ramping `el.volume` on a rAF over the same 120ms — same
+shape, slightly coarser.
+
+### 5.7 Latency budget
+
+| Path | Target | How |
+|---|---|---|
+| Swipe → first sample of next clip | **≤ 30ms** | hot-parked ring (§5.2) |
+| Swipe → visually acknowledged | ≤ 16ms | motion values, no re-render |
+| Undo → previous clip audible | ≤ 50ms | `prev` retains src + seek position |
+| Overview jump → target clip audible | ≤ 300ms typical | scrub-settle prefetch (§6.7) |
+| First card of a session | gesture-bound | unlock ritual (§5.1) |
+
+Honest limits — the two cases where a gap is possible, and what the UI does:
+
+- **Jumping to a cold card** from the overview, when the scrub settled for under
+  ~160ms. The progress bar shows a shimmer and the WaveField holds its idle state
+  until `playing` fires. No spinner, no layout shift.
+- **A CDN that ignores `Range`.** The clip then starts at 0:00 rather than the
+  intended origin — already handled by the extracted `useClipWindow` (§5.3), which
+  anchors the 30s window to the real playback position and labels it "from the start".
+
+`useDeckAudio` exposes `lastSwapMs` (measured `decide` → `playing` via
+`performance.now()`), asserted in the e2e test (§13) so the budget can regress
+visibly rather than silently.
 
 ---
 
@@ -423,11 +545,197 @@ Render **exactly 3 cards**. Never the whole deck.
 `-rotate-12`, top-left), `font-brand uppercase border-2 rounded-pill`. Opacity is the
 `saveOp`/`skipOp` motion value — **not** a state-driven re-render.
 
-### 6.5 Reduced motion — `useReducedMotion()`
+### 6.5 Advance choreography
+
+The three tracks of an advance run on deliberately different clocks:
+
+| t | Track |
+|---|---|
+| 0ms | `commit` haptic; audio crossfade begins (§5.6); reducer marks `flying` |
+| 0–300ms | card flings out (`springs.fling`, carrying release velocity) |
+| 0–260ms | peek cards rise (`springs.rise`) — starts *with* the fling, not after |
+| 120ms | crossfade complete; new clip at full gain |
+| ~300ms | `onAnimationComplete` → `flownOut` → `index++`, new card mounts at rest |
+| 140ms | outgoing element paused, demoted to `prev` |
+
+The audio finishing 180ms before the animation is the point. If they landed together
+the swap would feel like a transition; leading with sound makes the card feel like it
+is *already* the one you're on.
+
+### 6.6 WaveField — the audio-reactive background
+
+A full-bleed field behind the deck that moves with the actual audio. This is the
+screen's ambient layer, not a widget: no axes, no peak meter, no chrome.
+
+#### The CORS problem (decides the whole design)
+
+Real analysis needs `AnalyserNode`, which needs a `MediaElementAudioSourceNode`. If
+the media is cross-origin and the element lacks `crossOrigin="anonymous"`, the graph
+is **tainted** and the analyser silently returns all zeros — a dead visualiser with no
+error. But setting `crossOrigin="anonymous"` on a host that doesn't send
+`Access-Control-Allow-Origin` makes the load **fail outright**, killing playback.
+
+Most podcast CDNs (Libsyn, Megaphone, art19, Buzzsprout) send no permissive CORS
+header on audio. Proxying the audio through `/api/*` would fix it and is **forbidden** —
+it would put full episode audio through Vercel Hobby bandwidth, breaking the `FREE`
+rule, and the repo already commits to streaming audio direct from the CDN.
+
+**Resolution — probe, never gamble:**
+
+1. Before priming the `next` element, probe its host once:
+   `fetch(url, { method: "GET", headers: { Range: "bytes=0-0" }, mode: "cors" })`.
+   One byte. Resolves → CORS allowed. Rejects → not.
+2. Cache the verdict per **host** in a `Map`, mirrored to
+   `sessionStorage("wavr.cors.hosts")`. One probe per CDN per session.
+3. Prime with `crossOrigin="anonymous"` only when the verdict is positive. The audible
+   path is never put at risk by the visualiser.
+4. Because the probe runs during prefetch, the *first* card of an unseen host renders
+   the fallback and every later card from that host gets real analysis.
+
+#### Two rendering tiers
+
+**Tier A — analysed (CORS-clean host).** `fftSize = 128` (64 bins, use the low 32),
+`smoothingTimeConstant = 0.8`. Bars are mirrored horizontally so bass sits at the
+centre — the card reads as the source of the sound. RMS drives a radial pulse behind
+the card.
+
+**Tier B — synthesised (the common case).** A deterministic band envelope seeded by
+`card.id` (so a card always looks like itself), advanced by `audio.currentTime` and
+gated by play state: it breathes while playing, decays to idle when paused, and its
+overall energy follows the clip's progress curve. It is **motion design driven by
+playback**, not fabricated spectrum data — and the copy never implies otherwise. No
+"live audio analysis" label anywhere, in either tier.
+
+`useWaveAnalyser` returns the same `Float32Array(32)` frame shape in both tiers, so
+`WaveField` cannot tell them apart.
+
+#### Drawing (cheap by construction)
+
+Two stacked `<canvas>`, one rAF loop driving both, `pointer-events-none`, behind the
+deck:
+
+- **Bloom layer** — backing store **160 × 90**, CSS-scaled to full bleed with
+  `filter: blur(28px)`, `opacity .5`. A near-free bloom: the GPU upscale *is* the
+  softening, so it costs almost nothing per frame and reads as an ambient colour field
+  rather than a bar chart.
+- **Band layer** — crisp mirrored bar band along the bottom edge, DPR-correct (capped
+  at 2), `h-[72px]`, accent at `0.18` alpha, bar `rounded` caps.
+
+Rules:
+
+- Accent red only (`--accent`), `0.10 → 0.22` alpha. One colour; the field carries the
+  brand, not a rainbow.
+- The card sits on opaque `bg-background` — **the field never renders under card text**,
+  so there is no contrast risk. Do not make the card translucent.
+- rAF **suspends** when: paused and decayed to idle, `document.hidden`, or the tab
+  loses focus. A paused deck must cost 0% CPU.
+- Idle is not frozen — bars settle to an 8% resting drift over 600ms. Freezing on
+  pause looks broken.
+- Overview (§6.7) scales the field up ~1.15× and lifts alpha to `0.3` — zooming out of
+  the deck zooms you *into* the room.
+- Settings toggle `prefs.waveField` (default on) and an automatic downgrade to Tier-B-
+  static if `navigator.hardwareConcurrency <= 4`.
+
+#### Graph shape
+
+```
+cur.srcNode ─┐
+next.srcNode ─┼─→ gainNode(per element) ─→ analyser ─→ ctx.destination
+prev.srcNode ─┘
+```
+
+`MediaElementAudioSourceNode` is **one-per-element for life** — you cannot create a
+second one for the same element, and creating one routes the audio through the graph
+(forget to connect to `destination` and playback goes silent with no error). So: create
+all three exactly once, lazily, inside the unlock gesture (§5.1), and keep them for the
+deck's lifetime. `AudioContext` is also created there and `resume()`d, since it starts
+`suspended` without user activation.
+
+### 6.7 Long-press → overview → scrub
+
+Holding the card pulls the camera back to show the whole deck; keeping the finger down
+and moving picks a distant card; releasing lands on it.
+
+#### Trigger
+
+`useLongPressScrub`, on the card's pointer events:
+
+- Hold **320ms** with movement **< 10px** → enter overview. Movement past 10px first
+  cancels the timer and the drag wins. Drag and long-press never both fire.
+- Card needs `touch-action: none` (framer already sets it for `drag`), plus
+  `user-select: none` and `-webkit-touch-callout: none` — otherwise iOS raises the
+  text-selection callout mid-gesture.
+- On entry: `drag` is disabled (`mode === "overview"`), haptic `expand`, audio **ducks
+  to 25%** over 180ms and keeps playing, so the current card stays audible while you
+  browse.
+
+#### The camera
+
+Deck container `scale: 1 → 0.42`, `springs.rise`. Cards de-stack into a horizontal fan
+around `scrubIndex`, where `d = i - scrubIndex`:
+
+```
+x      = d * 132
+y      = |d| * 8
+rotate = d * 3            // degrees
+scale  = 1 - min(|d|, 4) * 0.06
+opacity= 1 - min(|d|, 5) * 0.14
+```
+
+Centre card carries a 2px accent ring. **Render at most 11 cards** (±5); the remainder
+collapse into an edge stack with a `+N` count. `CardFace` renders `variant="compact"`
+here — cover art plus a one-line title. The overview should read as *depth and
+quantity*, not as a wall of text.
+
+#### Scrubbing
+
+Finger x maps to index with a detent every **64px**:
+
+```ts
+// src/core/wavr/scrub.ts — PURE, unit-tested
+export function scrubTarget(i: {
+  dx: number; startIndex: number; count: number; step?: number;
+}): number;   // round(startIndex + dx/step), rubber-banded and clamped to [0, count-1]
+```
+
+Every change of `scrubTarget` fires a `detent` haptic and pops the newly-centred card
+(`scale +0.04`, `springs.pop`). That per-item tick is what makes a picker feel
+mechanical rather than mushy — it is the highest-value haptic in the feature.
+
+**Prefetch during scrub:** when `scrubTarget` holds still for **160ms**, prime the
+`next` element with that card's audio. A scrub typically lasts ~1s, so the target is
+usually hot by release. If it isn't, §5.7's shimmer covers it.
+
+#### Release
+
+- Landed on the current card, or released outside the rail → `closeOverview`, un-duck,
+  no change.
+- Landed elsewhere → haptic `land`, `jump` (a **reorder**, §4.1 — passed-over cards are
+  never discarded), camera springs back to `scale: 1`, audio crossfades to the target.
+- `Esc`, or a tap outside the fan, cancels.
+
+#### Non-gesture equivalent (required)
+
+A hold-and-drag is unusable with a keyboard, a switch device, or a trackpad-averse
+user, so the overview is **not gesture-only**:
+
+- A `⌸` overview button in the `LensBar` header row, and the `O` key, open the same
+  mode as a normal focusable dialog.
+- In that path it is a plain list: `←`/`→` (or `Tab`) move the selection, `Enter`
+  jumps, `Esc` cancels. Focus is trapped while open and restored to the deck on close.
+- The fan is `role="listbox"`, each card `role="option"` with
+  `aria-selected`, labelled `"{title}, from {show}"`.
+
+### 6.8 Reduced motion — `useReducedMotion()`
 
 - `drag={false}`; the card is decided **only** by `DeckControls` and keyboard.
 - No rotate, no lift, no stack breathing; peek cards render at their settled values.
-- Advance = 120ms opacity crossfade (the one allowed `transition`).
+- Advance = 120ms opacity crossfade (the one allowed `transition`). The audio
+  crossfade is unaffected — reduced *motion*, not reduced sound.
+- **WaveField** renders one static resting band and **starts no rAF loop at all**.
+- **Overview** still works and is still reachable, but: no scale spring, no fan. It
+  crossfades to a 2-column scrollable grid and is **tap-to-select**, not hold-to-scrub.
+  Long-press still opens it; the scrub is simply not required to use it.
 - The waveform tab-icon animation is off.
 - Everything remains fully operable. This is the accessible path, not a downgrade.
 
@@ -438,7 +746,9 @@ Render **exactly 3 cards**. Never the whole deck.
 `src/ui/haptics.ts` — a thin, dependency-free wrapper.
 
 ```ts
-type Haptic = "tick" | "commit" | "reject" | "complete" | "undo";
+type Haptic =
+  | "tick" | "commit" | "reject" | "complete" | "undo"
+  | "expand" | "detent" | "land";
 
 const PATTERNS: Record<Haptic, number | number[]> = {
   tick:     8,            // threshold crossed mid-drag
@@ -446,6 +756,9 @@ const PATTERNS: Record<Haptic, number | number[]> = {
   reject:   [6, 40, 6],   // action unavailable (e.g. undo expired)
   complete: [12, 60, 12], // deck exhausted
   undo:     10,
+  expand:   14,           // long-press opens the overview
+  detent:   6,            // scrub crosses into the next card — the picker tick
+  land:     16,           // released onto a new card
 };
 
 export function haptic(kind: Haptic): void;   // no-ops on unsupported platforms
@@ -456,11 +769,15 @@ export function haptic(kind: Haptic): void;   // no-ops on unsupported platforms
 | Drag first crosses commit threshold in a direction | `tick` | **Once per direction per drag**; a `crossedRef` resets on `onDragStart` and on re-entering the dead zone. Firing every frame is the classic bug. |
 | `onDragEnd` with a committed decision | `commit` | Fires *before* the fling animation starts |
 | Tap ✕ or ♥ | `commit` | Button path gets identical feedback to the gesture path |
+| Long-press opens overview | `expand` | At the 320ms threshold, before the camera moves |
+| Scrub crosses a detent | `detent` | Once per index change. Rate-limited to 1 per 40ms so a fast flick can't machine-gun it. |
+| Release onto a different card | `land` | |
 | Undo tapped | `undo` | |
 | Undo tapped after expiry | `reject` | |
 | Last card decided | `complete` | |
 | Audio unlock succeeds | — | none; the sound *is* the feedback |
 | Snap-back (uncommitted release) | — | none; silence is the signal you didn't commit |
+| Overview cancelled without a jump | — | none; nothing happened |
 
 **Gating (all must pass):** `"vibrate" in navigator` · not `prefers-reduced-motion` ·
 `prefs.haptics !== false`. Wrapped in try/catch — some browsers throw on
@@ -626,8 +943,10 @@ Never fabricate counts. If the number isn't in the data, the string doesn't clai
 | **Cold start** | `prefs.interests.length === 0` | `DeckEmpty` variant: "Wavr needs three things you're into." Inline `InterestPicker` (reuse `src/features/explore/InterestPicker.tsx`) → writes via `setInterests` → deck builds. No dead-end. |
 | **Loading** | query pending | 3 skeleton cards in the stack shape, `animate-pulse`, no spinner |
 | **Ready** | cards present | the deck |
-| **Audio locked** | `!audioUnlocked` | `▶ Tap to listen` badge pulsing on cover (§5.1) |
-| **No audio for card** | `!card.audioUrl` or `play()` rejected | quote-only card, `preview unavailable` line, ▶ replaced by a dimmed Apple/Spotify link row (`platformLinks`) |
+| **Audio locked** | `!audioUnlocked` | `▶ Tap to listen` badge pulsing on cover (§5.1). WaveField shows its resting drift. |
+| **No audio for card** | `!card.audioUrl` or `play()` rejected | quote-only card, `preview unavailable` line, ▶ replaced by a dimmed Apple/Spotify link row (`platformLinks`). WaveField holds idle — it must not animate to silence. |
+| **Overview** | long-press, `⌸` button, or `O` | fan + scrub rail (§6.7); audio ducked to 25%, still playing |
+| **Jumped to a cold card** | scrub settled < 160ms before release | progress-bar shimmer until `playing` fires; no spinner, no layout shift |
 | **Exhausted** | index past end, no next page | "That's the deck. {n} saved." → `View Library` + `Back to Discover` + `Tune interests` |
 | **Degraded** | `degraded: true`, 0 cards | "Wavr couldn't reach the discussion sources. Discover still works." → link to `/`. Never an error boundary. |
 | **Offline** | fetch rejects | same as degraded, plus "You're offline" |
@@ -649,10 +968,16 @@ The swipe is an **enhancement**; the buttons are the interface.
 - Live region (`aria-live="polite"`, visually hidden) announces on every advance:
   `"Card 3 of 12. {episode title}, from {show}. Reason: {why}."`
 - Decision announcements: `"Saved to library. Undo available."` / `"Skipped."`
-- Keyboard: `←` skip · `→` save · `Space` play/pause · `Backspace` undo · `Esc` → `/`.
-  Bound on the deck container with `tabIndex={0}` and focus ring
-  `focus-visible:outline-2 focus-visible:outline-accent`. Handlers guard against
-  firing while focus is in a text input.
+- Keyboard: `←` skip · `→` save · `Space` play/pause · `Backspace` undo · `O`
+  overview · `Esc` → close overview, else `/`. Bound on the deck container with
+  `tabIndex={0}` and focus ring `focus-visible:outline-2 focus-visible:outline-accent`.
+  Handlers guard against firing while focus is in a text input.
+- **The long-press is an enhancement, never the only way in.** The overview has an
+  equal-status button and key (§6.7), behaves as a focus-trapped
+  `role="listbox"` dialog, and restores focus on close. Announced on open:
+  `"Overview. {n} cards. Card {i} selected."`
+- The WaveField is `aria-hidden="true"` and `pointer-events-none`. It carries no
+  information that isn't already in the progress bar and the play state.
 - Quote link opens in a new tab with `rel="noopener noreferrer"` and a visible `↗`.
 - Cover art is decorative (`alt=""`) — the title carries the meaning, matching
   `CoverTile`'s existing contract.
@@ -663,8 +988,15 @@ The swipe is an **enhancement**; the buttons are the interface.
 
 ## 11. Performance budget
 
-- **3 DOM cards max** (top + 2 peek), regardless of deck length.
-- **1 audio prefetch ahead.** `preload="metadata"` until promoted.
+- **3 DOM cards max** in deck mode (top + 2 peek), **11 max** in overview, regardless
+  of deck length.
+- **3 `<audio>` elements, 1 prefetch ahead** (§5.2). `prev` is retained but idle — it
+  has already downloaded; keeping it costs memory, not bandwidth.
+- **WaveField:** one rAF loop for both canvases; bloom backing store is 160×90; band
+  layer DPR-capped at 2. Loop suspends on pause-and-settled, `document.hidden`, and
+  blur. Auto-downgrade to Tier-B-static when `hardwareConcurrency <= 4`. Target: < 2ms
+  per frame on a mid-range Android.
+- **One CORS probe per host per session** (1 byte), cached in `sessionStorage`.
 - Cover art: top card `loading="eager" fetchPriority="high"`; peeks `loading="eager"`;
   everything beyond depth 2 is not rendered so it costs nothing.
 - Motion values only — a drag must cause **zero React re-renders**. `x`, `rotate`,
@@ -680,11 +1012,13 @@ The swipe is an **enhancement**; the buttons are the interface.
 | Step | Scope | Done when |
 |---|---|---|
 | **M-W0** | Tab bar: remove Search, add Wavr (red `WavrIcon`), `app/wavr/page.tsx` stub | `/wavr` renders, nav order correct, `tsc` + lint clean, e2e nav smoke passes |
-| **M-W1** | `src/core/wavr/*` — types, `interestProfile`, `matchDiscussion`, `scoreCandidate`, `buildDeck`, `decideSwipe` | `tests/core/wavr/*.test.ts` green; fixture deck is byte-stable across runs |
-| **M-W2** | Extract `useClipWindow` from `PreviewPlayer` (no behaviour change) + `useDeckAudio` A/B + unlock | `PreviewPlayer` still passes its existing tests; deck plays and prefetches |
+| **M-W1** | `src/core/wavr/*` — types, `interestProfile`, `matchDiscussion`, `scoreCandidate`, `buildDeck`, `decideSwipe`, `scrubTarget` | `tests/core/wavr/*.test.ts` green; fixture deck is byte-stable across runs |
+| **M-W2** | Extract `useClipWindow` from `PreviewPlayer` (no behaviour change) + `useDeckAudio` 3-slot ring, hot-parking, unlock, crossfade | `PreviewPlayer` still passes its existing tests; measured `lastSwapMs` ≤ 30ms on a warm ring |
 | **M-W3** | `SwipeCard` / `PeekCard` / `CardFace` / `DeckControls` + motion tokens + haptics | Deck is fully operable by drag, button, and keyboard; reduced-motion path verified |
 | **M-W4** | `/api/wavr/feed` + `useWavrFeed` + all §9 states + undo | Real cards; every degraded path renders, none throws |
-| **M-W5** | Refactor `SurpriseDeck` onto the shared gesture; polish; settings haptics toggle | No duplicated drag code; `npx vitest run` + `npm run e2e` green |
+| **M-W5** | `WaveField` + `useWaveAnalyser`: CORS probe + host cache, Tier A graph, Tier B synth, two-canvas renderer, rAF suspension | Both tiers render identically-shaped frames; a tainted host degrades with no console error; paused deck measures 0% CPU |
+| **M-W6** | `DeckOverview` + `useLongPressScrub`: long-press, fan camera, detent scrub, scrub-settle prefetch, `jump` reorder, `⌸` button + `O` key path | Long-press and button paths reach the same mode; jumping never loses a card; reduced-motion grid path works |
+| **M-W7** | Refactor `SurpriseDeck` onto the shared gesture; polish; settings toggles (haptics, WaveField) | No duplicated drag code; `npx vitest run` + `npm run e2e` green |
 
 Each step: `npx tsc --noEmit` → `npm run lint` → `npx vitest run` →
 `PW_EXECUTABLE_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npm run e2e`.
@@ -707,12 +1041,30 @@ Each step: `npx tsc --noEmit` → `npm run lint` → `npx vitest run` →
   `userId`/`neighbou?r`/`coOccur` to fail the build if CF creeps in. Cheap, and it
   makes the constraint enforceable rather than aspirational.
 
+- `scrub.test.ts` — `scrubTarget` detent rounding at the 64px step; clamps at both
+  ends; rubber-band past the ends never returns an out-of-range index; `dx: 0` returns
+  `startIndex`.
+- `deck-reducer.test.ts` — `jump` **preserves length and membership** (the anti-data-
+  loss invariant: sort both queues, deep-equal); passed-over cards keep relative order
+  directly behind the picked one; `jump` records no decision; `undo` after `jump` is a
+  no-op rather than a corruption.
+
 **Component** — `CardFace` renders quote + source + matched tags; renders the
-no-audio variant without crashing.
+no-audio variant without crashing; `variant="compact"` drops the quote block.
 
 **E2E (`e2e/smoke.spec.ts`, extended)** — nav shows Discovery/Wavr/Library and no
 Search tab; `/wavr` renders a card; clicking ♥ advances and increments the Library
-count; ✕ advances without saving; Undo restores; keyboard `→` saves.
+count; ✕ advances without saving; Undo restores; keyboard `→` saves; `O` opens the
+overview and `Enter` jumps without changing the card count.
+
+**Latency (e2e, headless Chromium)** — drive two advances on a warm ring and read
+`window.__wavrLastSwapMs` (dev-only export from `useDeckAudio`); assert **≤ 30ms**.
+This is the only guard that stops the "no delay" requirement from silently rotting
+back into a reload-per-swipe.
+
+**Not unit-tested, verified manually** — the WaveField's visual character, and haptic
+patterns (no test surface on any headless browser; `navigator.vibrate` is a no-op
+there). Both get a line in the M-W5/M-W7 manual checklist instead of a fake assertion.
 
 ---
 
@@ -730,3 +1082,16 @@ count; ✕ advances without saving; Undo restores; keyboard `→` saves.
 5. **No auto-advance on clip end.** The user decides; the deck never decides for them.
 6. **framer-motion, not react-spring.** Already a dependency, `MotionValue` + `drag`
    are exactly this problem, and a second animation runtime is dead weight.
+7. **The WaveField is two-tier and honest about it.** Real FFT where CORS permits,
+   a playback-driven synthetic envelope everywhere else. Proxying audio to force
+   Tier A everywhere would break the `FREE` hosting rule. No UI copy in either tier
+   claims live analysis, so the fallback isn't a lie — it's the same ambient motion
+   design with a different driver.
+8. **Scrubbing to a far card reorders, it does not skip.** A gesture that quietly
+   dismissed six episodes would be destructive and unconfirmable. Passed-over cards
+   return immediately behind the one you picked.
+9. **Audio ducks rather than pauses during the overview.** You are choosing what to
+   listen to next; silence mid-decision is worse than a quieter background.
+10. **Undo does not survive a `jump`.** Reordering isn't a decision, so there is
+    nothing to undo — pressing undo after a jump falls through to the last real
+    decision, or no-ops.
