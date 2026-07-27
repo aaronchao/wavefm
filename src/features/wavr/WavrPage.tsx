@@ -49,6 +49,18 @@ export function WavrPage() {
   const feed = useWavrFeed(interests);
   const noMorePages = !feed.hasNextPage && !feed.isFetchingNextPage;
 
+  // WavrDeck's own onNearEnd only fires once its queue is non-empty (it
+  // needs a real index to compare against). When a page returns ZERO
+  // matching cards the queue never grows, so that signal alone would stall
+  // pagination forever — keep pulling pages here until either a card shows
+  // up or the pool is confirmed exhausted (-> the no-match state below).
+  useEffect(() => {
+    if (feed.cards.length === 0 && feed.hasNextPage && !feed.isFetchingNextPage) {
+      void feed.fetchNextPage();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- feed is a fresh object every render; the fields below are the real deps
+  }, [feed.cards.length, feed.hasNextPage, feed.isFetchingNextPage, feed.fetchNextPage]);
+
   const onNearEnd = useCallback(() => {
     if (feed.hasNextPage && !feed.isFetchingNextPage) void feed.fetchNextPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- feed identity is stable per render via TanStack Query
@@ -94,6 +106,27 @@ export function WavrPage() {
     return (
       <Shell>
         <DeckEmpty variant={{ kind: "degraded" }} />
+      </Shell>
+    );
+  }
+
+  // Mid-pagination with nothing yet — keep the skeleton up rather than a
+  // blank flash while later pages are still being checked for a match.
+  if (feed.isFetchingNextPage && feed.cards.length === 0) {
+    return (
+      <Shell>
+        <LoadingSkeleton />
+      </Shell>
+    );
+  }
+
+  // The whole pool was checked and genuinely nothing cleared MIN_MATCH —
+  // distinct from "degraded": every rung answered, just with no honest
+  // reason to show a card for these particular interests (§8.4).
+  if (noMorePages && feed.cards.length === 0) {
+    return (
+      <Shell>
+        <DeckEmpty variant={{ kind: "no-match" }} />
       </Shell>
     );
   }

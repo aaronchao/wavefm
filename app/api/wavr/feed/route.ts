@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 import { buildDeck, interestProfile, parseDiscussion, type WavrCandidate } from "@/src/core/wavr";
-import type { DiscussedChartsResponse, EpisodesRankedResponse, SimilarShow } from "@/src/data/catalog/types";
+import type { EdgeEvidence } from "@/src/core/mining/types";
+import type { CatalogShow, DiscussedChartsResponse, EpisodesRankedResponse } from "@/src/data/catalog/types";
+import { getSupabase } from "@/src/data/supabase/client";
 import type { WavrFeedResponse } from "@/src/data/wavr/types";
 
 /**
  * Proxy: the Wavr deck. Source ladder per docs/wavr-route-design.md §8.3 —
- * `/api/catalog/charts/discussed` (real community evidence) narrowed to
- * shows with evidence, then `/api/catalog/episodes-ranked` per matched show
- * for a playable episode. Each rung is best-effort; the whole ladder failing
- * yields `degraded: true`, never a thrown error.
+ * `rec_edges.evidence` (the offline community-mining pipeline's precomputed,
+ * already-real quotes) FIRST, widened with `/api/catalog/charts/discussed`
+ * (live evidence, best-effort — Reddit/Douban probes are unreliable from
+ * Vercel's IPs, so this rung is often thin in production), then
+ * `/api/catalog/episodes-ranked` per matched show for a playable episode.
+ * Each rung is best-effort; the whole ladder failing yields `degraded: true`,
+ * never a thrown error.
  *
  * `tags` is the ONLY signal that crosses into the request — the user's own
  * engagement history never leaves the browser (§8.1's CF guard), so the
@@ -20,6 +25,19 @@ import type { WavrFeedResponse } from "@/src/data/wavr/types";
 
 const MAX_SHOWS_PER_PAGE = 10;
 const MAX_EVIDENCE_PER_SHOW = 3;
+const REC_EDGES_LIMIT = 300;
+
+type EdgeRow = { rec_show_id: string; score: number; evidence: unknown };
+type ShowRow = {
+  id: string;
+  title: string;
+  cover_url: string | null;
+  categories: string[] | null;
+  platform_links: { apple?: string } | null;
+};
+
+/** A show + the evidence quotes earning it a slot, from whichever rung supplied it. */
+type Pooled = { show: CatalogShow; evidence: EdgeEvidence[] };
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -34,23 +52,21 @@ export async function GET(request: Request) {
   );
   const offset = Math.max(0, Number(url.searchParams.get("cursor")) || 0);
 
-  const discussed = await fetchJson<DiscussedChartsResponse>(
-    new URL("/api/catalog/charts/discussed?limit=24", url.origin),
-  );
-  const withEvidence = (discussed?.shows ?? []).filter(
-    (s) => s.evidence && s.evidence.length > 0,
-  );
+  const byId = new Map<string, Pooled>();
+  for (const p of await fromRecEdges()) if (!byId.has(p.show.id)) byId.set(p.show.id, p);
+  for (const p of await fromDiscussedCharts(url.origin)) if (!byId.has(p.show.id)) byId.set(p.show.id, p);
 
-  if (withEvidence.length === 0) {
+  const pool = [...byId.values()];
+  if (pool.length === 0) {
     return json({ cards: [], cursor: null, degraded: true });
   }
 
-  const page = withEvidence.slice(offset, offset + MAX_SHOWS_PER_PAGE);
+  const page = pool.slice(offset, offset + MAX_SHOWS_PER_PAGE);
   const nextOffset = offset + page.length;
-  const cursor = nextOffset < withEvidence.length ? String(nextOffset) : null;
+  const cursor = nextOffset < pool.length ? String(nextOffset) : null;
 
   const candidates = (
-    await Promise.all(page.map((show) => candidateFor(show, url.origin)))
+    await Promise.all(page.map((p) => candidateFor(p, url.origin)))
   ).filter((c): c is WavrCandidate => c !== null && !exclude.has(`${c.showId}:${c.episodeId}`));
 
   const profile = interestProfile(tags, [], {});
@@ -59,8 +75,84 @@ export async function GET(request: Request) {
   return json({ cards, cursor, degraded: cards.length === 0 && candidates.length === 0 });
 }
 
-async function candidateFor(show: SimilarShow, origin: string): Promise<WavrCandidate | null> {
-  const evidence = (show.evidence ?? []).slice(0, MAX_EVIDENCE_PER_SHOW);
+/** Rung 1: the offline community-mining pipeline's precomputed edges (rec_edges is world-readable). */
+async function fromRecEdges(): Promise<Pooled[]> {
+  const sb = getSupabase();
+  if (!sb) return [];
+  try {
+    const { data: edgeData, error } = await sb
+      .from("rec_edges")
+      .select("rec_show_id, score, evidence")
+      .order("score", { ascending: false })
+      .limit(REC_EDGES_LIMIT);
+    if (error || !edgeData) return [];
+    const edges = edgeData as EdgeRow[];
+
+    // Merge evidence across every edge that recommends the same show
+    // (different seeds often surface the same popular rec), best score first.
+    const evidenceByShow = new Map<string, EdgeEvidence[]>();
+    for (const e of edges) {
+      const list = evidenceByShow.get(e.rec_show_id) ?? [];
+      list.push(...asEvidence(e.evidence));
+      evidenceByShow.set(e.rec_show_id, list);
+    }
+    const showIds = [...evidenceByShow.keys()];
+    if (showIds.length === 0) return [];
+
+    const { data: showData } = await sb.from("shows").select("*").in("id", showIds);
+    const showById = new Map((showData as ShowRow[] | null ?? []).map((r) => [r.id, r]));
+
+    const out: Pooled[] = [];
+    for (const id of showIds) {
+      const row = showById.get(id);
+      if (!row) continue; // recommended show not in our catalog cache — skip rather than guess
+      out.push({ show: mapShow(row), evidence: evidenceByShow.get(id)!.slice(0, MAX_EVIDENCE_PER_SHOW) });
+    }
+    return out;
+  } catch {
+    return []; // best-effort rung — a DB hiccup just skips it
+  }
+}
+
+/** Rung 2: live discussion evidence — best-effort, often thin from Vercel's IPs. */
+async function fromDiscussedCharts(origin: string): Promise<Pooled[]> {
+  const discussed = await fetchJson<DiscussedChartsResponse>(
+    new URL("/api/catalog/charts/discussed?limit=24", origin),
+  );
+  const out: Pooled[] = [];
+  for (const s of discussed?.shows ?? []) {
+    if (!s.evidence || s.evidence.length === 0) continue;
+    out.push({ show: s, evidence: s.evidence.slice(0, MAX_EVIDENCE_PER_SHOW) });
+  }
+  return out;
+}
+
+function mapShow(r: ShowRow): CatalogShow {
+  return {
+    id: r.id,
+    source: "itunes",
+    title: r.title,
+    author: "",
+    coverUrl: r.cover_url ?? undefined,
+    appleUrl: r.platform_links?.apple,
+    categories: r.categories ?? [],
+  };
+}
+
+function asEvidence(value: unknown): EdgeEvidence[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((v): v is Record<string, unknown> => Boolean(v) && typeof v === "object")
+    .map((v) => ({
+      source: String(v.source ?? ""),
+      text: String(v.text ?? ""),
+      url: typeof v.url === "string" ? v.url : undefined,
+    }))
+    .filter((e) => e.source && e.text);
+}
+
+async function candidateFor(pooled: Pooled, origin: string): Promise<WavrCandidate | null> {
+  const { show, evidence } = pooled;
   if (evidence.length === 0) return null;
 
   const ranked = await fetchJson<EpisodesRankedResponse>(

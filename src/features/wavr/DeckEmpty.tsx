@@ -8,6 +8,7 @@ import { MachineLabel } from "@/src/ui";
 export type DeckEmptyVariant =
   | { kind: "cold-start"; onDone: () => void }
   | { kind: "exhausted"; savedCount: number }
+  | { kind: "no-match" }
   | { kind: "degraded" }
   | { kind: "offline" };
 
@@ -39,6 +40,28 @@ export function DeckEmpty({ variant }: { variant: DeckEmptyVariant }) {
             className="rounded-pill bg-surface px-4 py-2 text-sm font-semibold"
           >
             Tune interests
+          </Link>
+        </div>
+      </Empty>
+    );
+  }
+  if (variant.kind === "no-match") {
+    return (
+      <Empty title="Nothing matches your interests yet.">
+        <p className="max-w-xs text-sm text-zinc-500">
+          The community-mining pool is still small and skews English/tech
+          right now. Try different or broader interests, or check back as
+          more discussion gets mined.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Link
+            href="/settings"
+            className="rounded-pill bg-accent px-4 py-2 text-sm font-semibold text-white"
+          >
+            Tune interests
+          </Link>
+          <Link href="/" className="rounded-pill bg-surface px-4 py-2 text-sm font-semibold">
+            Back to Discover
           </Link>
         </div>
       </Empty>
