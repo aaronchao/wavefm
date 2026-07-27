@@ -65,6 +65,12 @@ export function DiscoverPage() {
     await queryClient.invalidateQueries({ queryKey: ["prefs"] });
   }
 
+  async function removeInterest(t: string) {
+    if (topic === t) setTopic(null);
+    await setInterests(interests.filter((i) => i !== t));
+    await queryClient.invalidateQueries({ queryKey: ["prefs"] });
+  }
+
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-44 pt-6 sm:px-8">
       {deckOpen && <SurpriseDeck terms={lenses} onClose={() => setDeckOpen(false)} />}
@@ -101,6 +107,8 @@ export function DiscoverPage() {
               label={i}
               active={topic === i}
               onClick={() => setTopic((cur) => (cur === i ? null : i))}
+              // Fallback suggestions aren't real saved interests — nothing to delete.
+              onDelete={interests.length > 0 ? () => removeInterest(i) : undefined}
             />
           ))}
           <InlineAddChip onAdd={addInterest} />
@@ -228,25 +236,47 @@ function InlineAddChip({ onAdd }: { onAdd: (t: string) => void }) {
   );
 }
 
-/** Nothing-brand topic toggle — sharp edges, monochrome, dot-matrix type. */
+/**
+ * Nothing-brand topic toggle — sharp edges, monochrome, dot-matrix type.
+ * A real (non-fallback) interest gets a small × badge on its corner —
+ * icon-only, no "remove" text, tap to delete without disturbing the main
+ * tap-to-filter action underneath.
+ */
 function TopicChip({
   label,
   active,
   onClick,
+  onDelete,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
+  onDelete?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      data-active={active}
-      className="nothing-toggle shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px]"
-    >
-      {label}
-    </button>
+    <span className="relative inline-flex shrink-0">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={active}
+        data-active={active}
+        className="nothing-toggle whitespace-nowrap px-3 py-1.5 text-[11px]"
+      >
+        {label}
+      </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          aria-label={`Remove ${label}`}
+          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-surface-border bg-background text-[9px] leading-none text-zinc-400 shadow-sm hover:border-foreground hover:text-foreground"
+        >
+          ×
+        </button>
+      )}
+    </span>
   );
 }
