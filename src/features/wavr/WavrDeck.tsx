@@ -52,6 +52,7 @@ export function WavrDeck({
   const topX = liveX ?? fallbackX;
   const overview = deck.state.mode === "overview";
   const cardRef = useRef<SwipeCardHandle | null>(null);
+  const [focusedTag, setFocusedTag] = useState<string | null>(null);
 
   useEffect(() => {
     onAudio?.(audio);
@@ -85,6 +86,20 @@ export function WavrDeck({
     deck.decide(decision, dir);
   }
 
+  // Tapping a tag is a real filter, not just a display pill: jump the deck
+  // forward to the next upcoming card that matches it. Tapping the same
+  // tag again clears the focus without moving anywhere.
+  function handleTagClick(tag: string) {
+    if (focusedTag === tag) {
+      setFocusedTag(null);
+      return;
+    }
+    const { queue, index } = deck.state;
+    const match = queue.findIndex((c, i) => i > index && c.matchedTags.includes(tag));
+    setFocusedTag(tag);
+    if (match !== -1) deck.jump(match);
+  }
+
   function handleTap() {
     if (audio.unlocked) audio.togglePlay();
     else audio.unlock();
@@ -116,7 +131,12 @@ export function WavrDeck({
   return (
     <div className="relative">
       <div className="mb-2 flex items-start justify-between gap-2">
-        <LensBar tags={tags} remaining={Math.max(0, deck.state.queue.length - deck.state.index)} />
+        <LensBar
+          tags={tags}
+          remaining={Math.max(0, deck.state.queue.length - deck.state.index)}
+          activeTag={focusedTag}
+          onTagClick={handleTagClick}
+        />
         <div className="relative flex shrink-0 items-center gap-1.5">
           <button
             type="button"

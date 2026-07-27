@@ -552,6 +552,47 @@ test("/wavr: overview and settings are labeled, not bare icons", async ({ page }
   await expect(page.getByText("Wave background")).toBeVisible();
 });
 
+test("/wavr: tapping a tag jumps to the next card that matches it", async ({ page }) => {
+  await stub(page);
+  const cards = [
+    { tag: "psychology", i: 0 },
+    { tag: "psychology", i: 1 },
+    { tag: "storytelling", i: 2 },
+    { tag: "psychology", i: 3 },
+  ].map(({ tag, i }) => ({
+    id: `tagcard${i}:ep${i}`,
+    episodeId: `ep${i}`,
+    showId: `tagcard${i}`,
+    title: `Tag card ${i}`,
+    showTitle: `Show ${i}`,
+    matchedTags: [tag],
+    why: `Because you follow ${tag}`,
+    score: 0.9 - i * 0.02,
+  }));
+  await page.route("**/api/wavr/feed**", (r) =>
+    r.fulfill({ json: { cards, cursor: null, degraded: false } }),
+  );
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "wavr.prefs.v1",
+      JSON.stringify({
+        interests: ["psychology", "storytelling"],
+        rating_sources: { douban: true, xiaoyuzhou: true },
+      }),
+    );
+  });
+  await page.goto("/wavr");
+  await expect(page.getByRole("heading", { name: "Tag card 0" })).toBeVisible();
+
+  // tapping "storytelling" jumps straight to the next card tagged with it
+  await page.getByRole("button", { name: "storytelling" }).click();
+  await expect(page.getByRole("heading", { name: "Tag card 2" })).toBeVisible();
+
+  // tapping the SAME tag again just clears the focus — no further jump
+  await page.getByRole("button", { name: "storytelling" }).click();
+  await expect(page.getByRole("heading", { name: "Tag card 2" })).toBeVisible();
+});
+
 test("library offers OPML import and export", async ({ page }) => {
   await stub(page);
   await page.goto("/library");

@@ -292,7 +292,7 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
       clearTimeout(settle);
       el.removeEventListener("playing", measure);
     };
-  }, [curSlot, replayToken, active, rampVolume]);
+  }, [curSlot, replayToken, active, rampVolume, card?.audioUrl]);
 
   const markAdvance = useCallback(() => {
     swapStartedAt.current = performance.now();
