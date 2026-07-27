@@ -11,8 +11,7 @@ import {
   saveEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
 import { previewRankedEpisode } from "@/src/features/player/preview";
-import { SettleIn } from "@/src/ui";
-import { MachineLabel } from "./DiscoverPage";
+import { MachineLabel, SettleIn } from "@/src/ui";
 import { ShowRowCompact } from "./ShowRowCompact";
 
 /** How many top shows we pull episodes from for the Episodes column. */

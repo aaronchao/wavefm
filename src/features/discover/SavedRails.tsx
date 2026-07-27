@@ -6,8 +6,7 @@ import { getSimilar } from "@/src/data/catalog/client";
 import type { SavedShow } from "@/src/data/repos/savedShowsRepo";
 import type { SimilarShow } from "@/src/data/catalog/types";
 import { previewShowTopEpisodeMiddle } from "@/src/features/player/preview";
-import { CoverTile } from "@/src/ui";
-import { MachineLabel } from "./DiscoverPage";
+import { CoverTile, MachineLabel } from "@/src/ui";
 
 /**
  * "Because you saved …" rails — one horizontal shelf of near neighbours for

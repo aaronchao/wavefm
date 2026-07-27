@@ -80,6 +80,23 @@ export function Chip({
   );
 }
 
+/** Dot-matrix "machine" micro-label — the Nothing-brand technical voice. */
+export function MachineLabel({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`font-brand text-[11px] uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-300 ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
 /** External-rating badge (Douban/Xiaoyuzhou). Renders nothing without a rating. */
 export function RatingBadge({
   source,
