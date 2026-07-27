@@ -49,6 +49,8 @@ export type DeckAudio = {
   unlock: () => void;
   togglePlay: () => void;
   replay: () => void;
+  /** Drag-to-seek: jump to a 0..1 point within the clip. */
+  seekTo: (fraction: number) => void;
   /**
    * Start the swap clock. Call on DECIDE, not after the exit animation — the
    * next clip should be audible while the old card is still flying off (§6.5).
@@ -229,7 +231,7 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
     [cardId],
   );
 
-  const { progress, fromStart } = useClipWindow(
+  const { progress, fromStart, seek } = useClipWindow(
     activeRef,
     active && card?.audioUrl
       ? {
@@ -368,6 +370,7 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
     unlock,
     togglePlay,
     replay,
+    seekTo: seek,
     markAdvance,
     setDuck,
     lastSwapMs,

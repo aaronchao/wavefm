@@ -1,6 +1,6 @@
 "use client";
 
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { CLIP_SECONDS, clipTarget } from "@/src/core/preview";
 
 /**
@@ -49,6 +49,8 @@ export type ClipWindow = {
   progress: number;
   /** True when the CDN couldn't seek and the clip is running from 0:00. */
   fromStart: boolean;
+  /** Jump to a 0..1 point within the clip. No-op until the origin is known. */
+  seek: (fraction: number) => void;
 };
 
 export type ClipHandlers = {
@@ -66,6 +68,8 @@ export function useClipWindow(
 ): ClipWindow {
   const [progress, setProgress] = useState(0);
   const [fromStart, setFromStart] = useState(false);
+  /** Mirrors the effect-local `origin` so `seek` can reach it from outside. */
+  const originRef = useRef<number | null>(null);
 
   const audioUrl = source?.audioUrl ?? null;
   const startAt = source?.startAt ?? 0;
@@ -82,6 +86,7 @@ export function useClipWindow(
     if (!audio) return;
     setProgress(0);
     setFromStart(false);
+    originRef.current = null;
 
     if (!audioUrl) {
       audio.pause();
@@ -104,6 +109,7 @@ export function useClipWindow(
     const anchor = (at: number) => {
       if (cancelled || origin !== null) return;
       origin = at;
+      originRef.current = at;
       if (target - at > 5) setFromStart(true);
     };
 
@@ -199,5 +205,17 @@ export function useClipWindow(
     onError,
   ]);
 
-  return { progress, fromStart };
+  const seek = useCallback(
+    (fraction: number) => {
+      const audio = audioRef.current;
+      const origin = originRef.current;
+      if (!audio || origin === null) return;
+      const clamped = Math.min(Math.max(fraction, 0), 1);
+      audio.currentTime = origin + clamped * clipLenSec;
+      setProgress(clamped);
+    },
+    [audioRef, clipLenSec],
+  );
+
+  return { progress, fromStart, seek };
 }
