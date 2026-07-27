@@ -110,7 +110,7 @@ export function DiscoverPage() {
       {topic === null ? (
         <>
           {/* Trending — sits right under For You, no repeat heading */}
-          <TrendingShelf topic={topic} hideTitle />
+          <TrendingShelf topic={topic} lenses={lenses} hideTitle />
 
           {/* More Ranks For You — the full ranked list (#1 included, since
               Today's Pick no longer spotlights it separately), capped. */}

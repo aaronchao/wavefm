@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getDiscussedCharts, getTopPicks } from "@/src/data/catalog/client";
+import { searchShowsByTerms } from "@/src/data/catalog/interestSearch";
 import type { SimilarShow } from "@/src/data/catalog/types";
 
 /** Match a show to a topic label by any significant shared keyword. */
@@ -12,6 +13,18 @@ function matchesTopic(show: SimilarShow, topic: string): boolean {
     .filter((w) => w.length > 3 || /[一-鿿]/.test(w));
   const hay = `${show.title} ${show.categories.join(" ")}`.toLowerCase();
   return words.some((w) => hay.includes(w));
+}
+
+/** First occurrence wins — keeps evidence-backed picks ahead of searched ones. */
+function dedupeById(shows: SimilarShow[]): SimilarShow[] {
+  const seen = new Set<string>();
+  const out: SimilarShow[] = [];
+  for (const s of shows) {
+    if (seen.has(s.id)) continue;
+    seen.add(s.id);
+    out.push(s);
+  }
+  return out;
 }
 
 export type DiscoverPicks = {
@@ -68,14 +81,38 @@ export function useDiscoverPicks({
     staleTime: 6 * 60 * 60 * 1000,
   });
 
-  const all = hasSeeds ? (picksQ.data?.picks ?? []) : (discussedQ.data?.shows ?? []);
+  const all = (hasSeeds ? (picksQ.data?.picks ?? []) : (discussedQ.data?.shows ?? [])).filter(
+    (p) => Boolean(p.id),
+  );
+
+  // The default "For You" lens: search the catalog by the user's own
+  // interests directly, rather than hoping they happen to appear in
+  // whatever pool `all` already is — a niche or non-English interest
+  // rarely shows up in a generic discussed/top-picks board.
+  // Shares its cache (and its shape) with any other "For You" surface
+  // searching the same terms — TrendingShelf in particular — so the two
+  // never collide under the same query key with different return types.
+  const searchQ = useQuery({
+    queryKey: ["catalog", "interest-search", interests.join(",")],
+    queryFn: () => searchShowsByTerms(interests),
+    enabled: !topic && interests.length > 0,
+    staleTime: 6 * 60 * 60 * 1000,
+  });
+  const searched: SimilarShow[] = (searchQ.data ?? []).map(({ term, show }) => ({
+    ...show,
+    why: `Because you follow ${term}`,
+  }));
 
   const topicFiltered = topic ? all.filter((p) => matchesTopic(p, topic)) : null;
   const interestFiltered =
     !topic && interests.length > 0
       ? all.filter((p) => interests.some((i) => matchesTopic(p, i)))
       : null;
-  const filtered = topicFiltered ?? interestFiltered;
+  // Evidence-backed matches (real discussion behind them) lead; a plain
+  // catalog search fills in the rest so the lens is never thin.
+  const interestPicks =
+    !topic && interests.length > 0 ? dedupeById([...(interestFiltered ?? []), ...searched]) : null;
+  const filtered = topicFiltered ?? interestPicks;
   const picks = filtered && filtered.length > 0 ? filtered : all;
 
   return {
@@ -83,6 +120,8 @@ export function useDiscoverPicks({
     rest: picks.slice(1),
     count: picks.length,
     topicApplied: Boolean(topic) && (topicFiltered?.length ?? 0) > 0,
-    isLoading: hasSeeds ? picksQ.isLoading : discussedQ.isLoading,
+    isLoading: hasSeeds
+      ? picksQ.isLoading
+      : discussedQ.isLoading || (searchQ.isLoading && all.length === 0),
   };
 }
