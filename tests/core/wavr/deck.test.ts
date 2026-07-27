@@ -107,7 +107,7 @@ describe("buildDeck", () => {
   it("builds stable ids and carries the quote through", () => {
     const deck = buildDeck([psych({ showId: "s", episodeId: "e" })], PROFILE);
     expect(deck[0].id).toBe("s:e");
-    expect(deck[0].quote.text).toBe("worth every minute");
+    expect(deck[0].quote?.text).toBe("worth every minute");
     expect(deck[0].why).toContain("psychology");
   });
 

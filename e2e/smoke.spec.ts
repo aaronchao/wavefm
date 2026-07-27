@@ -212,7 +212,7 @@ test("discover ranks recommendations and opens a show's episodes", async ({ page
   ).toBeVisible();
 });
 
-test("Surprise-me deck lets you keep a show", async ({ page }) => {
+test("Wavr Mini deck lets you keep a show", async ({ page }) => {
   const RANKED_PICKS = {
     picks: [
       show("222", "Psychology In Seattle", "Kirk Honda", ["Mental Health"], {
@@ -227,7 +227,7 @@ test("Surprise-me deck lets you keep a show", async ({ page }) => {
   await stub(page, { topPicks: RANKED_PICKS });
 
   await page.goto("/");
-  await page.getByRole("button", { name: /Surprise me/ }).first().click();
+  await page.getByRole("button", { name: /Wavr Mini/ }).first().click();
   await expect(page.getByText("Swipe → keep · ← skip")).toBeVisible();
   // keep it -> the "Done · 1 saved" counter reflects the save
   await page.getByRole("button", { name: "Keep" }).click();

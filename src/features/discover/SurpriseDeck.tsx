@@ -11,10 +11,12 @@ import { CoverTile } from "@/src/ui";
 import { Evidence } from "./Evidence";
 
 /**
- * Surprise-me — a keep-or-skip card game over the discussion-first picks.
+ * Wavr Mini — a keep-or-skip card game over the discussion-first picks.
  * Swipe (or tap ✕ / ♥) to blow through hidden gems fast; keeping saves the
  * show and teaches your taste, skipping tunes it the other way. Playful by
  * design, but fully operable with buttons under prefers-reduced-motion.
+ * The full Wavr experience lives at /wavr; this is the quick, in-Discovery
+ * version — same idea, no dedicated route.
  */
 export function SurpriseDeck({
   picks,
@@ -47,7 +49,7 @@ export function SurpriseDeck({
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background/80 p-4 backdrop-blur">
       <div className="mb-4 flex w-full max-w-sm items-center justify-between">
         <span className="font-brand text-sm uppercase tracking-[0.18em] text-accent">
-          ⤮ Surprise me
+          ⤮ Wavr Mini
         </span>
         <button
           type="button"

@@ -68,7 +68,7 @@ export function CardFace({
               {card.showTitle}
               {minutes ? ` · ${minutes} min` : ""}
             </p>
-            <QuoteBlock quote={card.quote} />
+            {card.quote && <QuoteBlock quote={card.quote} />}
             {card.matchedTags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {card.matchedTags.map((t) => (

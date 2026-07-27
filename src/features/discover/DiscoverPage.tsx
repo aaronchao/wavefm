@@ -99,7 +99,7 @@ export function DiscoverPage() {
           disabled={heroPicks.length === 0}
           className="font-brand mt-4 rounded-pill bg-accent px-5 py-2.5 text-sm uppercase tracking-wider text-white shadow-sm transition-transform hover:shadow-md active:scale-95 disabled:opacity-40"
         >
-          ⤮ Surprise me
+          ⤮ Wavr Mini
         </button>
       </div>
 
