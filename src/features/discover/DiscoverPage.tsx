@@ -7,6 +7,7 @@ import { getDiscoverTopics } from "@/src/data/catalog/client";
 import type { DiscoverTopic } from "@/src/data/catalog/types";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
 import { useSession } from "@/src/state/useSession";
+import { MachineLabel } from "@/src/ui";
 import { Charts } from "./Charts";
 import { EpisodeCharts } from "./EpisodeCharts";
 import { RankedRecs } from "./RankedRecs";
@@ -15,23 +16,6 @@ import { SurpriseDeck } from "./SurpriseDeck";
 import { TodaysPicks } from "./TodaysPicks";
 import { TrendingShelf } from "./TrendingShelf";
 import { useDiscoverPicks } from "./useDiscoverPicks";
-
-/** Dot-matrix "machine" micro-label — the Nothing-brand technical voice. */
-export function MachineLabel({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <span
-      className={`font-brand text-[11px] uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-300 ${className}`}
-    >
-      {children}
-    </span>
-  );
-}
 
 /** High-contrast section heading (dot-matrix) — readable, not whispery. */
 function SectionLabel({ children }: { children: React.ReactNode }) {

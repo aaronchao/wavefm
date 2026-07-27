@@ -2,9 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getCommunityRecs } from "@/src/data/catalog/client";
-import { MachineLabel } from "@/src/features/discover/DiscoverPage";
 import { ShowRowCompact } from "@/src/features/discover/ShowRowCompact";
-import { SettleIn } from "@/src/ui";
+import { MachineLabel, SettleIn } from "@/src/ui";
 
 /**
  * "Listeners also recommend" — recommendations mined from real community

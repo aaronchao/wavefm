@@ -7,8 +7,7 @@ import {
   getDiscussedCharts,
   getGlobalCharts,
 } from "@/src/data/catalog/client";
-import { SettleIn } from "@/src/ui";
-import { MachineLabel } from "./DiscoverPage";
+import { MachineLabel, SettleIn } from "@/src/ui";
 import { ShowRowCompact } from "./ShowRowCompact";
 
 type Tab = "discussed" | "chinese" | "global";

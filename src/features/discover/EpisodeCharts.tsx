@@ -10,9 +10,8 @@ import {
   removeEpisode,
   saveEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
-import { Chip, SettleIn } from "@/src/ui";
+import { Chip, MachineLabel, SettleIn } from "@/src/ui";
 import { ShowMoreButton } from "./Charts";
-import { MachineLabel } from "./DiscoverPage";
 
 /**
  * 热门单集 — the hot-EPISODES chart (小宇宙 play/comment data), shown beside

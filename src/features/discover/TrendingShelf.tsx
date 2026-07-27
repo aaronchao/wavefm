@@ -5,8 +5,7 @@ import Link from "next/link";
 import { searchShows } from "@/src/data/catalog/client";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { previewShowTopEpisodeMiddle } from "@/src/features/player/preview";
-import { CoverTile } from "@/src/ui";
-import { MachineLabel } from "./DiscoverPage";
+import { CoverTile, MachineLabel } from "@/src/ui";
 
 /** A default rotation so the shelf is never empty on "For you". */
 const DEFAULT_TREND = "technology";

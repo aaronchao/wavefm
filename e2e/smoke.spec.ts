@@ -353,6 +353,30 @@ test("show page surfaces community-mined recommendations above Similar", async (
   ).toBeVisible();
 });
 
+test("the tab bar is Discovery / Wavr / Library, with Search in the header", async ({
+  page,
+}) => {
+  await stub(page);
+  await page.goto("/");
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  await expect(nav.getByRole("link")).toHaveText([/Discovery/, /Wavr/, /Library/]);
+  // Search moved out of the bar but must stay reachable from every screen
+  await expect(nav.getByRole("link", { name: /Search/ })).toHaveCount(0);
+  await page.getByRole("link", { name: "Search" }).click();
+  await expect(page).toHaveURL(/\/search$/);
+});
+
+test("the Wavr tab opens the route and marks itself current", async ({ page }) => {
+  await stub(page);
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: /Wavr/ }).click();
+  await expect(page).toHaveURL(/\/wavr$/);
+  await expect(page.getByRole("heading", { name: "One swipe at a time" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: /Wavr/ }),
+  ).toHaveAttribute("aria-current", "page");
+});
+
 test("library offers OPML import and export", async ({ page }) => {
   await stub(page);
   await page.goto("/library");
