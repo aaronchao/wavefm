@@ -62,6 +62,8 @@ export type UseSwipeDeck = {
   exhausted: boolean;
   decide: (decision: Decision, dir: -1 | 1) => void;
   flownOut: () => void;
+  /** Neutral move to the next card (the clip finished) — no save/skip recorded. */
+  advance: () => void;
   undo: () => void;
   openOverview: () => void;
   closeOverview: () => void;
@@ -131,6 +133,7 @@ export function useSwipeDeck(cards: WavrCard[]): UseSwipeDeck {
   }, [state.undoable, queryClient]);
 
   const flownOut = useCallback(() => dispatch({ t: "flownOut" }), []);
+  const advance = useCallback(() => dispatch({ t: "advance" }), []);
   const openOverview = useCallback(() => {
     haptic("expand");
     dispatch({ t: "openOverview" });
@@ -149,6 +152,7 @@ export function useSwipeDeck(cards: WavrCard[]): UseSwipeDeck {
     exhausted: state.queue.length > 0 && state.index >= state.queue.length,
     decide,
     flownOut,
+    advance,
     undo,
     openOverview,
     closeOverview,

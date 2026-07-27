@@ -28,6 +28,7 @@ export type DeckState = {
 export type DeckAction =
   | { t: "decide"; card: WavrCard; decision: Decision; dir: -1 | 1 }
   | { t: "flownOut" }
+  | { t: "advance" }
   | { t: "undo" }
   | { t: "expireUndo" }
   | { t: "append"; cards: WavrCard[] }
@@ -58,6 +59,14 @@ export function deckReducer(s: DeckState, a: DeckAction): DeckState {
     case "flownOut":
       if (!s.flying) return s;
       return { ...s, index: s.index + 1, flying: null };
+
+    case "advance":
+      // A neutral move to the next card — the clip finished on its own, which
+      // is NOT a save or a skip, so nothing is decided, recorded, or made
+      // undoable. Ignored mid-flight (a real decision is already advancing)
+      // and at the end of the queue.
+      if (s.flying || s.index >= s.queue.length) return s;
+      return { ...s, index: s.index + 1 };
 
     case "undo": {
       if (!s.undoable) return s;

@@ -133,4 +133,32 @@ describe("deckReducer", () => {
     expect(s.queue.length).toBe(4);
     expect(s.index).toBe(1);
   });
+
+  it("advance steps to the next card without recording a decision", () => {
+    const queue = makeDeck(3);
+    let s = initialDeckState(queue);
+    s = deckReducer(s, { t: "advance" });
+    expect(s.index).toBe(1);
+    expect(s.decided).toEqual([]); // neutral: not a save or a skip
+    expect(s.undoable).toBeNull();
+    expect(s.flying).toBeNull();
+  });
+
+  it("advance is a no-op while a card is flying out", () => {
+    const queue = makeDeck(2);
+    let s = initialDeckState(queue);
+    s = deckReducer(s, { t: "decide", card: queue[0], decision: "save", dir: 1 });
+    const before = s;
+    s = deckReducer(s, { t: "advance" });
+    expect(s).toBe(before);
+  });
+
+  it("advance is a no-op at the end of the queue", () => {
+    const queue = makeDeck(1);
+    let s = initialDeckState(queue);
+    s = { ...s, index: 1 }; // already past the last card
+    const before = s;
+    s = deckReducer(s, { t: "advance" });
+    expect(s).toBe(before);
+  });
 });
