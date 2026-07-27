@@ -54,7 +54,10 @@ export function WavrDeck({
   }, [cards, boostCards]);
 
   const deck = useSwipeDeck(allCards);
-  const audio = useDeckAudio(deck.state.queue, deck.state.index);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  // Auto-advance when a clip finishes (§ user request #5) — a neutral move to
+  // the next card, not a save or a skip. `deck.advance` is a stable callback.
+  const audio = useDeckAudio(audioElRef, deck.card, { onEnded: deck.advance });
   const localPrefs = useWavrLocalPrefs();
   const fallbackX = useMotionValue(0);
   const [liveX, setLiveX] = useState<MotionValue<number> | null>(null);
@@ -76,7 +79,7 @@ export function WavrDeck({
   // Audio ducks rather than pauses during the overview — you're choosing
   // what to hear next, silence mid-decision is worse than a quieter one (§6.7).
   useEffect(() => {
-    audio.setDuck(overview ? 0.25 : 1);
+    audio.setVolume(overview ? 0.25 : 1);
   }, [overview, audio]);
 
   useEffect(() => {
@@ -92,7 +95,6 @@ export function WavrDeck({
   }, [deck.state.decided]);
 
   function handleDecide(decision: "save" | "skip", dir: -1 | 1) {
-    audio.markAdvance();
     deck.decide(decision, dir);
   }
 
@@ -146,8 +148,7 @@ export function WavrDeck({
   }, [deck.state.queue.length]);
 
   function handleTap() {
-    if (audio.unlocked) audio.togglePlay();
-    else audio.unlock();
+    audio.togglePlay();
   }
 
   const gesture = useCardGesture(deck, cardRef, handleDecide, handleTap);
@@ -159,8 +160,7 @@ export function WavrDeck({
     else if (e.key === "ArrowRight") handleDecide("save", 1);
     else if (e.key === " ") {
       e.preventDefault();
-      if (audio.unlocked) audio.togglePlay();
-      else audio.unlock();
+      audio.togglePlay();
     } else if (e.key === "Backspace") deck.undo();
     else if (e.key === "o" || e.key === "O") deck.openOverview();
   }
@@ -181,10 +181,14 @@ export function WavrDeck({
       <div className="mb-2 flex items-center justify-end">
         <DeckSettingsMenu localPrefs={localPrefs} />
       </div>
-      {/* Persistent 3-slot audio ring — must never remount (§5.2). */}
-      {audio.slots.map((slot) => (
-        <audio key={slot} ref={audio.register(slot)} preload="none" />
-      ))}
+      {/* The single <audio> element — one clip plays at a time. Kept OUTSIDE
+          the card so advancing (which remounts the card) never remounts the
+          element and reloads the stream. */}
+      <audio ref={audioElRef} preload="none" />
+
+      {/* The waveform, as its own visible band ABOVE the card (was a hidden
+          -z-10 background before) — animates while playing, flat when not. */}
+      {localPrefs.waveField && <WaveField playState={audio.playState} progress={audio.progress} />}
 
       <div
         role="group"
@@ -196,9 +200,8 @@ export function WavrDeck({
         onPointerMove={gesture.onPointerMove}
         onPointerUp={gesture.onPointerUp}
         onPointerCancel={gesture.onPointerUp}
-        className="relative h-[28rem] w-full touch-none outline-none focus-visible:outline-2 focus-visible:outline-accent"
+        className="relative h-[26rem] w-full touch-none outline-none focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <WaveField audio={audio} cardId={card?.id} overview={overview} enabled={localPrefs.waveField} />
         {overview && (
           <DeckOverview
             queue={deck.state.queue}
@@ -216,7 +219,9 @@ export function WavrDeck({
             ref={cardRef}
             card={card}
             flying={deck.state.flying}
-            audio={audio}
+            progress={audio.progress}
+            playState={audio.playState}
+            onSeek={audio.seekTo}
             onFlownOut={deck.flownOut}
             onDragX={setLiveX}
           />

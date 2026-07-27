@@ -477,6 +477,56 @@ test("/wavr renders a real deck: save shows Undo, skip advances, deck exhausts h
   await expect(page.getByText(/That.s the deck\. 1 saved\./)).toBeVisible();
 });
 
+test("/wavr auto-advances to the next card when a clip finishes", async ({ page }) => {
+  await stub(page);
+  await page.route("**/api/wavr/feed**", (r) =>
+    r.fulfill({
+      json: {
+        cards: [
+          {
+            id: "adv0:ep0",
+            episodeId: "ep0",
+            showId: "adv0",
+            title: "First clip",
+            showTitle: "Show 0",
+            audioUrl: "https://cdn/ep0.mp3",
+            matchedTags: ["psychology"],
+            why: "Because you follow psychology",
+            score: 0.9,
+          },
+          {
+            id: "adv1:ep1",
+            episodeId: "ep1",
+            showId: "adv1",
+            title: "Second clip",
+            showTitle: "Show 1",
+            audioUrl: "https://cdn/ep1.mp3",
+            matchedTags: ["psychology"],
+            why: "Because you follow psychology",
+            score: 0.8,
+          },
+        ],
+        cursor: null,
+        degraded: false,
+      },
+    }),
+  );
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "wavr.prefs.v1",
+      JSON.stringify({ interests: ["psychology"], rating_sources: { douban: true, xiaoyuzhou: true } }),
+    );
+  });
+  await page.goto("/wavr");
+  await expect(page.getByRole("heading", { name: "First clip" })).toBeVisible();
+
+  // Simulate the clip running out — the deck should move to the next card on
+  // its own, with no save/skip recorded (no Undo toast).
+  await page.evaluate(() => document.querySelector("audio")?.dispatchEvent(new Event("ended")));
+  await expect(page.getByRole("heading", { name: "Second clip" })).toBeVisible();
+  await expect(page.getByText(/Undo/)).toHaveCount(0);
+});
+
 test("/wavr: a quick drag decides, a long-press opens the overview to scrub", async ({ page }) => {
   await stub(page);
   const cards = Array.from({ length: 6 }, (_, i) => ({

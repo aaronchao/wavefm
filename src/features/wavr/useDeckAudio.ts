@@ -1,360 +1,144 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useState, type RefObject } from "react";
 import type { WavrCard } from "@/src/core/wavr";
-import { planRing, RING_SIZE, type RingSlot } from "@/src/core/wavr/ring";
 import { seedFromId, wavrClipStart, WAVR_CLIP_SEC, WAVR_PLAYBACK_RATE } from "@/src/core/wavr";
 import { useClipWindow } from "@/src/features/player/useClipWindow";
 
 /**
- * The deck's audio: a three-slot ring of persistent <audio> elements with the
- * card ahead HOT-PARKED, so swiping costs no network round-trip.
- * (docs/wavr-route-design.md §5.2, §5.6, §5.7.)
+ * The deck's audio — ONE <audio> element driven by useClipWindow, the exact
+ * mechanism the app-wide Play bar (PreviewPlayer) and "Wavr Mini" already use
+ * successfully. It replaced a three-slot hot-parking ring that, in practice,
+ * was the source of the deck's two worst bugs: it gated the first play behind
+ * a session "unlock" round-trip and ran muted warm-up loads that competed for
+ * bandwidth (audio often never started), and it seeked minutes-deep into each
+ * episode (slow CDN Range responses → long load). A single element that just
+ * loads, seeks shallow, and plays is both simpler and faster.
  *
- * The elements are created here and owned by WavrDeck — they must NEVER be
- * rendered inside the card component, because remounting on every advance
- * gives a fresh element and a full reload, throwing away everything below.
- *
- * Crossfade note: M-W2 ramps element .volume. Once the Web Audio graph lands
- * with the WaveField (M-W5) this upgrades to per-element GainNodes and an
- * equal-power curve; the shape and timings are already the same.
+ * Swaps aren't pre-warmed anymore, so each card loads its clip when it becomes
+ * current — the same per-card load Wavr Mini has, which is fast enough because
+ * the clip now starts just past the intro (wavrClipStart), not deep in.
  */
 
-/** How long the outgoing clip takes to fade out (ms). */
-const CROSSFADE_MS = 120;
-/** Steps in the volume ramp — smooth enough to hear, cheap enough to be free. */
-const FADE_STEPS = 8;
-/** Grace period before the outgoing element is paused. */
-const FADE_SETTLE_MS = 140;
-
-export type PlayState =
-  | "locked"
-  | "loading"
-  | "playing"
-  | "paused"
-  | "unavailable";
+export type PlayState = "locked" | "loading" | "playing" | "paused" | "unavailable";
 
 export type DeckAudio = {
   playState: PlayState;
-  /** 0..1 through the 30s clip. */
+  /** 0..1 through the clip. */
   progress: number;
-  /** The CDN couldn't seek; the clip is running from 0:00. */
-  fromStart: boolean;
-  /** False until a user gesture has granted audio playback. */
-  unlocked: boolean;
-  /**
-   * Call from inside a user gesture. Grants playback for the session and
-   * starts the current card. Safe to call repeatedly.
-   */
-  unlock: () => void;
-  togglePlay: () => void;
-  replay: () => void;
   /** Drag-to-seek: jump to a 0..1 point within the clip. */
   seekTo: (fraction: number) => void;
-  /**
-   * Start the swap clock. Call on DECIDE, not after the exit animation — the
-   * next clip should be audible while the old card is still flying off (§6.5).
-   * The ring itself turns off the `index` prop.
-   */
-  markAdvance: () => void;
-  /** Duck to a fraction of full volume (the overview holds at 0.25, §6.7). */
-  setDuck: (level: number) => void;
-  /** Milliseconds from the last advance to audible playback; null until measured. */
-  lastSwapMs: number | null;
-  /** Attach to the three <audio> elements WavrDeck renders. */
-  register: (slot: RingSlot) => (el: HTMLAudioElement | null) => void;
-  slots: RingSlot[];
-  /** Which slot is currently playing — WaveField reads this to pick a source. */
-  curSlot: RingSlot;
-  /**
-   * The raw elements, read-only, for the WaveField's Web Audio tap (M-W5).
-   * Playback volume/crossfade stays exactly as implemented above; the
-   * analyser graph is an additive side-channel on the same elements.
-   */
-  elementsRef: RefObject<(HTMLAudioElement | null)[]>;
+  /** Tap the card: pause if playing, resume if paused, grant if autoplay-blocked. */
+  togglePlay: () => void;
+  /** Set output volume 0..1 (the overview ducks to 0.25 while you choose). */
+  setVolume: (level: number) => void;
 };
 
-const SESSION_KEY = "wavr.audio.unlocked";
-
-function readUnlocked(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.sessionStorage.getItem(SESSION_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
-  const els = useRef<(HTMLAudioElement | null)[]>([null, null, null]);
-  /** Stable ref object handed to useClipWindow; retargeted as the ring turns. */
-  const activeRef = useRef<HTMLAudioElement | null>(null);
-  /** Dedupe guard for park(); mirrored into state for render-time reads. */
-  const primedRef = useRef<(string | null)[]>([null, null, null]);
-  const swapStartedAt = useRef<number | null>(null);
-  const duck = useRef(1);
-
-  const [primedUrls, setPrimedUrls] = useState<(string | null)[]>([null, null, null]);
-  const [unlocked, setUnlocked] = useState(readUnlocked);
-  const [lastSwapMs, setLastSwapMs] = useState<number | null>(null);
-  /**
-   * Paused/failed are stored as the deck position they happened at, so moving
-   * to another card clears them without an effect that resets state.
-   */
-  const [pausedAt, setPausedAt] = useState<number | null>(null);
-  const [failedAt, setFailedAt] = useState<number | null>(null);
-  /** Bumps to re-arm the window for a replay of the SAME clip. */
-  const [replayToken, setReplayToken] = useState(0);
-  /** True once a clip has genuinely played — after that, a play() rejection
-   *  is a real failure, not an autoplay-policy block. */
-  const everPlayedRef = useRef(false);
-
-  const plan = useMemo(() => planRing(cards.length, index), [cards.length, index]);
-  const curSlot = plan.find((p) => p.role === "cur")!.slot;
-  const card = cards[index];
-  const paused = pausedAt === index;
-  const failed = failedAt === index;
-
-  const register = useCallback(
-    (slot: RingSlot) => (el: HTMLAudioElement | null) => {
-      els.current[slot] = el;
-    },
-    [],
-  );
-
-  /**
-   * Hot-park a card on a slot: assign src, load metadata, seek past the Range
-   * round-trip, and warm the decoder with a muted play/pause cycle. After
-   * this the element is decoded, buffered and sitting on the clip origin, so
-   * promoting it is a play() that starts within one audio callback.
-   */
-  const park = useCallback((slot: RingSlot, target: WavrCard | undefined) => {
-    const el = els.current[slot];
-    if (!el) return;
-    const url = target?.audioUrl ?? null;
-    if (primedRef.current[slot] === url) return; // already parked on this card
-    primedRef.current = primedRef.current.map((u, i) => (i === slot ? url : u));
-    setPrimedUrls(primedRef.current);
-
-    el.pause();
-    if (!url) {
-      el.removeAttribute("src");
-      return;
-    }
-    el.muted = true;
-    el.preload = "auto";
-    el.src = url;
-
-    const onMeta = () => {
-      el.removeEventListener("loadedmetadata", onMeta);
-      const at = wavrClipStart(el.duration, seedFromId(target?.id ?? ""));
-      try {
-        el.currentTime = at;
-      } catch {
-        // non-seekable stream: it will simply start from 0
-      }
-      // warm the decoder, then park back on the origin
-      void el
-        .play()
-        .then(() => {
-          el.pause();
-          try {
-            el.currentTime = at;
-          } catch {
-            /* as above */
-          }
-        })
-        .catch(() => {
-          // no activation grant yet — the element is still loaded and seeked,
-          // which is the expensive part. Playback is granted on unlock().
-        });
-    };
-    el.addEventListener("loadedmetadata", onMeta);
-    el.load();
-  }, []);
-
-  // Keep prev/cur/next parked. `prev` deliberately keeps its src so undo is
-  // instant; only the slot two cards back is ever re-primed.
-  useEffect(() => {
-    for (const a of plan) {
-      if (a.role === "cur") continue; // the window owns the playing element
-      park(a.slot, a.occupied ? cards[a.cardIndex] : undefined);
-    }
-  }, [plan, cards, park]);
-
-  // Retarget the clip window at whichever element currently holds `cur`.
-  // Registered BEFORE useClipWindow so it runs first on every render.
-  useEffect(() => {
-    activeRef.current = els.current[curSlot];
-  });
-
-  const rampVolume = useCallback((el: HTMLAudioElement, to: number) => {
-    const from = el.volume;
-    let step = 0;
-    const timer = setInterval(() => {
-      step += 1;
-      el.volume = Math.min(1, Math.max(0, from + (to - from) * (step / FADE_STEPS)));
-      if (step >= FADE_STEPS) clearInterval(timer);
-    }, CROSSFADE_MS / FADE_STEPS);
-    return () => clearInterval(timer);
-  }, []);
-
-  const onFinish = useCallback(() => setPausedAt(index), [index]);
-  /**
-   * A play() rejection before anything has ever actually played is almost
-   * always the browser's autoplay policy, not a broken stream — revert to
-   * "locked" (a quiet tap-to-listen, not "preview unavailable") so the next
-   * card attempts autoplay again rather than giving up on the episode.
-   */
-  const onError = useCallback(
-    (err?: unknown) => {
-      const blocked = err instanceof DOMException && err.name === "NotAllowedError";
-      if (blocked && !everPlayedRef.current) {
-        setUnlocked(false);
-        return;
-      }
-      setFailedAt(index);
-    },
-    [index],
-  );
-
-  const playable = Boolean(card?.audioUrl);
-  const active = unlocked && !paused && !failed && playable;
-
-  // Stable across re-renders unless the card itself changes — an inline
-  // arrow here would give useClipWindow's effect a new dependency identity
-  // on every render, tearing down and restarting the load/seek/play cycle
-  // in a loop before it ever gets a chance to actually keep playing.
+/**
+ * `elRef` is OWNED by the caller (WavrDeck renders the single `<audio>` and
+ * holds its ref) — the hook only reads it. Keeping the element ref out of the
+ * hook's return value is deliberate: a value used as a JSX `ref` must not also
+ * have its data read during render, so returning a ref-setter here would taint
+ * the whole DeckAudio object for the rules-of-refs lint.
+ */
+export function useDeckAudio(
+  elRef: RefObject<HTMLAudioElement | null>,
+  card: WavrCard | undefined,
+  { onEnded }: { onEnded?: () => void } = {},
+): DeckAudio {
   const cardId = card?.id;
+  const audioUrl = card?.audioUrl;
+
+  // Each transient is stored AS the card id it applies to, not a bare bool, so
+  // moving to a new card resets all of them for free (no reset effect, which
+  // the lint rightly flags as a cascading render). Mirrors the old ring's
+  // `pausedAt === index` trick.
+  const [pausedFor, setPausedFor] = useState<string | null>(null);
+  const [failedFor, setFailedFor] = useState<string | null>(null);
+  const [blockedFor, setBlockedFor] = useState<string | null>(null);
+  /** Bumps to re-arm useClipWindow (resume-after-block). */
+  const [token, setToken] = useState(0);
+
+  const paused = pausedFor != null && pausedFor === cardId;
+  const failed = failedFor != null && failedFor === cardId;
+  const blocked = blockedFor != null && blockedFor === cardId;
+
+  // Stable across renders unless the card changes — an inline arrow would give
+  // useClipWindow's effect a fresh dependency every render, tearing down and
+  // restarting the load/seek/play cycle in a loop.
   const resolveStart = useCallback(
     (duration: number) => wavrClipStart(duration, seedFromId(cardId ?? "")),
     [cardId],
   );
 
-  const { progress, fromStart, seek } = useClipWindow(
-    activeRef,
-    active && card?.audioUrl
+  const onFinish = useCallback(() => {
+    onEnded?.();
+  }, [onEnded]);
+
+  const onError = useCallback(
+    (err?: unknown) => {
+      if (cardId == null) return;
+      // A play() rejection before anything played is almost always the
+      // browser's autoplay policy, not a broken stream — show a quiet "Tap to
+      // listen" rather than "preview unavailable", and let the tap grant it.
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        setBlockedFor(cardId);
+      } else {
+        setFailedFor(cardId);
+      }
+    },
+    [cardId],
+  );
+
+  const { progress, seek } = useClipWindow(
+    elRef,
+    audioUrl && !failed && !blocked
       ? {
-          audioUrl: card.audioUrl,
+          audioUrl,
           startAt: 0,
           startFraction: null,
           resolveStart,
           clipLenSec: WAVR_CLIP_SEC,
           playbackRate: WAVR_PLAYBACK_RATE,
-          token: replayToken,
-          // hot-parked already: skip the reload and the re-seek
-          preloaded: primedUrls[curSlot] === card.audioUrl,
+          token,
         }
       : null,
     { onFinish, onError },
   );
 
-  // Fade the promoted element in, fade and pause the demoted ones, and record
-  // how long the swap actually took.
-  useEffect(() => {
-    const el = els.current[curSlot];
-    if (!el || !active) return;
-    el.muted = false;
-    el.volume = 0;
-    const stopIn = rampVolume(el, duck.current);
-
-    const others = els.current.filter(
-      (o, i): o is HTMLAudioElement => Boolean(o) && i !== curSlot,
-    );
-    const stopOut = others.map((o) => rampVolume(o, 0));
-    const settle = setTimeout(() => {
-      for (const o of others) o.pause();
-    }, FADE_SETTLE_MS);
-
-    const measure = () => {
-      everPlayedRef.current = true;
-      // park() never touches the "cur" role (the clip window owns it), so
-      // primedRef never learns what's actually loaded there. Left alone, the
-      // moment this slot rolls over to "prev" park() finds no record of it,
-      // decides it needs (re)loading, and reloads + re-warms audio that's
-      // already correctly loaded and playing — wasted bandwidth the
-      // genuinely-new "next" slot needed, and an aborted play() on the way
-      // out. Recording it only once playback has actually started (not the
-      // instant this slot becomes current) is what keeps this from also
-      // telling useClipWindow a brand-new slot is preloaded when it isn't.
-      if (primedRef.current[curSlot] !== card?.audioUrl) {
-        const url = card?.audioUrl ?? null;
-        primedRef.current = primedRef.current.map((u, i) => (i === curSlot ? url : u));
-        setPrimedUrls(primedRef.current);
-      }
-      if (swapStartedAt.current === null) return;
-      setLastSwapMs(Math.round(performance.now() - swapStartedAt.current));
-      swapStartedAt.current = null;
-    };
-    el.addEventListener("playing", measure);
-
-    return () => {
-      stopIn();
-      for (const s of stopOut) s();
-      clearTimeout(settle);
-      el.removeEventListener("playing", measure);
-    };
-  }, [curSlot, replayToken, active, rampVolume, card?.audioUrl]);
-
-  const markAdvance = useCallback(() => {
-    swapStartedAt.current = performance.now();
-  }, []);
-
-  const unlock = useCallback(() => {
-    setUnlocked((was) => {
-      if (was) return was;
-      try {
-        window.sessionStorage.setItem(SESSION_KEY, "1");
-      } catch {
-        // private mode — the grant just won't survive a reload
-      }
-      return true;
-    });
-    setPausedAt(null);
-    setFailedAt(null);
-    setReplayToken((t) => t + 1);
-  }, []);
-
   const togglePlay = useCallback(() => {
-    if (!unlocked) return unlock();
-    setPausedAt((at) => (at === index ? null : index));
-    setReplayToken((t) => t + 1);
-  }, [unlocked, unlock, index]);
+    if (cardId == null) return;
+    // After an autoplay block, the tap is the grant — re-arm and let
+    // useClipWindow play from inside this gesture.
+    if (blocked) {
+      setBlockedFor(null);
+      setToken((t) => t + 1);
+      return;
+    }
+    const el = elRef.current;
+    if (!el) return;
+    // Pause/resume directly on the element so the clip continues from where it
+    // stopped (toggling the useClipWindow source would restart it from origin).
+    if (el.paused) {
+      setPausedFor(null);
+      void el.play().catch(() => setFailedFor(cardId));
+    } else {
+      setPausedFor(cardId);
+      el.pause();
+    }
+  }, [blocked, cardId, elRef]);
 
-  /**
-   * Try to play without waiting for a tap — reaching /wavr is itself
-   * usually downstream of a real click (the tab, a link), which most
-   * browsers treat as enough "sticky activation" to allow it. Exactly one
-   * attempt per card: if the browser still says no, onError reverts
-   * `unlocked` and CardFace's "Tap to listen" takes over rather than
-   * retrying in a loop.
-   */
-  const autoTriedRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (unlocked || !playable) return;
-    if (autoTriedRef.current === index) return;
-    autoTriedRef.current = index;
-    unlock();
-  }, [unlocked, playable, index, unlock]);
-
-  const replay = useCallback(() => {
-    setPausedAt(null);
-    setFailedAt(null);
-    setReplayToken((t) => t + 1);
-  }, []);
-
-  const setDuck = useCallback(
+  const setVolume = useCallback(
     (level: number) => {
-      duck.current = Math.min(1, Math.max(0, level));
-      const el = els.current[curSlot];
-      if (el) rampVolume(el, duck.current);
+      const el = elRef.current;
+      if (el) el.volume = Math.min(1, Math.max(0, level));
     },
-    [curSlot, rampVolume],
+    [elRef],
   );
 
-  const playState: PlayState = !playable || failed
+  const playState: PlayState = !audioUrl || failed
     ? "unavailable"
-    : !unlocked
+    : blocked
       ? "locked"
       : paused
         ? "paused"
@@ -362,21 +146,5 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
           ? "playing"
           : "loading";
 
-  return {
-    playState,
-    progress,
-    fromStart,
-    unlocked,
-    unlock,
-    togglePlay,
-    replay,
-    seekTo: seek,
-    markAdvance,
-    setDuck,
-    lastSwapMs,
-    register,
-    slots: Array.from({ length: RING_SIZE }, (_, i) => i as RingSlot),
-    curSlot,
-    elementsRef: els,
-  };
+  return { playState, progress, seekTo: seek, togglePlay, setVolume };
 }

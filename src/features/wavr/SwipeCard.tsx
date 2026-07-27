@@ -12,7 +12,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { commitDistance, decideSwipe, SWIPE, type WavrCard } from "@/src/core/wavr";
 import { haptic, springs } from "@/src/ui";
 import { CardFace } from "./CardFace";
-import type { DeckAudio } from "./useDeckAudio";
+import type { PlayState } from "./useDeckAudio";
 
 /** Imperative surface the parent's unified gesture handler drives directly —
  *  there is no framer `drag` on this component (see useCardGesture for why:
@@ -41,9 +41,13 @@ export const SwipeCard = forwardRef<
     flying: { id: string; dir: -1 | 1 } | null;
     onFlownOut: () => void;
     onDragX?: (x: MotionValue<number>) => void;
-    audio: DeckAudio;
+    /** 0..1 through the clip, for the card's progress bar. */
+    progress: number;
+    playState: PlayState;
+    /** Drag-to-seek within the clip. */
+    onSeek: (fraction: number) => void;
   }
->(function SwipeCard({ card, flying, onFlownOut, onDragX, audio }, ref) {
+>(function SwipeCard({ card, flying, onFlownOut, onDragX, progress, playState, onSeek }, ref) {
   const reduce = useReducedMotion();
   const elRef = useRef<HTMLDivElement>(null);
   /** Once-per-direction tick; resets on release and on re-entering the dead zone. */
@@ -111,11 +115,7 @@ export const SwipeCard = forwardRef<
   return (
     <motion.div
       ref={elRef}
-      // A small top gap (not inset-0) — the card's own opaque cover photo
-      // would otherwise sit flush with the container's top edge and hide
-      // the WaveField entirely; this leaves a real, unobstructed strip for
-      // its glow to actually read as "above the card" rather than blocked.
-      className="absolute inset-x-0 bottom-0 top-10"
+      className="absolute inset-0"
       style={
         reduce
           ? { opacity: staticOpacity }
@@ -138,12 +138,7 @@ export const SwipeCard = forwardRef<
           </motion.span>
         </>
       )}
-      <CardFace
-        card={card}
-        progress={audio.progress}
-        playState={audio.playState}
-        onSeek={audio.unlocked ? audio.seekTo : undefined}
-      />
+      <CardFace card={card} progress={progress} playState={playState} onSeek={onSeek} />
     </motion.div>
   );
 });
