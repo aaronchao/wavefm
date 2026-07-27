@@ -59,8 +59,12 @@ export type WavrCard = {
   audioUrl?: string;
   durationSec?: number;
   appleUrl?: string;
-  /** The community quote that earned this card its slot. */
-  quote: EdgeEvidence;
+  /**
+   * The community quote that earned this card its slot. Omitted for cards
+   * sourced by a plain search on the user's own tags when no real discussion
+   * evidence was found (§8.4 — no evidence means no quote, never a fake one).
+   */
+  quote?: EdgeEvidence;
   /** Profile tags this card matched on, strongest first. */
   matchedTags: string[];
   /** Human reason shown on the card — explainability is the product. */

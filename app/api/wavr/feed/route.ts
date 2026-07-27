@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import { buildDeck, interestProfile, parseDiscussion, type WavrCandidate } from "@/src/core/wavr";
+import { buildDeck, interestProfile, parseDiscussion, type WavrCandidate, type WavrCard } from "@/src/core/wavr";
 import type { EdgeEvidence } from "@/src/core/mining/types";
 import { dcardDiscussion } from "@/src/data/buzz/dcard";
 import { doubanGroupDiscussion, lihkgDiscussion, pttDiscussion } from "@/src/data/buzz/forums";
 import { redditDiscussion } from "@/src/data/buzz/reddit";
 import { v2exDiscussion } from "@/src/data/buzz/v2ex";
-import { itunesSearch } from "@/src/data/catalog/server";
-import type { CatalogShow, DiscussedChartsResponse, EpisodesRankedResponse } from "@/src/data/catalog/types";
+import { itunesEpisodeSearch, itunesSearch } from "@/src/data/catalog/server";
+import type {
+  CatalogEpisode,
+  CatalogShow,
+  DiscussedChartsResponse,
+  EpisodesRankedResponse,
+} from "@/src/data/catalog/types";
 import { getSupabase } from "@/src/data/supabase/client";
 import type { WavrFeedResponse } from "@/src/data/wavr/types";
 
@@ -22,14 +27,23 @@ import type { WavrFeedResponse } from "@/src/data/wavr/types";
  * episode per matched show. Each rung is best-effort; the whole ladder
  * failing yields `degraded: true`, never a thrown error.
  *
+ * When evidence-backed rungs still come up short (the community-mining pool
+ * is small, and live discussion sources — Reddit/Douban/etc. — are
+ * frequently rate-limited or unconfigured in this deployment), the deck
+ * tops itself up with a plain, evidence-free episode search on the user's
+ * own tags — the same method "Wavr Mini" (Discovery's For-You deck) already
+ * uses successfully via `useInterestEpisodes`. These cards say "Because you
+ * follow X", never a fabricated quote, and always rank behind anything with
+ * real community evidence.
+ *
  * `tags` is the ONLY signal that crosses into the request — the user's own
  * engagement history never leaves the browser (§8.1's CF guard), so the
  * profile built here is declared-interest-only. The client is free to send
  * its already-engagement-weighted top tags; the server just treats them as
  * a flat set, which keeps this route ignorant of any individual user's
- * behaviour. The tag-driven search rung uses those same tags as catalog
- * search terms — still nobody else's data, just the user's own declared
- * interests reaching further than the precomputed pool.
+ * behaviour. Both tag-driven rungs use those same tags as catalog search
+ * terms — still nobody else's data, just the user's own declared interests
+ * reaching further than the precomputed pool.
  */
 
 const MAX_SHOWS_PER_PAGE = 10;
@@ -67,10 +81,6 @@ export async function GET(request: Request) {
   for (const p of await fromDiscussedCharts(url.origin)) if (!byId.has(p.show.id)) byId.set(p.show.id, p);
 
   const pool = [...byId.values()];
-  if (pool.length === 0) {
-    return json({ cards: [], cursor: null, degraded: true });
-  }
-
   const page = pool.slice(offset, offset + MAX_SHOWS_PER_PAGE);
   const nextOffset = offset + page.length;
   const cursor = nextOffset < pool.length ? String(nextOffset) : null;
@@ -80,9 +90,19 @@ export async function GET(request: Request) {
   ).filter((c): c is WavrCandidate => c !== null && !exclude.has(`${c.showId}:${c.episodeId}`));
 
   const profile = interestProfile(tags, [], {});
-  const cards = buildDeck(candidates, profile, { limit });
+  let cards = buildDeck(candidates, profile, { limit });
 
-  return json({ cards, cursor, degraded: cards.length === 0 && candidates.length === 0 });
+  // Evidence-backed matches always lead; top up the rest from a plain tag
+  // search when the pool is thin or came up empty for this page, so the
+  // deck still has real, playable content instead of an honest-but-empty
+  // screen. Excludes anything already decided or already on this page.
+  if (cards.length < limit) {
+    const already = new Set(cards.map((c) => c.id));
+    const direct = await fromInterestEpisodeSearch(tags, exclude, already);
+    cards = [...cards, ...direct].slice(0, limit);
+  }
+
+  return json({ cards, cursor, degraded: cards.length === 0 && pool.length === 0 });
 }
 
 /** Rung 1: the offline community-mining pipeline's precomputed edges (rec_edges is world-readable). */
@@ -184,6 +204,81 @@ async function safeSearch(term: string, country: string): Promise<CatalogShow[]>
   } catch {
     return []; // best-effort — a bad search term or network hiccup just skips it
   }
+}
+
+/** Fixed score for tag-searched (no discussion evidence) cards — always
+ *  below anything that cleared MIN_MATCH via real community discussion, so
+ *  evidence-backed cards lead the deck whenever they exist. */
+const DIRECT_MATCH_SCORE = 0.05;
+/** How many episodes per tag term the direct-search fallback pulls. */
+const DIRECT_PER_TERM = 6;
+
+/**
+ * Top-up rung: a plain episode search on the user's own tags, no discussion
+ * evidence required — the same method "Wavr Mini" (Discovery's For-You deck,
+ * `useInterestEpisodes`) already uses. Only reached when the evidence-backed
+ * rungs above didn't fill the deck; every card here says "Because you
+ * follow X", never a fabricated community quote.
+ */
+async function fromInterestEpisodeSearch(
+  tags: string[],
+  exclude: Set<string>,
+  already: Set<string>,
+): Promise<WavrCard[]> {
+  const terms = [...new Set(tags.map((t) => t.trim()).filter(Boolean))].slice(0, MAX_SEARCH_TAGS);
+  if (terms.length === 0) return [];
+
+  const byTerm = await Promise.all(
+    terms.map(async (term) => {
+      let episodes: CatalogEpisode[] = [];
+      try {
+        episodes = (await itunesEpisodeSearch(term)) ?? [];
+      } catch {
+        episodes = [];
+      }
+      return {
+        term,
+        episodes: episodes
+          .filter((e) => e.audioUrl)
+          .sort((a, b) => tsOf(b) - tsOf(a))
+          .slice(0, DIRECT_PER_TERM),
+      };
+    }),
+  );
+
+  // Interleave one-per-term (round-robin) so no single interest dominates.
+  const seen = new Set<string>();
+  const cards: WavrCard[] = [];
+  const depth = Math.max(0, ...byTerm.map((t) => t.episodes.length));
+  for (let i = 0; i < depth; i++) {
+    for (const { term, episodes } of byTerm) {
+      const ep = episodes[i];
+      if (!ep) continue;
+      const showId = ep.showId ?? ep.id;
+      const id = `${showId}:${ep.id}`;
+      if (seen.has(id) || exclude.has(id) || already.has(id)) continue;
+      seen.add(id);
+      cards.push({
+        id,
+        episodeId: ep.id,
+        showId,
+        title: ep.title,
+        showTitle: ep.showTitle ?? "",
+        coverUrl: ep.coverUrl,
+        audioUrl: ep.audioUrl,
+        durationSec: ep.durationSec,
+        appleUrl: ep.appleUrl,
+        matchedTags: [term],
+        why: `Because you follow ${term}`,
+        score: DIRECT_MATCH_SCORE,
+      });
+    }
+  }
+  return cards;
+}
+
+function tsOf(ep: CatalogEpisode): number {
+  return ep.publishedAt ? Date.parse(ep.publishedAt) || 0 : 0;
 }
 
 /** Rung 3: live discussion evidence — best-effort, often thin from Vercel's IPs. */

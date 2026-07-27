@@ -11,12 +11,14 @@ import { CoverTile } from "@/src/ui";
 import { useInterestEpisodes } from "./useInterestEpisodes";
 
 /**
- * Surprise me — a swipe-only keep-or-skip game over the "For You" episodes, sourced
- * straight from the interest tags in that section (not the ranked-shows list).
- * Each card is a single episode that auto-plays through the app-wide Play Bar
- * the moment it's on top (one source plays at a time, everywhere): swipe right
- * to keep it (queues it into your Library), left to skip. Fully gesture-driven;
- * a reduced-motion viewer keeps/skips via the header shortcut instead.
+ * Wavr Mini — a swipe-only keep-or-skip game over the "For You" episodes,
+ * sourced straight from the interest tags in that section (not the
+ * ranked-shows list). Each card is a single episode that auto-plays through
+ * the app-wide Play Bar the moment it's on top (one source plays at a time,
+ * everywhere): swipe right to keep it (queues it into your Library), left to
+ * skip. Fully gesture-driven; a reduced-motion viewer keeps/skips via the
+ * header shortcut instead. The full Wavr experience lives at /wavr; this is
+ * the quick, in-Discovery version — same idea, no dedicated route.
  */
 export function SurpriseDeck({
   terms,
@@ -65,7 +67,7 @@ export function SurpriseDeck({
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background/80 p-4 backdrop-blur">
       <div className="mb-4 flex w-full max-w-sm items-center justify-between">
-        <span className="font-brand text-sm uppercase tracking-[0.18em] text-accent">Surprise me</span>
+        <span className="font-brand text-sm uppercase tracking-[0.18em] text-accent">Wavr Mini</span>
         <button
           type="button"
           onClick={close}

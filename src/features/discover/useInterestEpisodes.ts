@@ -6,7 +6,7 @@ import type { CatalogEpisode } from "@/src/data/catalog/types";
 
 /**
  * The latest episodes related to a set of "For You" interest terms — the
- * data behind a selected tag's episode feed and the Surprise-me deck. Each term is
+ * data behind a selected tag's episode feed and the Wavr Mini deck. Each term is
  * an iTunes episode search (shares TrendingShelf's `["catalog","search",t]`
  * cache, so no double fetch), newest-first, interleaved across terms and
  * de-duplicated. Playable episodes (real audio) lead. Fully client-side;

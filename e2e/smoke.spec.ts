@@ -208,9 +208,9 @@ test("discover ranks recommendations and surfaces evidence for its picks", async
   ).toBeVisible();
 });
 
-test("Surprise-me deck plays a For-You episode and lets you keep it", async ({ page }) => {
+test("Wavr Mini plays a For-You episode and lets you keep it", async ({ page }) => {
   await stub(page);
-  // Surprise-me sources cards from the "For You" interest tags via episode
+  // Wavr Mini sources cards from the "For You" interest tags via episode
   // search — one playable episode per swipe, not the ranked-shows list.
   // (Not "Wavr" — that name is reserved for the dedicated /wavr tab.)
   await page.route("**/api/catalog/search**", (r) =>
@@ -238,7 +238,7 @@ test("Surprise-me deck plays a For-You episode and lets you keep it", async ({ p
   );
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Surprise me" }).first().click();
+  await page.getByRole("button", { name: "Wavr Mini" }).first().click();
   await expect(page.getByText("Swipe → keep · ← skip")).toBeVisible();
   // the card is a real For-You episode — and it's auto-playing, so its title
   // also shows in the Play bar (two matches confirms the Play-Bar routing)

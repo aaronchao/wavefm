@@ -81,7 +81,7 @@ export function DiscoverPage() {
         )}
       </div>
 
-      {/* For You — your own interests drive everything below; Surprise me
+      {/* For You — your own interests drive everything below; Wavr Mini
           (the swipe-through deck) leads the row, add more interests inline.
           Not "Wavr" — that name is reserved for the dedicated /wavr tab. */}
       <section className="mb-2">
@@ -93,7 +93,7 @@ export function DiscoverPage() {
             disabled={lenses.length === 0}
             className="font-brand rounded-pill bg-accent px-4 py-2 text-xs uppercase tracking-wider text-white shadow-sm transition-transform hover:shadow-md active:scale-95 disabled:opacity-40"
           >
-            Surprise me
+            Wavr Mini
           </button>
           {lenses.map((i) => (
             <TopicChip
