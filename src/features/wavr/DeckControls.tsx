@@ -4,26 +4,34 @@ import { Pressable } from "@/src/ui";
 
 /**
  * The a11y-canonical controls — tab order reaches them before the card.
- * Just skip/save: the episode plays itself the moment it's on top (no tap
- * needed, §Wavr audio), and tapping the card toggles play/pause, so a third
- * button here would only ever duplicate one of those two paths.
+ * Skip / overview / save, thumb-reachable in that order: the episode plays
+ * itself the moment it's on top (no tap needed, §Wavr audio), and tapping
+ * the card toggles play/pause, so these three cover what's left — leave,
+ * see the whole deck, or keep it. "+" matches the save affordance used
+ * everywhere else in the app (Wavr Mini, Discover); "?" is deliberately
+ * plain rather than a fussy grid glyph — it reads as "what else is there?"
  */
 export function DeckControls({
   onSkip,
+  onOverview,
   onSave,
   disabled,
 }: {
   onSkip: () => void;
+  onOverview: () => void;
   onSave: () => void;
   disabled: boolean;
 }) {
   return (
-    <div className="flex items-center justify-center gap-8">
+    <div className="flex items-center justify-center gap-6">
       <ControlButton size={56} label="Skip this episode" onClick={onSkip} disabled={disabled}>
         ✕
       </ControlButton>
+      <ControlButton size={44} label="Overview: see the whole deck" onClick={onOverview} disabled={disabled}>
+        ?
+      </ControlButton>
       <ControlButton size={56} label="Save to library" onClick={onSave} disabled={disabled} accent>
-        ♥
+        +
       </ControlButton>
     </div>
   );
