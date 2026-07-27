@@ -7,12 +7,13 @@ import { getShow } from "@/src/data/catalog/client";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { recordEngagement } from "@/src/data/repos/engagementRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
-import { RatingBadges } from "@/src/features/show/RatingBadges";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { CommunityRecs } from "@/src/features/show/CommunityRecs";
 import { SimilarContent } from "@/src/features/show/SimilarContent";
+import { TagEditor } from "@/src/features/show/TagEditor";
 import { TopEpisodes } from "@/src/features/show/TopEpisodes";
-import { Chip, CoverTile, SettleIn } from "@/src/ui";
+import { FloatingSearch } from "@/src/features/search/FloatingSearch";
+import { CoverTile, NothingToggle, SettleIn } from "@/src/ui";
 
 export default function ShowPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,7 +23,7 @@ export default function ShowPage() {
   });
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 pb-40 sm:p-8 sm:pb-40">
+    <main className="mx-auto w-full max-w-2xl p-4 pb-56 sm:p-8 sm:pb-56">
       {isLoading && <p className="text-zinc-500">Loading…</p>}
       {!isLoading && !show && (
         <p className="text-zinc-500">
@@ -30,6 +31,7 @@ export default function ShowPage() {
         </p>
       )}
       {show && <ShowDetail show={show} />}
+      <FloatingSearch />
     </main>
   );
 }
@@ -47,7 +49,7 @@ function ShowDetail({ show }: { show: CatalogShow }) {
     };
   }, [show.id]);
 
-  // ONE_CLICK invariant for save / like / not-for-me
+  // ONE_CLICK invariant for save
   function toggleSave() {
     const next = !saved;
     setSaved(next);
@@ -73,32 +75,32 @@ function ShowDetail({ show }: { show: CatalogShow }) {
               {show.categories.slice(0, 4).join(" · ")}
             </p>
           )}
-          <div className="mt-2">
-            <RatingBadges showId={show.id} title={show.title} />
-          </div>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Chip active={saved} onClick={toggleSave}>
-          {saved ? "Saved ✓" : "Save"}
-        </Chip>
-        <Chip onClick={() => void recordEngagement(show, "like")} aria-label="Like">
-          👍 Like
-        </Chip>
-        <Chip onClick={() => void recordEngagement(show, "block")} aria-label="Not for me">
-          🚫 Not for me
-        </Chip>
+        <NothingToggle
+          active={saved}
+          onClick={toggleSave}
+          ariaLabel={saved ? "Saved ✓" : "Save"}
+        >
+          {saved ? "✓" : "+"}
+        </NothingToggle>
       </div>
 
+      <TagEditor showId={show.id} />
+
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+        <h2 className="font-brand mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
           Listen on
         </h2>
-        {/* icons only — saves horizontal space on mobile (no text labels) */}
+        {/* icons only, one horizontal row — brand colour when a stored link
+            exists, grayscale otherwise, plus an RSS copy for any-app import */}
         <OpenInLinks
           title={show.title}
           appleUrl={show.appleUrl}
+          feedUrl={show.feedUrl}
+          stored={show.platformLinks}
           label=""
           size="md"
           onOpen={onOpen}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import type { PlatformLinks } from "@/src/data/catalog/types";
 
 /**
  * Ephemeral preview-player state (never a copy of DB rows). A tiny
@@ -18,6 +19,12 @@ export type PreviewMeta = {
   searchTitle: string;
   /** Stored Apple Podcasts URL, when known. */
   appleUrl?: string;
+  /** Raw RSS feed URL — powers the Play bar's copy-to-clipboard RSS icon. */
+  feedUrl?: string;
+  /** Stored player deep-links — brand-coloured icons in the Play bar. */
+  platformLinks?: PlatformLinks;
+  /** The show's catalog id, when known — lets the Play bar link to its page. */
+  showId?: string;
 };
 
 export type PlayerState = {

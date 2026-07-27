@@ -78,7 +78,7 @@ export function stableFeedId(feedUrl: string): string {
   return `rss-${h.toString(36)}`;
 }
 
-export function buildOpml(feeds: OpmlFeed[], title = "wavefm subscriptions"): string {
+export function buildOpml(feeds: OpmlFeed[], title = "WaveFM subscriptions"): string {
   const seen = new Set<string>();
   const rows: string[] = [];
   for (const f of feeds) {

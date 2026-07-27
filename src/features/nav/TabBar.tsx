@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 
 /**
  * App-style bottom navigation — three places, in funnel order: browse
- * (Discovery), commit (Wavr), own (Library). Search is a header icon, not a
- * tab, so the bar stays focused on what people actually do. Sits under the
- * preview player, above everything else.
+ * (Discovery), commit (Wavr), own (Library). Search is a floating bar (not a
+ * tab); Settings folded into Discovery. Sits under the preview player, above
+ * everything else.
  *
  * Wavr is the one tab that is red even when INACTIVE (§1.2 of
  * docs/wavr-route-design.md): the accent already marks the active tab, so
@@ -34,7 +34,7 @@ export function TabBar() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-surface-border bg-background/90 backdrop-blur"
+      className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-surface-border bg-background/90 backdrop-blur"
     >
       <ul className="mx-auto flex max-w-md items-stretch justify-around">
         {TABS.map((t) => {

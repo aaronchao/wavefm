@@ -9,7 +9,7 @@ import { DeckControls } from "./DeckControls";
 import { DeckEmpty } from "./DeckEmpty";
 import { DeckOverview } from "./DeckOverview";
 import { LensBar } from "./LensBar";
-import { useWavrLocalPrefs } from "./localPrefs";
+import { useWavrLocalPrefs, wavrLocalPrefs } from "./localPrefs";
 import { PeekCard } from "./PeekCard";
 import { SwipeCard } from "./SwipeCard";
 import { useDeckAudio, type DeckAudio } from "./useDeckAudio";
@@ -109,14 +109,44 @@ export function WavrDeck({
     <div className="relative">
       <div className="mb-2 flex items-start justify-between gap-2">
         <LensBar tags={tags} remaining={Math.max(0, deck.state.queue.length - deck.state.index)} />
-        <button
-          type="button"
-          aria-label="Overview: see the whole deck"
-          onClick={() => deck.openOverview()}
-          className="shrink-0 rounded-pill border border-surface-border bg-background px-2 py-1 text-sm text-zinc-500 hover:text-foreground"
-        >
-          ⌸
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Device-local feel toggles — there's no Settings route anymore
+              (folded into Discovery), and these are Wavr-specific anyway. */}
+          <button
+            type="button"
+            aria-label={`Haptics ${localPrefs.haptics ? "on" : "off"}`}
+            aria-pressed={localPrefs.haptics}
+            onClick={() => wavrLocalPrefs.set({ haptics: !localPrefs.haptics })}
+            className={`rounded-pill border px-2 py-1 text-xs ${
+              localPrefs.haptics
+                ? "border-accent text-accent"
+                : "border-surface-border text-zinc-400"
+            }`}
+          >
+            ⚡
+          </button>
+          <button
+            type="button"
+            aria-label={`Wave background ${localPrefs.waveField ? "on" : "off"}`}
+            aria-pressed={localPrefs.waveField}
+            onClick={() => wavrLocalPrefs.set({ waveField: !localPrefs.waveField })}
+            className={`rounded-pill border px-2 py-1 text-xs ${
+              localPrefs.waveField
+                ? "border-accent text-accent"
+                : "border-surface-border text-zinc-400"
+            }`}
+          >
+            〰
+          </button>
+          <button
+            type="button"
+            aria-label="Overview: see the whole deck"
+            onClick={() => deck.openOverview()}
+            className="rounded-pill border border-surface-border bg-background px-2 py-1 text-sm text-zinc-500 hover:text-foreground"
+          >
+            ⌸
+          </button>
+        </div>
       </div>
       {/* Persistent 3-slot audio ring — must never remount (§5.2). */}
       {audio.slots.map((slot) => (
