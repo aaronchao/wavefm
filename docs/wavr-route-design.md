@@ -52,9 +52,11 @@ Final tab set (3 tabs, `max-w-md`, unchanged bar chrome):
 | 2 | **Wavr** | `/wavr` | **`WavrIcon` (red)** | `p.startsWith("/wavr")` |
 | 3 | Library | `/library` | `LibraryIcon` | `p.startsWith("/library")` |
 
-**Search tab is removed** (per the working brief). `/search` remains a live route —
-it is reachable from the Discover header search affordance and from empty states. No
-route is deleted; only the tab is.
+**Search tab is removed** (per the working brief). `/search` remains a live route,
+reachable from a **magnifier in the global app header** (`app/layout.tsx`, beside the
+theme and settings icons) as well as the Library empty state and the chart rows. The
+header was chosen over a Discover-only search bar so search stays one tap away from
+every screen. No route is deleted; only the tab is.
 
 ### 1.2 The red icon
 
@@ -72,11 +74,13 @@ active   others → text-accent (unchanged)
 
 Additional treatment, spec'd exactly:
 
-- `WavrIcon`: a 3-bar waveform inside a rounded square — `currentColor` strokes,
-  `strokeLinecap="round"`, bar heights `[8, 14, 10]`, `strokeWidth 2.2` (heavier than
-  the 1.8 of the other glyphs so it reads as the "loud" tab).
-- Active-only: the middle bar animates height `14 → 18 → 14`, `springs.pop`, loop —
-  **suppressed under `useReducedMotion()`**.
+- `WavrIcon`: a symmetric five-bar waveform, heights `[7, 13, 19, 13, 7]`, **filled**
+  rather than stroked so it carries more weight than its outline siblings — Wavr is
+  the loud tab. No container square: it would read as a button rather than a tab
+  glyph, and the red is already doing the standing-out.
+- Active-only: the centre bar breathes `scaleY: 1 → 1.18 → 1` on a 1.1s mirrored
+  tween (a spring can't express a continuous loop cleanly) — **suppressed under
+  `useReducedMotion()`**.
 - Contrast: `#ff3b30` on `--background` `#fff` is 3.68:1 — passes AA for graphical
   objects/large text, fails for small body text. The **label text stays
   `text-zinc-400` when inactive**; only the glyph is red. Do not tint the 10px label.
@@ -353,6 +357,13 @@ Three, not two, because undo has to be instant as well — and with an A/B pair 
 outgoing element gets re-primed for `card[i+2]` immediately, throwing away the one
 thing undo needs.
 
+The rotation is pure and lives in `src/core/wavr/ring.ts`: **`slot = cardIndex % 3`**.
+That one line gives all three properties for free — prev/cur/next always land on three
+different slots, the element that was `cur` becomes `prev` while keeping its src and
+seek position, and the slot freed up is exactly the one to prime for the card ahead.
+Nothing is reassigned or swapped on advance. `planRing(count, index)` is unit-tested
+against those invariants.
+
 **Hot-parking** — a `next` element is only "ready" when all four are true:
 
 1. `src` assigned with `preload="auto"`
@@ -476,7 +487,12 @@ export const springs = {
   rise:  { type: "spring", stiffness: 300, damping: 30, mass: 0.9 },
 };
 
-/** Swipe commit thresholds — mirrored exactly in core/wavr/swipe.ts. */
+/**
+ * NOTE: SWIPE is NOT defined here. It lives in `src/core/wavr/swipe.ts` next to
+ * `decideSwipe`, as one source of truth — mirroring the numbers into the design
+ * tokens would let the tested thresholds and the rendered ones drift apart.
+ * Reproduced here for reference only:
+ */
 export const SWIPE = {
   /** Fraction of card width past which a release commits. */
   distanceRatio: 0.28,
@@ -824,7 +840,9 @@ ranking key would be co-mention popularity, i.e. CF by the back door. Wavr reads
 
 ```ts
 // types.ts
-export type TagWeights = Record<string, number>;   // L1-normalised, all ≥ 0
+export type TagWeights = Record<string, number>;   // L2-normalised, all ≥ 0
+// L2, NOT L1: /core/recommend's cosine() is a bare dot product that only
+// equals the cosine when both inputs are L2-normalised. L1 would score wrong.
 
 export type ParsedDiscussion = {
   quote: EdgeEvidence;        // { source, text, url? }  — reuse core/mining type
@@ -928,11 +946,12 @@ for the matched shows. All rungs fail → `degraded: true`, and the UI shows the
 | Condition | String |
 |---|---|
 | ≥1 matched tag + quote | `Matches your interest in {tag} — {source} listeners keep bringing it up` |
-| matched tags, generic quote | `{n} threads about {tag} point here` |
-| single strong tag | `Because you follow {tag}` |
+| matched tags, no source on the quote | `Because you follow {tag}` |
 | cold start (no tags yet) | `A starting point — tell Wavr what you like to sharpen this` |
 
-Never fabricate counts. If the number isn't in the data, the string doesn't claim one.
+Never fabricate counts. If the number isn't in the data, the string doesn't claim one
+— which is why the once-planned `{n} threads about {tag}` variant was dropped: core has
+no trustworthy thread count to put in it. A unit test asserts `buildWhy` emits no digits.
 
 ---
 
@@ -1013,7 +1032,7 @@ The swipe is an **enhancement**; the buttons are the interface.
 |---|---|---|
 | **M-W0** | Tab bar: remove Search, add Wavr (red `WavrIcon`), `app/wavr/page.tsx` stub | `/wavr` renders, nav order correct, `tsc` + lint clean, e2e nav smoke passes |
 | **M-W1** | `src/core/wavr/*` — types, `interestProfile`, `matchDiscussion`, `scoreCandidate`, `buildDeck`, `decideSwipe`, `scrubTarget` | `tests/core/wavr/*.test.ts` green; fixture deck is byte-stable across runs |
-| **M-W2** | Extract `useClipWindow` from `PreviewPlayer` (no behaviour change) + `useDeckAudio` 3-slot ring, hot-parking, unlock, crossfade | `PreviewPlayer` still passes its existing tests; measured `lastSwapMs` ≤ 30ms on a warm ring |
+| **M-W2** | `clipTarget` + `planRing` in core; extract `useClipWindow` from `PreviewPlayer` (no behaviour change); `useDeckAudio` 3-slot ring, hot-parking, unlock, crossfade | `PreviewPlayer` unchanged in behaviour, suite green; ring invariants unit-tested. Crossfade ramps element `.volume` here — it upgrades to GainNodes in M-W5 when the audio graph exists. `lastSwapMs` can only be *measured* once M-W3 renders a deck. |
 | **M-W3** | `SwipeCard` / `PeekCard` / `CardFace` / `DeckControls` + motion tokens + haptics | Deck is fully operable by drag, button, and keyboard; reduced-motion path verified |
 | **M-W4** | `/api/wavr/feed` + `useWavrFeed` + all §9 states + undo | Real cards; every degraded path renders, none throws |
 | **M-W5** | `WaveField` + `useWaveAnalyser`: CORS probe + host cache, Tier A graph, Tier B synth, two-canvas renderer, rAF suspension | Both tiers render identically-shaped frames; a tainted host degrades with no console error; paused deck measures 0% CPU |
@@ -1030,8 +1049,9 @@ Each step: `npx tsc --noEmit` → `npm run lint` → `npx vitest run` →
 - `swipe.test.ts` — table over `{dx, vx, width}`: below both thresholds → `return`;
   past `distanceRatio` → commit; slow long drag vs. fast short flick; the
   `distanceMin` floor on a 320px viewport; sign correctness both directions.
-- `interest.test.ts` — profile is L1-normalised; a `block` lowers its tags; an empty
-  history returns the prefs vector unchanged.
+- `interest.test.ts` — profile is L2-normalised (what `cosine()` assumes); a `block`
+  lowers its tags and can zero one out; negatives clamp to 0 rather than flipping; an
+  empty history returns the prefs vector unchanged.
 - `match.test.ts` — `intentBoost` ordering; negative sentiment gates a match to ~0;
   zero tag overlap → `null` from `scoreCandidate`.
 - `deck.test.ts` — same input → identical order (run twice, deep-equal); per-show cap;

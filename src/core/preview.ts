@@ -37,6 +37,27 @@ export function middleFraction(rand: number): number {
   return 0.4 + r * 0.2;
 }
 
+/**
+ * Where the clip should actually start, once the CDN has told us the real
+ * duration. A `startFraction` ("random middle") resolves against the true
+ * length and wins over the seconds fallback; an unknown duration must leave
+ * `startAt` alone rather than collapse it to 0.
+ *
+ * Lifted out of PreviewPlayer so the deck's audio ring shares one
+ * implementation of this clamp instead of growing a second one.
+ */
+export function clipTarget(
+  duration: number | null | undefined,
+  startAt: number,
+  startFraction: number | null = null,
+  clipLen = CLIP_SECONDS,
+): number {
+  const known = duration != null && Number.isFinite(duration) && duration > 0;
+  if (!known) return startAt;
+  const base = startFraction != null ? duration * startFraction : startAt;
+  return Math.min(base, Math.max(0, duration - clipLen));
+}
+
 /** Pick an index in [0, count) from a 0..1 random number. */
 export function pickIndex(count: number, rand: number): number {
   if (count <= 0) return 0;

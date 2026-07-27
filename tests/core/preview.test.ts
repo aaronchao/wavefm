@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLIP_SECONDS,
   clipStart,
+  clipTarget,
   middleFraction,
   parseItunesDuration,
   pickIndex,
@@ -30,6 +31,33 @@ describe("clipStart", () => {
   it("clamps out-of-range random inputs", () => {
     expect(clipStart(1800, -1)).toBe(15);
     expect(clipStart(1800, 2)).toBe(15 + (1800 - CLIP_SECONDS - 30));
+  });
+});
+
+describe("clipTarget", () => {
+  it("leaves startAt alone when the duration is unknown", () => {
+    // the bug this guards: NaN duration collapsing the target to 0
+    expect(clipTarget(Number.NaN, 900)).toBe(900);
+    expect(clipTarget(null, 900)).toBe(900);
+    expect(clipTarget(undefined, 900)).toBe(900);
+    expect(clipTarget(0, 900)).toBe(900);
+  });
+
+  it("resolves a fraction against the real duration, beating the seconds fallback", () => {
+    expect(clipTarget(1000, 12, 0.5)).toBe(500);
+  });
+
+  it("keeps a whole clip inside the episode", () => {
+    expect(clipTarget(100, 95)).toBe(100 - CLIP_SECONDS);
+    expect(clipTarget(1000, 0, 0.99)).toBe(1000 - CLIP_SECONDS);
+  });
+
+  it("never returns a negative target for a very short episode", () => {
+    expect(clipTarget(10, 5)).toBe(0);
+  });
+
+  it("uses startAt when no fraction is given", () => {
+    expect(clipTarget(1000, 120)).toBe(120);
   });
 });
 
