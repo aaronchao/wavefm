@@ -47,8 +47,8 @@ export function TrendingShelf({
   const isLoading = usingLenses ? lensQ.isLoading : singleQ.isLoading;
   const isSuccess = usingLenses ? lensQ.isSuccess : singleQ.isSuccess;
   const shows = usingLenses
-    ? lensQ.data?.map((m) => m.show).slice(0, 12) ?? []
-    : (singleQ.data?.shows ?? []).slice(0, 12);
+    ? lensQ.data?.map((m) => m.show).slice(0, 20) ?? []
+    : (singleQ.data?.shows ?? []).slice(0, 20);
   if (isSuccess && shows.length === 0) return null;
 
   return (

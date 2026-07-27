@@ -2,7 +2,7 @@ import { searchShows } from "./client";
 import type { CatalogShow } from "./types";
 
 const MAX_TERMS = 4;
-const PER_TERM = 4;
+const PER_TERM = 8;
 
 /**
  * Search the catalog by each of the user's own interest terms and merge the
