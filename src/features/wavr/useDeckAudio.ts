@@ -219,6 +219,16 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
   const playable = Boolean(card?.audioUrl);
   const active = unlocked && !paused && !failed && playable;
 
+  // Stable across re-renders unless the card itself changes — an inline
+  // arrow here would give useClipWindow's effect a new dependency identity
+  // on every render, tearing down and restarting the load/seek/play cycle
+  // in a loop before it ever gets a chance to actually keep playing.
+  const cardId = card?.id;
+  const resolveStart = useCallback(
+    (duration: number) => wavrClipStart(duration, seedFromId(cardId ?? "")),
+    [cardId],
+  );
+
   const { progress, fromStart } = useClipWindow(
     activeRef,
     active && card?.audioUrl
@@ -226,7 +236,7 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
           audioUrl: card.audioUrl,
           startAt: 0,
           startFraction: null,
-          resolveStart: (duration) => wavrClipStart(duration, seedFromId(card.id)),
+          resolveStart,
           clipLenSec: WAVR_CLIP_SEC,
           playbackRate: WAVR_PLAYBACK_RATE,
           token: replayToken,
