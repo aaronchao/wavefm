@@ -266,6 +266,20 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
 
     const measure = () => {
       everPlayedRef.current = true;
+      // park() never touches the "cur" role (the clip window owns it), so
+      // primedRef never learns what's actually loaded there. Left alone, the
+      // moment this slot rolls over to "prev" park() finds no record of it,
+      // decides it needs (re)loading, and reloads + re-warms audio that's
+      // already correctly loaded and playing — wasted bandwidth the
+      // genuinely-new "next" slot needed, and an aborted play() on the way
+      // out. Recording it only once playback has actually started (not the
+      // instant this slot becomes current) is what keeps this from also
+      // telling useClipWindow a brand-new slot is preloaded when it isn't.
+      if (primedRef.current[curSlot] !== card?.audioUrl) {
+        const url = card?.audioUrl ?? null;
+        primedRef.current = primedRef.current.map((u, i) => (i === curSlot ? url : u));
+        setPrimedUrls(primedRef.current);
+      }
       if (swapStartedAt.current === null) return;
       setLastSwapMs(Math.round(performance.now() - swapStartedAt.current));
       swapStartedAt.current = null;
