@@ -554,6 +554,47 @@ test("/wavr: overview sits in the bottom row as '?', settings stay labeled", asy
   await expect(page.getByText("Wave background")).toBeVisible();
 });
 
+test("/wavr: the card exposes a draggable progress slider", async ({ page }) => {
+  await stub(page);
+  await page.route("**/api/wavr/feed**", (r) =>
+    r.fulfill({
+      json: {
+        cards: [
+          {
+            id: "slider1:ep1",
+            episodeId: "ep1",
+            showId: "slider1",
+            title: "Slider test card",
+            showTitle: "Show 0",
+            audioUrl: "https://cdn/ep1.mp3",
+            matchedTags: ["psychology"],
+            why: "Because you follow psychology",
+            score: 0.9,
+          },
+        ],
+        cursor: null,
+        degraded: false,
+      },
+    }),
+  );
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "wavr.prefs.v1",
+      JSON.stringify({ interests: ["psychology"], rating_sources: { douban: true, xiaoyuzhou: true } }),
+    );
+  });
+  await page.goto("/wavr");
+  await expect(page.getByRole("heading", { name: "Slider test card" })).toBeVisible();
+
+  // it's a real slider, not a static bar — actual seeking against a live
+  // audio URL is verified manually (fake test URLs never establish a seek
+  // origin, so a fake-audio e2e assertion here would test nothing real).
+  const slider = page.getByRole("slider", { name: "Seek within the clip" });
+  await expect(slider).toBeVisible();
+  await expect(slider).toHaveAttribute("aria-valuemin", "0");
+  await expect(slider).toHaveAttribute("aria-valuemax", "100");
+});
+
 test("/wavr: tapping a tag jumps to the next card that matches it", async ({ page }) => {
   await stub(page);
   const cards = [

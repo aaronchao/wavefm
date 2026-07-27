@@ -112,9 +112,12 @@ export function WaveField({
         ref={bloomRef}
         width={160}
         height={90}
-        className="absolute inset-0 h-full w-full opacity-50 blur-[28px]"
+        className="absolute inset-0 h-full w-full opacity-60 blur-[28px]"
       />
-      <canvas ref={bandRef} className="absolute inset-x-0 bottom-0 h-[72px] w-full" />
+      {/* Anchored to the top half (was a 72px sliver pinned to the bottom) —
+          now the card above it is Liquid Glass (translucent + backdrop-blur),
+          so this reads through instead of being fully hidden underneath it. */}
+      <canvas ref={bandRef} className="absolute inset-x-0 top-0 h-1/2 w-full" />
     </div>
   );
 }
@@ -127,7 +130,7 @@ function renderBand(
   overview: boolean,
 ): void {
   ctx.clearRect(0, 0, w, h);
-  const alpha = overview ? 0.3 : 0.18;
+  const alpha = overview ? 0.5 : 0.36;
   ctx.fillStyle = `rgba(255,59,48,${alpha})`;
   const n = bins.length;
   const barW = w / (n * 2);
@@ -151,9 +154,11 @@ function renderBloom(
   let sum = 0;
   for (const b of bins) sum += b;
   const energy = bins.length > 0 ? sum / bins.length : 0;
-  const alpha = (overview ? 0.35 : 0.2) * (0.3 + energy * 0.7);
-  const r = Math.max(w, h) * 0.7;
-  const grad = ctx.createRadialGradient(w / 2, h * 0.7, 0, w / 2, h * 0.7, r);
+  const alpha = (overview ? 0.55 : 0.4) * (0.3 + energy * 0.7);
+  const r = Math.max(w, h) * 0.8;
+  // Biased toward the top — the card leaves a real gap there now (not
+  // inset-0) specifically so this glow has somewhere unobstructed to land.
+  const grad = ctx.createRadialGradient(w / 2, h * 0.18, 0, w / 2, h * 0.18, r);
   grad.addColorStop(0, `rgba(255,59,48,${alpha})`);
   grad.addColorStop(1, "rgba(255,59,48,0)");
   ctx.fillStyle = grad;

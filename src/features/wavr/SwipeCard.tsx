@@ -111,7 +111,11 @@ export const SwipeCard = forwardRef<
   return (
     <motion.div
       ref={elRef}
-      className="absolute inset-0"
+      // A small top gap (not inset-0) — the card's own opaque cover photo
+      // would otherwise sit flush with the container's top edge and hide
+      // the WaveField entirely; this leaves a real, unobstructed strip for
+      // its glow to actually read as "above the card" rather than blocked.
+      className="absolute inset-x-0 bottom-0 top-10"
       style={
         reduce
           ? { opacity: staticOpacity }
@@ -134,7 +138,12 @@ export const SwipeCard = forwardRef<
           </motion.span>
         </>
       )}
-      <CardFace card={card} progress={audio.progress} playState={audio.playState} />
+      <CardFace
+        card={card}
+        progress={audio.progress}
+        playState={audio.playState}
+        onSeek={audio.unlocked ? audio.seekTo : undefined}
+      />
     </motion.div>
   );
 });

@@ -23,7 +23,11 @@ export function PeekCard({
   const opacity = useTransform(away, [0, 1], depth === 1 ? [0.75, 1] : [0.45, 0.75]);
 
   return (
-    <motion.div className="absolute inset-0" style={{ scale, y, opacity }} aria-hidden="true">
+    <motion.div
+      className="absolute inset-x-0 bottom-0 top-10"
+      style={{ scale, y, opacity }}
+      aria-hidden="true"
+    >
       <CardFace card={card} progress={0} playState="paused" variant="compact" />
     </motion.div>
   );
