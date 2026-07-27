@@ -1,7 +1,7 @@
 "use client";
 
 import { useMotionValue, type MotionValue } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { WavrCard } from "@/src/core/wavr";
 import type { Decision } from "@/src/core/wavr/deckReducer";
 import { setHapticsEnabled } from "@/src/ui";
@@ -44,7 +44,16 @@ export function WavrDeck({
   /** Fired whenever the decided set changes, so a fresh page can exclude it. */
   onDecidedChange?: (decided: { card: WavrCard; decision: Decision }[]) => void;
 }) {
-  const deck = useSwipeDeck(cards);
+  // Tag-boost: a tap fetches genuinely NEW recommendations for that tag
+  // (not just a reorder of what's already in hand), appended the same way
+  // a fresh page is — deduped by id, folded into the one queue below.
+  const [boostCards, setBoostCards] = useState<WavrCard[]>([]);
+  const allCards = useMemo(() => {
+    const seen = new Set(cards.map((c) => c.id));
+    return [...cards, ...boostCards.filter((c) => !seen.has(c.id))];
+  }, [cards, boostCards]);
+
+  const deck = useSwipeDeck(allCards);
   const audio = useDeckAudio(deck.state.queue, deck.state.index);
   const localPrefs = useWavrLocalPrefs();
   const fallbackX = useMotionValue(0);
@@ -53,6 +62,7 @@ export function WavrDeck({
   const overview = deck.state.mode === "overview";
   const cardRef = useRef<SwipeCardHandle | null>(null);
   const [focusedTag, setFocusedTag] = useState<string | null>(null);
+  const jumpedForTagRef = useRef<string | null>(null);
 
   useEffect(() => {
     onAudio?.(audio);
@@ -87,18 +97,53 @@ export function WavrDeck({
   }
 
   // Tapping a tag is a real filter, not just a display pill: jump the deck
-  // forward to the next upcoming card that matches it. Tapping the same
-  // tag again clears the focus without moving anywhere.
+  // forward to the next upcoming card that matches it, AND fetch genuinely
+  // new recommendations for that tag in the background so the deck actually
+  // grows richer for it, not just reordered. Tapping the same tag again
+  // clears the focus without moving anywhere.
+  function tryJumpToTag(tag: string) {
+    if (jumpedForTagRef.current === tag) return;
+    const { queue, index } = deck.state;
+    const match = queue.findIndex((c, i) => i > index && c.matchedTags.includes(tag));
+    if (match !== -1) {
+      jumpedForTagRef.current = tag;
+      deck.jump(match);
+    }
+  }
+
   function handleTagClick(tag: string) {
     if (focusedTag === tag) {
       setFocusedTag(null);
       return;
     }
-    const { queue, index } = deck.state;
-    const match = queue.findIndex((c, i) => i > index && c.matchedTags.includes(tag));
     setFocusedTag(tag);
-    if (match !== -1) deck.jump(match);
+    jumpedForTagRef.current = null;
+    tryJumpToTag(tag);
+    void fetchTagBoost(tag);
   }
+
+  async function fetchTagBoost(tag: string) {
+    try {
+      const res = await fetch(`/api/wavr/feed?${new URLSearchParams({ tags: tag, limit: "8" })}`);
+      if (!res.ok) return;
+      const body = (await res.json()) as { cards?: unknown } | null;
+      const fresh = Array.isArray(body?.cards) ? (body.cards as WavrCard[]) : [];
+      if (fresh.length === 0) return;
+      setBoostCards((prev) => {
+        const seen = new Set(prev.map((c) => c.id));
+        return [...prev, ...fresh.filter((c) => !seen.has(c.id))];
+      });
+    } catch {
+      // best-effort — a failed boost just means no extra cards this time
+    }
+  }
+
+  // The boost fetch resolves asynchronously; once its cards land in the
+  // queue, retry the jump for whichever tag is still focused.
+  useEffect(() => {
+    if (focusedTag) tryJumpToTag(focusedTag);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-check when the queue actually grows
+  }, [deck.state.queue.length]);
 
   function handleTap() {
     if (audio.unlocked) audio.togglePlay();
@@ -130,24 +175,11 @@ export function WavrDeck({
 
   return (
     <div className="relative">
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <LensBar
-          tags={tags}
-          remaining={Math.max(0, deck.state.queue.length - deck.state.index)}
-          activeTag={focusedTag}
-          onTagClick={handleTagClick}
-        />
-        <div className="relative flex shrink-0 items-center gap-1.5">
-          <button
-            type="button"
-            aria-label="Overview: see the whole deck"
-            onClick={() => deck.openOverview()}
-            className="flex items-center gap-1 rounded-pill border border-surface-border bg-background px-2.5 py-1 text-xs text-zinc-500 hover:text-foreground"
-          >
-            <span aria-hidden>⌸</span> Overview
-          </button>
-          <DeckSettingsMenu localPrefs={localPrefs} />
-        </div>
+      {/* Just the settings affordance up top — the tags and the overview
+          trigger both moved to the bottom controls, within thumb reach on
+          mobile (§ user request: nothing worth reaching for lives at the top). */}
+      <div className="mb-2 flex items-center justify-end">
+        <DeckSettingsMenu localPrefs={localPrefs} />
       </div>
       {/* Persistent 3-slot audio ring — must never remount (§5.2). */}
       {audio.slots.map((slot) => (
@@ -192,9 +224,16 @@ export function WavrDeck({
       </div>
 
       {card && (
-        <div className="mt-5">
+        <div className="mt-5 flex flex-col gap-3">
+          <LensBar
+            tags={tags}
+            remaining={Math.max(0, deck.state.queue.length - deck.state.index)}
+            activeTag={focusedTag}
+            onTagClick={handleTagClick}
+          />
           <DeckControls
             onSkip={() => handleDecide("skip", -1)}
+            onOverview={() => deck.openOverview()}
             onSave={() => handleDecide("save", 1)}
             disabled={disabled}
           />

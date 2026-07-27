@@ -528,7 +528,7 @@ test("/wavr: a quick drag decides, a long-press opens the overview to scrub", as
   await expect(page.getByRole("heading", { name: "Scrub card 3" })).toBeVisible();
 });
 
-test("/wavr: overview and settings are labeled, not bare icons", async ({ page }) => {
+test("/wavr: overview sits in the bottom row as '?', settings stay labeled", async ({ page }) => {
   await stub(page);
   await page.route("**/api/wavr/feed**", (r) =>
     r.fulfill({ json: { cards: WAVR_CARDS, cursor: null, degraded: false } }),
@@ -541,10 +541,12 @@ test("/wavr: overview and settings are labeled, not bare icons", async ({ page }
   });
   await page.goto("/wavr");
 
-  // the overview trigger reads as text, not a bare glyph
-  await expect(page.getByRole("button", { name: "Overview: see the whole deck" })).toHaveText(
-    /Overview/,
-  );
+  // "?" reads plainly, and a real accessible label still backs it for a11y —
+  // it sits in the bottom row between skip (x) and save (+), thumb-reachable.
+  const overviewBtn = page.getByRole("button", { name: "Overview: see the whole deck" });
+  await expect(overviewBtn).toHaveText("?");
+  await expect(page.getByRole("button", { name: "Skip this episode" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save to library" })).toBeVisible();
 
   // haptics/wave-background live behind one labeled settings menu
   await page.getByRole("button", { name: "Deck settings" }).click();
@@ -591,6 +593,71 @@ test("/wavr: tapping a tag jumps to the next card that matches it", async ({ pag
   // tapping the SAME tag again just clears the focus — no further jump
   await page.getByRole("button", { name: "storytelling" }).click();
   await expect(page.getByRole("heading", { name: "Tag card 2" })).toBeVisible();
+});
+
+test("/wavr: tapping a tag with no existing match fetches and jumps to fresh cards", async ({
+  page,
+}) => {
+  await stub(page);
+  await page.route("**/api/wavr/feed**", (r) => {
+    const url = new URL(r.request().url());
+    const tags = url.searchParams.get("tags") ?? "";
+    if (tags === "comedy") {
+      // the boost fetch triggered by tapping a tag with no queued match
+      r.fulfill({
+        json: {
+          cards: [
+            {
+              id: "fresh:ep1",
+              episodeId: "ep1",
+              showId: "fresh",
+              title: "Freshly fetched comedy card",
+              showTitle: "Comedy Hour",
+              matchedTags: ["comedy"],
+              why: "Because you follow comedy",
+              score: 0.5,
+            },
+          ],
+          cursor: null,
+          degraded: false,
+        },
+      });
+      return;
+    }
+    r.fulfill({
+      json: {
+        cards: [
+          {
+            id: "start:ep0",
+            episodeId: "ep0",
+            showId: "start",
+            title: "Starting card",
+            showTitle: "Show 0",
+            matchedTags: ["psychology"],
+            why: "Because you follow psychology",
+            score: 0.9,
+          },
+        ],
+        cursor: null,
+        degraded: false,
+      },
+    });
+  });
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "wavr.prefs.v1",
+      JSON.stringify({
+        interests: ["psychology", "comedy"],
+        rating_sources: { douban: true, xiaoyuzhou: true },
+      }),
+    );
+  });
+  await page.goto("/wavr");
+  await expect(page.getByRole("heading", { name: "Starting card" })).toBeVisible();
+
+  // no "comedy" card is in the queue yet — tapping it should fetch one and land on it
+  await page.getByRole("button", { name: "comedy" }).click();
+  await expect(page.getByRole("heading", { name: "Freshly fetched comedy card" })).toBeVisible();
 });
 
 test("library offers OPML import and export", async ({ page }) => {
