@@ -20,6 +20,9 @@ import { useInterestEpisodes } from "./useInterestEpisodes";
  * header shortcut instead. The full Wavr experience lives at /wavr; this is
  * the quick, in-Discovery version — same idea, no dedicated route.
  */
+/** How long the post-decision ✕ / + flash stays on screen (ms). */
+const FLASH_MS = 420;
+
 export function SurpriseDeck({
   terms,
   onClose,
@@ -33,6 +36,7 @@ export function SurpriseDeck({
 
   const [index, setIndex] = useState(0);
   const [kept, setKept] = useState(0);
+  const [flash, setFlash] = useState<{ type: "keep" | "skip"; token: number } | null>(null);
   const current = episodes[index];
   const next = episodes[index + 1];
   const loading = isLoading && episodes.length === 0;
@@ -40,6 +44,7 @@ export function SurpriseDeck({
   function decide(dir: "keep" | "skip") {
     const ep = episodes[index];
     if (!ep) return;
+    setFlash({ type: dir, token: Date.now() });
     if (dir === "keep") {
       void saveEpisode({
         id: ep.id,
@@ -59,6 +64,12 @@ export function SurpriseDeck({
     setIndex((i) => i + 1);
   }
 
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), FLASH_MS);
+    return () => clearTimeout(t);
+  }, [flash]);
+
   function close() {
     player.dismiss(); // stop the auto-playing snippet as the deck leaves
     onClose();
@@ -67,14 +78,21 @@ export function SurpriseDeck({
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background/80 p-4 backdrop-blur">
       <div className="mb-4 flex w-full max-w-sm items-center justify-between">
-        <span className="font-brand text-sm uppercase tracking-[0.18em] text-accent">Wavr Mini</span>
+        <span className="font-brand flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-accent">
+          Wavr Mini
+          {kept > 0 && (
+            <span className="rounded-pill bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent">
+              ♥ {kept}
+            </span>
+          )}
+        </span>
         <button
           type="button"
           onClick={close}
-          className="rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
-          aria-label="Close"
+          aria-label="Close Wavr Mini"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:text-foreground"
         >
-          ✕ Done{kept > 0 ? ` · ${kept} saved` : ""}
+          ✕
         </button>
       </div>
 
@@ -103,7 +121,49 @@ export function SurpriseDeck({
             </button>
           </div>
         )}
+
+        {flash && (
+          <motion.div
+            key={flash.token}
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
+          >
+            <span
+              className={`flex h-20 w-20 items-center justify-center rounded-full text-4xl font-bold shadow-lg ${
+                flash.type === "keep"
+                  ? "bg-accent text-white"
+                  : "bg-zinc-400/90 text-white dark:bg-zinc-600/90"
+              }`}
+            >
+              {flash.type === "keep" ? "+" : "✕"}
+            </span>
+          </motion.div>
+        )}
       </div>
+
+      {current && (
+        <div className="mt-5 flex items-center justify-center gap-6">
+          <button
+            type="button"
+            onClick={() => decide("skip")}
+            aria-label="Skip"
+            className="flex h-14 w-14 items-center justify-center rounded-full border border-surface-border bg-background text-2xl text-zinc-500 shadow-sm active:scale-95"
+          >
+            ✕
+          </button>
+          <button
+            type="button"
+            onClick={() => decide("keep")}
+            aria-label="Save to Library"
+            className="flex h-14 w-14 items-center justify-center rounded-full border border-accent bg-accent text-2xl text-white shadow-sm active:scale-95"
+          >
+            +
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -167,9 +227,6 @@ function SwipeCard({
       ) : (
         <p className="mt-3 text-sm text-zinc-500">▶ Playing a preview — swipe if it clicks.</p>
       )}
-      <p className="mt-auto pt-3 text-center font-brand text-[10px] uppercase tracking-[0.18em] text-zinc-400">
-        Swipe → keep · ← skip
-      </p>
     </motion.div>
   );
 }
