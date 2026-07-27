@@ -1,26 +1,35 @@
 import { NextResponse } from "next/server";
 import { buildDeck, interestProfile, parseDiscussion, type WavrCandidate } from "@/src/core/wavr";
 import type { EdgeEvidence } from "@/src/core/mining/types";
+import { dcardDiscussion } from "@/src/data/buzz/dcard";
+import { doubanGroupDiscussion, lihkgDiscussion, pttDiscussion } from "@/src/data/buzz/forums";
+import { redditDiscussion } from "@/src/data/buzz/reddit";
+import { v2exDiscussion } from "@/src/data/buzz/v2ex";
+import { itunesSearch } from "@/src/data/catalog/server";
 import type { CatalogShow, DiscussedChartsResponse, EpisodesRankedResponse } from "@/src/data/catalog/types";
 import { getSupabase } from "@/src/data/supabase/client";
 import type { WavrFeedResponse } from "@/src/data/wavr/types";
 
 /**
- * Proxy: the Wavr deck. Source ladder per docs/wavr-route-design.md §8.3 —
+ * Proxy: the Wavr deck. Source ladder per docs/wavr-route-design.md §8.3,
+ * widened after the initial build turned out too narrow in practice —
  * `rec_edges.evidence` (the offline community-mining pipeline's precomputed,
- * already-real quotes) FIRST, widened with `/api/catalog/charts/discussed`
- * (live evidence, best-effort — Reddit/Douban probes are unreliable from
- * Vercel's IPs, so this rung is often thin in production), then
- * `/api/catalog/episodes-ranked` per matched show for a playable episode.
- * Each rung is best-effort; the whole ladder failing yields `degraded: true`,
- * never a thrown error.
+ * already-real quotes) FIRST, then a live, TAG-DRIVEN search: candidate shows
+ * come from an iTunes search on the user's own declared interests (not a
+ * fixed pool), each checked for real discussion evidence. Only after both of
+ * those does it fall back to the generic `/api/catalog/charts/discussed`
+ * board for breadth. `/api/catalog/episodes-ranked` resolves a playable
+ * episode per matched show. Each rung is best-effort; the whole ladder
+ * failing yields `degraded: true`, never a thrown error.
  *
  * `tags` is the ONLY signal that crosses into the request — the user's own
  * engagement history never leaves the browser (§8.1's CF guard), so the
  * profile built here is declared-interest-only. The client is free to send
  * its already-engagement-weighted top tags; the server just treats them as
  * a flat set, which keeps this route ignorant of any individual user's
- * behaviour.
+ * behaviour. The tag-driven search rung uses those same tags as catalog
+ * search terms — still nobody else's data, just the user's own declared
+ * interests reaching further than the precomputed pool.
  */
 
 const MAX_SHOWS_PER_PAGE = 10;
@@ -54,6 +63,7 @@ export async function GET(request: Request) {
 
   const byId = new Map<string, Pooled>();
   for (const p of await fromRecEdges()) if (!byId.has(p.show.id)) byId.set(p.show.id, p);
+  for (const p of await fromInterestSearch(tags)) if (!byId.has(p.show.id)) byId.set(p.show.id, p);
   for (const p of await fromDiscussedCharts(url.origin)) if (!byId.has(p.show.id)) byId.set(p.show.id, p);
 
   const pool = [...byId.values()];
@@ -114,7 +124,69 @@ async function fromRecEdges(): Promise<Pooled[]> {
   }
 }
 
-/** Rung 2: live discussion evidence — best-effort, often thin from Vercel's IPs. */
+/** How many of the user's own tags become search terms (bounded for latency/cost). */
+const MAX_SEARCH_TAGS = 4;
+/** How many candidate shows per tag get a discussion check. */
+const MAX_CANDIDATES_PER_TAG = 6;
+
+/**
+ * Rung 2: search the general podcast catalog with the user's OWN declared
+ * interests as terms, then check each candidate for real discussion evidence
+ * — the same per-show discussion functions the discussed-chart route uses,
+ * just aimed at shows relevant to this user instead of a fixed topic pool.
+ * This is what actually gives an unusual or non-English interest a chance:
+ * the precomputed rec_edges pool and the generic discussed board are both
+ * fixed-size snapshots that skew toward whatever got mined/searched before.
+ */
+async function fromInterestSearch(tags: string[]): Promise<Pooled[]> {
+  if (tags.length === 0) return [];
+  const terms = tags.slice(0, MAX_SEARCH_TAGS);
+
+  const resultLists = await Promise.all(
+    terms.flatMap((term) => [safeSearch(term, "cn"), safeSearch(term, "us")]),
+  );
+  const showById = new Map<string, CatalogShow>();
+  for (const list of resultLists) {
+    for (const s of list.slice(0, MAX_CANDIDATES_PER_TAG)) {
+      if (!showById.has(s.id)) showById.set(s.id, s);
+    }
+  }
+  const candidates = [...showById.values()];
+  if (candidates.length === 0) return [];
+
+  const withEvidence = await Promise.all(
+    candidates.map(async (show) => {
+      const [reddit, douban, dcard, ptt, lihkg, v2ex] = await Promise.all([
+        redditDiscussion(show.title),
+        doubanGroupDiscussion(show.title),
+        dcardDiscussion(show.title),
+        pttDiscussion(show.title),
+        lihkgDiscussion(show.title),
+        v2exDiscussion(show.title),
+      ]);
+      const evidence = [
+        ...(reddit?.evidence ?? []),
+        ...(douban?.evidence ?? []),
+        ...(dcard?.evidence ?? []),
+        ...(ptt?.evidence ?? []),
+        ...(lihkg?.evidence ?? []),
+        ...(v2ex?.evidence ?? []),
+      ].slice(0, MAX_EVIDENCE_PER_SHOW);
+      return evidence.length > 0 ? { show, evidence } : null;
+    }),
+  );
+  return withEvidence.filter((p): p is Pooled => p !== null);
+}
+
+async function safeSearch(term: string, country: string): Promise<CatalogShow[]> {
+  try {
+    return (await itunesSearch(term, country)) ?? [];
+  } catch {
+    return []; // best-effort — a bad search term or network hiccup just skips it
+  }
+}
+
+/** Rung 3: live discussion evidence — best-effort, often thin from Vercel's IPs. */
 async function fromDiscussedCharts(origin: string): Promise<Pooled[]> {
   const discussed = await fetchJson<DiscussedChartsResponse>(
     new URL("/api/catalog/charts/discussed?limit=24", origin),
