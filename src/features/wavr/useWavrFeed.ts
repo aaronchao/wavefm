@@ -5,7 +5,10 @@ import { useMemo, useRef } from "react";
 import type { WavrCard } from "@/src/core/wavr";
 import type { WavrFeedResponse } from "@/src/data/wavr/types";
 
-const PAGE_SIZE = 12;
+// A thin cold-start deck reads as broken before the user has even swiped —
+// give new users a bigger first pool to work with (pagination still tops
+// up further pages as they get close to the end).
+const PAGE_SIZE = 20;
 
 async function fetchFeed(
   tags: string[],

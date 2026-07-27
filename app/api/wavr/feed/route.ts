@@ -46,7 +46,7 @@ import type { WavrFeedResponse } from "@/src/data/wavr/types";
  * reaching further than the precomputed pool.
  */
 
-const MAX_SHOWS_PER_PAGE = 10;
+const MAX_SHOWS_PER_PAGE = 18;
 const MAX_EVIDENCE_PER_SHOW = 3;
 const REC_EDGES_LIMIT = 300;
 
@@ -69,7 +69,7 @@ export async function GET(request: Request) {
     .map((t) => t.trim())
     .filter(Boolean);
   const limitParam = Number(url.searchParams.get("limit"));
-  const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 24) : 12;
+  const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 30) : 12;
   const exclude = new Set(
     (url.searchParams.get("exclude") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   );
@@ -147,7 +147,7 @@ async function fromRecEdges(): Promise<Pooled[]> {
 /** How many of the user's own tags become search terms (bounded for latency/cost). */
 const MAX_SEARCH_TAGS = 4;
 /** How many candidate shows per tag get a discussion check. */
-const MAX_CANDIDATES_PER_TAG = 6;
+const MAX_CANDIDATES_PER_TAG = 10;
 
 /**
  * Rung 2: search the general podcast catalog with the user's OWN declared
@@ -211,7 +211,7 @@ async function safeSearch(term: string, country: string): Promise<CatalogShow[]>
  *  evidence-backed cards lead the deck whenever they exist. */
 const DIRECT_MATCH_SCORE = 0.05;
 /** How many episodes per tag term the direct-search fallback pulls. */
-const DIRECT_PER_TERM = 6;
+const DIRECT_PER_TERM = 10;
 
 /**
  * Top-up rung: a plain episode search on the user's own tags, no discussion
