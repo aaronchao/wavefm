@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { clipTarget } from "@/src/core/preview";
 import type { WavrCard } from "@/src/core/wavr";
 import { planRing, RING_SIZE, type RingSlot } from "@/src/core/wavr/ring";
@@ -64,6 +64,14 @@ export type DeckAudio = {
   /** Attach to the three <audio> elements WavrDeck renders. */
   register: (slot: RingSlot) => (el: HTMLAudioElement | null) => void;
   slots: RingSlot[];
+  /** Which slot is currently playing — WaveField reads this to pick a source. */
+  curSlot: RingSlot;
+  /**
+   * The raw elements, read-only, for the WaveField's Web Audio tap (M-W5).
+   * Playback volume/crossfade stays exactly as implemented above; the
+   * analyser graph is an additive side-channel on the same elements.
+   */
+  elementsRef: RefObject<(HTMLAudioElement | null)[]>;
 };
 
 const SESSION_KEY = "wavr.audio.unlocked";
@@ -304,5 +312,7 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
     lastSwapMs,
     register,
     slots: Array.from({ length: RING_SIZE }, (_, i) => i as RingSlot),
+    curSlot,
+    elementsRef: els,
   };
 }

@@ -17,6 +17,7 @@ export {
   type CandidateMatch,
 } from "./match";
 export { buildDeck, type DeckOptions } from "./deck";
+export { parseDiscussion } from "./parse";
 export {
   commitDistance,
   decideSwipe,
@@ -25,3 +26,12 @@ export {
   type SwipeOutcome,
 } from "./swipe";
 export { scrubTarget, SCRUB_STEP, type ScrubInput } from "./scrub";
+export {
+  deckReducer,
+  initialDeckState,
+  type Decision,
+  type DeckAction,
+  type DeckMode,
+  type DeckState,
+  type Undoable,
+} from "./deckReducer";

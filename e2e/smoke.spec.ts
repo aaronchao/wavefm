@@ -371,10 +371,63 @@ test("the Wavr tab opens the route and marks itself current", async ({ page }) =
   await page.goto("/");
   await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: /Wavr/ }).click();
   await expect(page).toHaveURL(/\/wavr$/);
-  await expect(page.getByRole("heading", { name: "One swipe at a time" })).toBeVisible();
+  // No interests saved yet -> the cold-start state, with the inline picker
+  await expect(page.getByText("Wavr needs three things you’re into.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What are you into?" })).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: /Wavr/ }),
   ).toHaveAttribute("aria-current", "page");
+});
+
+const WAVR_CARDS = [
+  {
+    id: "s1:e1",
+    episodeId: "e1",
+    showId: "s1",
+    title: "The one about attachment styles",
+    showTitle: "Psychology In Seattle",
+    quote: { source: "r/podcasts", text: "made me pull over and cry" },
+    matchedTags: ["psychology"],
+    why: "Matches your interest in psychology — r/podcasts listeners keep bringing it up",
+    score: 0.9,
+  },
+  {
+    id: "s2:e1",
+    episodeId: "e1",
+    showId: "s2",
+    title: "Grief, explained",
+    showTitle: "Where Should We Begin",
+    quote: { source: "V2EX", text: "worth every minute" },
+    matchedTags: ["grief"],
+    why: "Because you follow grief",
+    score: 0.8,
+  },
+];
+
+test("/wavr renders a real deck: save shows Undo, skip advances, deck exhausts honestly", async ({
+  page,
+}) => {
+  await stub(page);
+  await page.route("**/api/wavr/feed**", (r) =>
+    r.fulfill({ json: { cards: WAVR_CARDS, cursor: null, degraded: false } }),
+  );
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "wavr.prefs.v1",
+      JSON.stringify({ interests: ["psychology"], rating_sources: { douban: true, xiaoyuzhou: true } }),
+    );
+  });
+  await page.goto("/wavr");
+
+  await expect(page.getByRole("heading", { name: "The one about attachment styles" })).toBeVisible();
+  await page.getByRole("button", { name: "Save to library" }).click();
+  await expect(page.getByText("Saved · Undo")).toBeVisible();
+  // The live region is the unambiguous proof of advancement (peek cards
+  // render the next title too, just not as the current, controllable card).
+  await expect(page.locator('[aria-live="polite"]')).toHaveText(/Card 2 of 2\. Grief, explained/);
+
+  await page.getByRole("button", { name: "Skip this episode" }).click();
+  await expect(page.getByText(/That.s the deck\. 1 saved\./)).toBeVisible();
 });
 
 test("library offers OPML import and export", async ({ page }) => {
