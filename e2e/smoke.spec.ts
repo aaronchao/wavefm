@@ -239,24 +239,15 @@ test("Wavr Mini plays a For-You episode and lets you keep it", async ({ page }) 
 
   await page.goto("/");
   await page.getByRole("button", { name: "Wavr Mini" }).first().click();
-  await expect(page.getByText("Swipe → keep · ← skip")).toBeVisible();
   // the card is a real For-You episode — and it's auto-playing, so its title
   // also shows in the Play bar (two matches confirms the Play-Bar routing)
-  await expect(
-    page.getByRole("heading", { name: "The one everyone argues about" }),
-  ).toBeVisible();
+  const heading = page.getByRole("heading", { name: "The one everyone argues about" });
+  await expect(heading).toBeVisible();
 
-  // swipe the top card right (drag gesture) to keep it
-  const card = page.getByText("Swipe → keep · ← skip").locator("..");
-  const box = await card.boundingBox();
-  if (box) {
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 260, box.y + box.height / 2, { steps: 12 });
-    await page.mouse.up();
-  }
-  // keep it -> the "Done · 1 saved" counter reflects the save
-  await expect(page.getByText(/1 saved/)).toBeVisible();
+  // the bottom row is a minimal X (skip) / + (save) pair, not gesture-only
+  await page.getByRole("button", { name: "Save to Library" }).click();
+  // keep it -> the header's "♥ 1" badge reflects the save
+  await expect(page.getByText("♥ 1")).toBeVisible();
 });
 
 test("selecting a For-You tag surfaces episodes for it, not shows", async ({ page }) => {
@@ -484,6 +475,81 @@ test("/wavr renders a real deck: save shows Undo, skip advances, deck exhausts h
 
   await page.getByRole("button", { name: "Skip this episode" }).click();
   await expect(page.getByText(/That.s the deck\. 1 saved\./)).toBeVisible();
+});
+
+test("/wavr: a quick drag decides, a long-press opens the overview to scrub", async ({ page }) => {
+  await stub(page);
+  const cards = Array.from({ length: 6 }, (_, i) => ({
+    id: `sh${i}:ep${i}`,
+    episodeId: `ep${i}`,
+    showId: `sh${i}`,
+    title: `Scrub card ${i}`,
+    showTitle: `Show ${i}`,
+    matchedTags: ["psychology"],
+    why: "Because you follow psychology",
+    score: 0.9 - i * 0.02,
+  }));
+  await page.route("**/api/wavr/feed**", (r) =>
+    r.fulfill({ json: { cards, cursor: null, degraded: false } }),
+  );
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "wavr.prefs.v1",
+      JSON.stringify({ interests: ["psychology"], rating_sources: { douban: true, xiaoyuzhou: true } }),
+    );
+  });
+  await page.goto("/wavr");
+  await expect(page.getByRole("heading", { name: "Scrub card 0" })).toBeVisible();
+
+  const deck = page.getByRole("group", { name: "Recommended episodes" });
+  const box = (await deck.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+
+  // A quick drag decides the card — the overview must never open for this.
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx - 200, cy, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.getByRole("listbox")).not.toBeVisible();
+  await expect(page.locator('[aria-live="polite"]')).toHaveText(/Card 2 of 6\. Scrub card 1/);
+
+  // A hold with no meaningful movement opens the overview instead of dragging.
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.waitForTimeout(450);
+  await expect(page.getByRole("listbox")).toBeVisible();
+
+  // Scrubbing right while still held moves the selection, then releasing
+  // jumps to the scrubbed card and closes the overview (zooms back in).
+  await page.mouse.move(cx + 130, cy, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.getByRole("listbox")).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "Scrub card 3" })).toBeVisible();
+});
+
+test("/wavr: overview and settings are labeled, not bare icons", async ({ page }) => {
+  await stub(page);
+  await page.route("**/api/wavr/feed**", (r) =>
+    r.fulfill({ json: { cards: WAVR_CARDS, cursor: null, degraded: false } }),
+  );
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "wavr.prefs.v1",
+      JSON.stringify({ interests: ["psychology"], rating_sources: { douban: true, xiaoyuzhou: true } }),
+    );
+  });
+  await page.goto("/wavr");
+
+  // the overview trigger reads as text, not a bare glyph
+  await expect(page.getByRole("button", { name: "Overview: see the whole deck" })).toHaveText(
+    /Overview/,
+  );
+
+  // haptics/wave-background live behind one labeled settings menu
+  await page.getByRole("button", { name: "Deck settings" }).click();
+  await expect(page.getByText("Haptics")).toBeVisible();
+  await expect(page.getByText("Wave background")).toBeVisible();
 });
 
 test("library offers OPML import and export", async ({ page }) => {

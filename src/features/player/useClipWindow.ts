@@ -32,6 +32,16 @@ export type ClipSource = {
    * deck's hot-parking, §5.2). Skips the load + seek and plays immediately.
    */
   preloaded?: boolean;
+  /** Clip length in content-seconds; defaults to the 30s standard preview. */
+  clipLenSec?: number;
+  /** HTMLMediaElement.playbackRate to play the clip at; defaults to 1. */
+  playbackRate?: number;
+  /**
+   * Overrides the startAt/startFraction resolution entirely once the real
+   * duration is known — for clip specs that aren't a simple fraction (Wavr's
+   * "skip the intro, then a random window" isn't expressible as one).
+   */
+  resolveStart?: (durationSec: number) => number;
 };
 
 export type ClipWindow = {
@@ -43,7 +53,9 @@ export type ClipWindow = {
 
 export type ClipHandlers = {
   onFinish: () => void;
-  onError: () => void;
+  /** Forwards the rejection/event so a caller can tell an autoplay-policy
+   *  block (DOMException "NotAllowedError") apart from a real failure. */
+  onError: (err?: unknown) => void;
 };
 
 /** Pass `source: null` to stop and release the element. */
@@ -60,6 +72,9 @@ export function useClipWindow(
   const startFraction = source?.startFraction ?? null;
   const token = source?.token ?? 0;
   const preloaded = source?.preloaded ?? false;
+  const clipLenSec = source?.clipLenSec ?? CLIP_SECONDS;
+  const playbackRate = source?.playbackRate ?? 1;
+  const resolveStart = source?.resolveStart;
   const { onFinish, onError } = handlers;
 
   useEffect(() => {
@@ -94,7 +109,10 @@ export function useClipWindow(
 
     const onLoaded = () => {
       if (cancelled) return;
-      target = clipTarget(audio.duration, startAt, startFraction);
+      target = resolveStart
+        ? resolveStart(audio.duration)
+        : clipTarget(audio.duration, startAt, startFraction, clipLenSec);
+      audio.playbackRate = playbackRate;
       // a hot-parked element is already sitting at the target; re-seeking it
       // would throw away the Range round-trip we paid for during prefetch
       seekRequested = !preloaded && target > 0.5;
@@ -108,8 +126,8 @@ export function useClipWindow(
       }
       // the seek is now classified — onTime may anchor from here on
       decided = true;
-      audio.play().catch(() => {
-        if (!cancelled) onError();
+      audio.play().catch((err) => {
+        if (!cancelled) onError(err);
       });
       // safety net: if 'seeked' never fires (some non-seekable streams),
       // anchor to wherever we are after a moment
@@ -131,8 +149,8 @@ export function useClipWindow(
         else return;
       }
       const elapsed = audio.currentTime - origin!;
-      setProgress(Math.min(Math.max(elapsed / CLIP_SECONDS, 0), 1));
-      if (elapsed >= CLIP_SECONDS) {
+      setProgress(Math.min(Math.max(elapsed / clipLenSec, 0), 1));
+      if (elapsed >= clipLenSec) {
         audio.pause();
         onFinish();
       }
@@ -167,7 +185,19 @@ export function useClipWindow(
       audio.pause();
     };
     // token bumps on every play request, even for the same URL
-  }, [audioRef, token, audioUrl, startAt, startFraction, preloaded, onFinish, onError]);
+  }, [
+    audioRef,
+    token,
+    audioUrl,
+    startAt,
+    startFraction,
+    preloaded,
+    clipLenSec,
+    playbackRate,
+    resolveStart,
+    onFinish,
+    onError,
+  ]);
 
   return { progress, fromStart };
 }

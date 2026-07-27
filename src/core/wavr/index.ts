@@ -27,6 +27,13 @@ export {
 } from "./swipe";
 export { scrubTarget, SCRUB_STEP, type ScrubInput } from "./scrub";
 export {
+  seedFromId,
+  wavrClipStart,
+  WAVR_CLIP_SEC,
+  WAVR_INTRO_SKIP_SEC,
+  WAVR_PLAYBACK_RATE,
+} from "./clip";
+export {
   deckReducer,
   initialDeckState,
   type Decision,

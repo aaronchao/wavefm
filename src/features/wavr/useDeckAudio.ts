@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { clipTarget } from "@/src/core/preview";
 import type { WavrCard } from "@/src/core/wavr";
 import { planRing, RING_SIZE, type RingSlot } from "@/src/core/wavr/ring";
+import { seedFromId, wavrClipStart, WAVR_CLIP_SEC, WAVR_PLAYBACK_RATE } from "@/src/core/wavr";
 import { useClipWindow } from "@/src/features/player/useClipWindow";
 
 /**
@@ -26,8 +26,6 @@ const CROSSFADE_MS = 120;
 const FADE_STEPS = 8;
 /** Grace period before the outgoing element is paused. */
 const FADE_SETTLE_MS = 140;
-/** Clips start in the central fifth; see core/preview.middleFraction. */
-const CLIP_FRACTION = 0.4;
 
 export type PlayState =
   | "locked"
@@ -105,6 +103,9 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
   const [failedAt, setFailedAt] = useState<number | null>(null);
   /** Bumps to re-arm the window for a replay of the SAME clip. */
   const [replayToken, setReplayToken] = useState(0);
+  /** True once a clip has genuinely played — after that, a play() rejection
+   *  is a real failure, not an autoplay-policy block. */
+  const everPlayedRef = useRef(false);
 
   const plan = useMemo(() => planRing(cards.length, index), [cards.length, index]);
   const curSlot = plan.find((p) => p.role === "cur")!.slot;
@@ -144,7 +145,7 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
 
     const onMeta = () => {
       el.removeEventListener("loadedmetadata", onMeta);
-      const at = clipTarget(el.duration, 0, CLIP_FRACTION);
+      const at = wavrClipStart(el.duration, seedFromId(target?.id ?? ""));
       try {
         el.currentTime = at;
       } catch {
@@ -197,7 +198,23 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
   }, []);
 
   const onFinish = useCallback(() => setPausedAt(index), [index]);
-  const onError = useCallback(() => setFailedAt(index), [index]);
+  /**
+   * A play() rejection before anything has ever actually played is almost
+   * always the browser's autoplay policy, not a broken stream — revert to
+   * "locked" (a quiet tap-to-listen, not "preview unavailable") so the next
+   * card attempts autoplay again rather than giving up on the episode.
+   */
+  const onError = useCallback(
+    (err?: unknown) => {
+      const blocked = err instanceof DOMException && err.name === "NotAllowedError";
+      if (blocked && !everPlayedRef.current) {
+        setUnlocked(false);
+        return;
+      }
+      setFailedAt(index);
+    },
+    [index],
+  );
 
   const playable = Boolean(card?.audioUrl);
   const active = unlocked && !paused && !failed && playable;
@@ -208,7 +225,10 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
       ? {
           audioUrl: card.audioUrl,
           startAt: 0,
-          startFraction: CLIP_FRACTION,
+          startFraction: null,
+          resolveStart: (duration) => wavrClipStart(duration, seedFromId(card.id)),
+          clipLenSec: WAVR_CLIP_SEC,
+          playbackRate: WAVR_PLAYBACK_RATE,
           token: replayToken,
           // hot-parked already: skip the reload and the re-seek
           preloaded: primedUrls[curSlot] === card.audioUrl,
@@ -235,6 +255,7 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
     }, FADE_SETTLE_MS);
 
     const measure = () => {
+      everPlayedRef.current = true;
       if (swapStartedAt.current === null) return;
       setLastSwapMs(Math.round(performance.now() - swapStartedAt.current));
       swapStartedAt.current = null;
@@ -273,6 +294,22 @@ export function useDeckAudio(cards: WavrCard[], index: number): DeckAudio {
     setPausedAt((at) => (at === index ? null : index));
     setReplayToken((t) => t + 1);
   }, [unlocked, unlock, index]);
+
+  /**
+   * Try to play without waiting for a tap — reaching /wavr is itself
+   * usually downstream of a real click (the tab, a link), which most
+   * browsers treat as enough "sticky activation" to allow it. Exactly one
+   * attempt per card: if the browser still says no, onError reverts
+   * `unlocked` and CardFace's "Tap to listen" takes over rather than
+   * retrying in a loop.
+   */
+  const autoTriedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (unlocked || !playable) return;
+    if (autoTriedRef.current === index) return;
+    autoTriedRef.current = index;
+    unlock();
+  }, [unlocked, playable, index, unlock]);
 
   const replay = useCallback(() => {
     setPausedAt(null);

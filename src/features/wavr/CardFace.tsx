@@ -1,4 +1,5 @@
 import type { WavrCard } from "@/src/core/wavr";
+import { WAVR_CLIP_SEC } from "@/src/core/wavr";
 import { CoverTile } from "@/src/ui";
 import { QuoteBlock } from "./QuoteBlock";
 import type { PlayState } from "./useDeckAudio";
@@ -37,7 +38,7 @@ export function CardFace({
               />
             </div>
             <span className="font-brand text-[10px] text-white/90">
-              {formatClip(progress)} / 0:30
+              {formatClip(progress * WAVR_CLIP_SEC)} / {formatClip(WAVR_CLIP_SEC)}
             </span>
           </div>
         )}
@@ -88,7 +89,10 @@ export function CardFace({
   );
 }
 
-function formatClip(progress: number): string {
-  const sec = Math.round(Math.max(0, Math.min(1, progress)) * 30);
-  return `0:${String(sec).padStart(2, "0")}`;
+/** m:ss for a clip-relative seconds value. */
+function formatClip(totalSec: number): string {
+  const sec = Math.max(0, Math.round(totalSec));
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }

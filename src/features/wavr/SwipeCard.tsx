@@ -8,37 +8,44 @@ import {
   useTransform,
   type MotionValue,
 } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { commitDistance, decideSwipe, SWIPE, type WavrCard } from "@/src/core/wavr";
 import { haptic, springs } from "@/src/ui";
 import { CardFace } from "./CardFace";
 import type { DeckAudio } from "./useDeckAudio";
 
+/** Imperative surface the parent's unified gesture handler drives directly —
+ *  there is no framer `drag` on this component (see useCardGesture for why:
+ *  a competing gesture recognizer on the same pointer events is what broke
+ *  long-press-to-overview). */
+export type SwipeCardHandle = {
+  /** Apply a live horizontal offset during a committed drag. */
+  applyDrag(dx: number): void;
+  /** Decide the release: commits save/skip, or springs back to center. */
+  releaseDrag(vx: number): "save" | "skip" | "return";
+  width(): number;
+};
+
 /**
- * The only component that touches drag (§3.1, §6.2).
+ * The only component that renders the card's live drag transforms (§3.1, §6.2).
  *
  * Decisions are dispatched up (`onDecide`) but the exit animation is driven
  * by the `flying` PROP, not by the local drag handler — that way a
  * DeckControls click or a keyboard shortcut gets the identical exit as a
  * drag commit, since all three paths go through the same reducer action.
  */
-export function SwipeCard({
-  card,
-  flying,
-  onDecide,
-  onFlownOut,
-  onDragX,
-  audio,
-}: {
-  card: WavrCard;
-  flying: { id: string; dir: -1 | 1 } | null;
-  onDecide: (decision: "save" | "skip", dir: -1 | 1) => void;
-  onFlownOut: () => void;
-  onDragX?: (x: MotionValue<number>) => void;
-  audio: DeckAudio;
-}) {
+export const SwipeCard = forwardRef<
+  SwipeCardHandle,
+  {
+    card: WavrCard;
+    flying: { id: string; dir: -1 | 1 } | null;
+    onFlownOut: () => void;
+    onDragX?: (x: MotionValue<number>) => void;
+    audio: DeckAudio;
+  }
+>(function SwipeCard({ card, flying, onFlownOut, onDragX, audio }, ref) {
   const reduce = useReducedMotion();
-  const ref = useRef<HTMLDivElement>(null);
+  const elRef = useRef<HTMLDivElement>(null);
   /** Once-per-direction tick; resets on release and on re-entering the dead zone. */
   const crossed = useRef<-1 | 0 | 1>(0);
 
@@ -58,8 +65,33 @@ export function SwipeCard({
   }, [onDragX, x]);
 
   function width(): number {
-    return ref.current?.offsetWidth ?? 360;
+    return elRef.current?.offsetWidth ?? 360;
   }
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      width,
+      applyDrag(dx: number) {
+        x.set(dx);
+        const dist = commitDistance(width());
+        const dir: -1 | 0 | 1 = dx > dist ? 1 : dx < -dist ? -1 : 0;
+        if (dir !== crossed.current) {
+          if (dir !== 0) haptic("tick");
+          crossed.current = dir;
+        }
+      },
+      releaseDrag(vx: number) {
+        crossed.current = 0;
+        const outcome = decideSwipe({ dx: x.get(), vx, width: width() });
+        if (outcome === "return") {
+          void animate(x, 0, springs.snap);
+        }
+        return outcome;
+      },
+    }),
+    [x],
+  );
 
   // The single exit trigger, regardless of whether `flying` was set by a
   // drag release, a DeckControls click, or a keyboard shortcut.
@@ -76,42 +108,15 @@ export function SwipeCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- x/staticOpacity/onFlownOut are stable per card instance
   }, [flying, card.id, reduce]);
 
-  function handleDrag(_: unknown, info: { offset: { x: number } }) {
-    const dist = commitDistance(width());
-    const dir: -1 | 0 | 1 = info.offset.x > dist ? 1 : info.offset.x < -dist ? -1 : 0;
-    if (dir !== crossed.current) {
-      if (dir !== 0) haptic("tick");
-      crossed.current = dir;
-    }
-  }
-
-  function handleDragEnd(
-    _: unknown,
-    info: { offset: { x: number }; velocity: { x: number } },
-  ) {
-    crossed.current = 0;
-    const outcome = decideSwipe({ dx: info.offset.x, vx: info.velocity.x, width: width() });
-    if (outcome === "return") return; // framer springs back via the bounce transition below
-    onDecide(outcome, outcome === "save" ? 1 : -1);
-  }
-
   return (
     <motion.div
-      ref={ref}
+      ref={elRef}
       className="absolute inset-0"
       style={
         reduce
           ? { opacity: staticOpacity }
-          : { x, rotate, scale: lift, originY: 1.15, opacity: exitOpacity }
+          : { x, rotate, scale: lift, originY: 1.15, opacity: exitOpacity, touchAction: "none" }
       }
-      drag={reduce ? false : "x"}
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.9}
-      dragMomentum={false}
-      dragTransition={{ bounceStiffness: springs.snap.stiffness, bounceDamping: springs.snap.damping }}
-      whileTap={reduce ? undefined : { cursor: "grabbing" }}
-      onDrag={handleDrag}
-      onDragEnd={handleDragEnd}
     >
       {!reduce && (
         <>
@@ -132,4 +137,4 @@ export function SwipeCard({
       <CardFace card={card} progress={audio.progress} playState={audio.playState} />
     </motion.div>
   );
-}
+});

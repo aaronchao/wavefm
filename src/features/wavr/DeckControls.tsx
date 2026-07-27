@@ -1,38 +1,28 @@
 "use client";
 
 import { Pressable } from "@/src/ui";
-import type { PlayState } from "./useDeckAudio";
 
-/** The a11y-canonical controls — tab order reaches them before the card. */
+/**
+ * The a11y-canonical controls — tab order reaches them before the card.
+ * Just skip/save: the episode plays itself the moment it's on top (no tap
+ * needed, §Wavr audio), and tapping the card toggles play/pause, so a third
+ * button here would only ever duplicate one of those two paths.
+ */
 export function DeckControls({
   onSkip,
   onSave,
-  onTogglePlay,
-  playState,
   disabled,
 }: {
   onSkip: () => void;
   onSave: () => void;
-  onTogglePlay: () => void;
-  playState: PlayState;
   disabled: boolean;
 }) {
-  const playGlyph = playState === "playing" ? "❚❚" : playState === "unavailable" ? "♪" : "▶";
   return (
-    <div className="flex items-center justify-center gap-5">
+    <div className="flex items-center justify-center gap-8">
       <ControlButton size={56} label="Skip this episode" onClick={onSkip} disabled={disabled}>
         ✕
       </ControlButton>
-      <ControlButton
-        size={64}
-        label="Play preview"
-        onClick={onTogglePlay}
-        accent
-        disabled={disabled && playState !== "locked"}
-      >
-        {playGlyph}
-      </ControlButton>
-      <ControlButton size={56} label="Save to library" onClick={onSave} disabled={disabled}>
+      <ControlButton size={56} label="Save to library" onClick={onSave} disabled={disabled} accent>
         ♥
       </ControlButton>
     </div>
