@@ -9,6 +9,7 @@ import {
   setRatingSources,
 } from "@/src/data/repos/prefsRepo";
 import { getSupabase } from "@/src/data/supabase/client";
+import { wavrLocalPrefs, useWavrLocalPrefs } from "@/src/features/wavr/localPrefs";
 import { useSession } from "@/src/state/useSession";
 import { Chip } from "@/src/ui";
 
@@ -26,6 +27,7 @@ export default function SettingsPage() {
 
       <InterestsSection />
       <RatingSourcesSection />
+      <WavrSection />
 
       <section className="rounded-card border border-surface-border p-4">
         <h2 className="mb-3 font-semibold">Account &amp; sync</h2>
@@ -151,6 +153,41 @@ function RatingSourcesSection() {
           </Chip>
         ))}
       </div>
+    </section>
+  );
+}
+
+function WavrSection() {
+  const prefs = useWavrLocalPrefs();
+  const androidHaptics =
+    typeof navigator !== "undefined" && "vibrate" in navigator;
+
+  return (
+    <section className="rounded-card border border-surface-border p-4">
+      <h2 className="mb-1 font-semibold">Wavr</h2>
+      <p className="mb-3 text-sm text-zinc-500">
+        Device-only feel settings for the swipe deck.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Chip
+          active={prefs.haptics}
+          onClick={() => wavrLocalPrefs.set({ haptics: !prefs.haptics })}
+        >
+          Haptics {prefs.haptics ? "on" : "off"}
+        </Chip>
+        <Chip
+          active={prefs.waveField}
+          onClick={() => wavrLocalPrefs.set({ waveField: !prefs.waveField })}
+        >
+          Wave background {prefs.waveField ? "on" : "off"}
+        </Chip>
+      </div>
+      {!androidHaptics && (
+        <p className="mt-2 text-xs text-zinc-500">
+          Haptics — Android web only; other platforms rely on the deck&apos;s
+          motion for tactile feedback instead.
+        </p>
+      )}
     </section>
   );
 }

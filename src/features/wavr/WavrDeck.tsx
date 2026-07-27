@@ -4,12 +4,16 @@ import { useMotionValue, type MotionValue } from "framer-motion";
 import { useEffect, useState } from "react";
 import type { WavrCard } from "@/src/core/wavr";
 import type { Decision } from "@/src/core/wavr/deckReducer";
+import { setHapticsEnabled } from "@/src/ui";
 import { DeckControls } from "./DeckControls";
 import { DeckEmpty } from "./DeckEmpty";
+import { DeckOverview } from "./DeckOverview";
 import { LensBar } from "./LensBar";
+import { useWavrLocalPrefs } from "./localPrefs";
 import { PeekCard } from "./PeekCard";
 import { SwipeCard } from "./SwipeCard";
 import { useDeckAudio, type DeckAudio } from "./useDeckAudio";
+import { useLongPressScrub } from "./useLongPressScrub";
 import { useSwipeDeck } from "./useSwipeDeck";
 import { WaveField } from "./WaveField";
 
@@ -41,14 +45,27 @@ export function WavrDeck({
 }) {
   const deck = useSwipeDeck(cards);
   const audio = useDeckAudio(deck.state.queue, deck.state.index);
+  const longPress = useLongPressScrub(deck);
+  const localPrefs = useWavrLocalPrefs();
   const fallbackX = useMotionValue(0);
   const [liveX, setLiveX] = useState<MotionValue<number> | null>(null);
   const topX = liveX ?? fallbackX;
+  const overview = deck.state.mode === "overview";
 
   useEffect(() => {
     onAudio?.(audio);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- report on every audio identity change only
   }, [audio]);
+
+  useEffect(() => {
+    setHapticsEnabled(localPrefs.haptics);
+  }, [localPrefs.haptics]);
+
+  // Audio ducks rather than pauses during the overview — you're choosing
+  // what to hear next, silence mid-decision is worse than a quieter one (§6.7).
+  useEffect(() => {
+    audio.setDuck(overview ? 0.25 : 1);
+  }, [overview, audio]);
 
   useEffect(() => {
     if (deck.state.queue.length > 0 && deck.state.index >= deck.state.queue.length - 4) {
@@ -77,6 +94,7 @@ export function WavrDeck({
       if (audio.unlocked) audio.togglePlay();
       else audio.unlock();
     } else if (e.key === "Backspace") deck.undo();
+    else if (e.key === "o" || e.key === "O") deck.openOverview();
   }
 
   const card = deck.card;
@@ -89,7 +107,17 @@ export function WavrDeck({
 
   return (
     <div className="relative">
-      <LensBar tags={tags} remaining={Math.max(0, deck.state.queue.length - deck.state.index)} />
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <LensBar tags={tags} remaining={Math.max(0, deck.state.queue.length - deck.state.index)} />
+        <button
+          type="button"
+          aria-label="Overview: see the whole deck"
+          onClick={() => deck.openOverview()}
+          className="shrink-0 rounded-pill border border-surface-border bg-background px-2 py-1 text-sm text-zinc-500 hover:text-foreground"
+        >
+          ⌸
+        </button>
+      </div>
       {/* Persistent 3-slot audio ring — must never remount (§5.2). */}
       {audio.slots.map((slot) => (
         <audio key={slot} ref={audio.register(slot)} preload="none" />
@@ -101,9 +129,22 @@ export function WavrDeck({
         aria-label="Recommended episodes"
         tabIndex={0}
         onKeyDown={handleKeyDown}
+        onPointerDown={longPress.onPointerDown}
+        onPointerMove={longPress.onPointerMove}
+        onPointerUp={longPress.onPointerUp}
+        onPointerCancel={longPress.onPointerUp}
         className="relative h-[28rem] w-full outline-none focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <WaveField audio={audio} cardId={card?.id} />
+        <WaveField audio={audio} cardId={card?.id} overview={overview} enabled={localPrefs.waveField} />
+        {overview && (
+          <DeckOverview
+            queue={deck.state.queue}
+            scrubIndex={deck.state.scrubIndex ?? deck.state.index}
+            onScrub={deck.scrub}
+            onJump={deck.jump}
+            onClose={deck.closeOverview}
+          />
+        )}
         {deck.peek[1] && <PeekCard key={deck.peek[1].id} card={deck.peek[1]} depth={2} topX={topX} />}
         {deck.peek[0] && <PeekCard key={deck.peek[0].id} card={deck.peek[0]} depth={1} topX={topX} />}
         {card && (
