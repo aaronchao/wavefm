@@ -26,21 +26,9 @@ export function DeckEmpty({ variant }: { variant: DeckEmptyVariant }) {
     return (
       <Empty title={`That’s the deck. ${variant.savedCount} saved.`}>
         <div className="flex flex-wrap justify-center gap-2">
-          <Link
-            href="/library"
-            className="rounded-pill bg-accent px-4 py-2 text-sm font-semibold text-white"
-          >
-            View Library
-          </Link>
-          <Link href="/" className="rounded-pill bg-surface px-4 py-2 text-sm font-semibold">
-            Back to Discover
-          </Link>
-          <Link
-            href="/"
-            className="rounded-pill bg-surface px-4 py-2 text-sm font-semibold"
-          >
-            Tune interests
-          </Link>
+          <PrimaryLink href="/library">View Library</PrimaryLink>
+          <SecondaryLink href="/">Back to Discover</SecondaryLink>
+          <SecondaryLink href="/">Tune interests</SecondaryLink>
         </div>
       </Empty>
     );
@@ -54,15 +42,8 @@ export function DeckEmpty({ variant }: { variant: DeckEmptyVariant }) {
           more discussion gets mined.
         </p>
         <div className="flex flex-wrap justify-center gap-2">
-          <Link
-            href="/"
-            className="rounded-pill bg-accent px-4 py-2 text-sm font-semibold text-white"
-          >
-            Tune interests
-          </Link>
-          <Link href="/" className="rounded-pill bg-surface px-4 py-2 text-sm font-semibold">
-            Back to Discover
-          </Link>
+          <PrimaryLink href="/">Tune interests</PrimaryLink>
+          <SecondaryLink href="/">Back to Discover</SecondaryLink>
         </div>
       </Empty>
     );
@@ -73,25 +54,36 @@ export function DeckEmpty({ variant }: { variant: DeckEmptyVariant }) {
         <p className="max-w-xs text-sm text-zinc-500">
           Wavr couldn’t reach the discussion sources. Discover still works.
         </p>
-        <Link
-          href="/"
-          className="mt-2 rounded-pill bg-accent px-5 py-2.5 text-sm font-semibold text-white"
-        >
-          Go to Discover
-        </Link>
+        <PrimaryLink href="/">Go to Discover</PrimaryLink>
       </Empty>
     );
   }
   return (
     <Empty title="Wavr couldn’t reach the discussion sources.">
       <p className="max-w-xs text-sm text-zinc-500">Discover still works.</p>
-      <Link
-        href="/"
-        className="mt-2 rounded-pill bg-accent px-5 py-2.5 text-sm font-semibold text-white"
-      >
-        Go to Discover
-      </Link>
+      <PrimaryLink href="/">Go to Discover</PrimaryLink>
     </Empty>
+  );
+}
+
+/** Nothing-brand primary CTA — the one Signal-Red, sharp-edged action. */
+function PrimaryLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="font-brand mt-1 rounded-[2px] bg-accent px-4 py-2 text-xs uppercase tracking-[0.14em] text-white"
+    >
+      {children}
+    </Link>
+  );
+}
+
+/** Nothing-brand secondary — monochrome outline chip. */
+function SecondaryLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className="nothing-toggle mt-1 px-4 py-2 text-[11px]">
+      {children}
+    </Link>
   );
 }
 

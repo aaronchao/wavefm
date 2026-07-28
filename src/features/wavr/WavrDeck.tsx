@@ -8,9 +8,7 @@ import { setHapticsEnabled } from "@/src/ui";
 import { DeckControls } from "./DeckControls";
 import { DeckEmpty } from "./DeckEmpty";
 import { DeckOverview } from "./DeckOverview";
-import { DeckSettingsMenu } from "./DeckSettingsMenu";
 import { LensBar } from "./LensBar";
-import { useWavrLocalPrefs } from "./localPrefs";
 import { PeekCard } from "./PeekCard";
 import { SwipeCard, type SwipeCardHandle } from "./SwipeCard";
 import { useCardGesture } from "./useCardGesture";
@@ -33,6 +31,8 @@ export function WavrDeck({
   onAudio,
   onNearEnd,
   onDecidedChange,
+  onAddTag,
+  onRemoveTag,
 }: {
   cards: WavrCard[];
   tags: string[];
@@ -43,6 +43,9 @@ export function WavrDeck({
   onNearEnd?: () => void;
   /** Fired whenever the decided set changes, so a fresh page can exclude it. */
   onDecidedChange?: (decided: { card: WavrCard; decision: Decision }[]) => void;
+  /** Add/remove an interest tag — writes the shared prefs store (syncs everywhere). */
+  onAddTag?: (tag: string) => void;
+  onRemoveTag?: (tag: string) => void;
 }) {
   // Tag-boost: a tap fetches genuinely NEW recommendations for that tag
   // (not just a reorder of what's already in hand), appended the same way
@@ -58,7 +61,6 @@ export function WavrDeck({
   // Auto-advance when a clip finishes (§ user request #5) — a neutral move to
   // the next card, not a save or a skip. `deck.advance` is a stable callback.
   const audio = useDeckAudio(audioElRef, deck.card, { onEnded: deck.advance });
-  const localPrefs = useWavrLocalPrefs();
   const fallbackX = useMotionValue(0);
   const [liveX, setLiveX] = useState<MotionValue<number> | null>(null);
   const topX = liveX ?? fallbackX;
@@ -72,9 +74,11 @@ export function WavrDeck({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- report on every audio identity change only
   }, [audio]);
 
+  // Haptics and the waveform are always on now (the settings menu is gone —
+  // the card gets that space instead).
   useEffect(() => {
-    setHapticsEnabled(localPrefs.haptics);
-  }, [localPrefs.haptics]);
+    setHapticsEnabled(true);
+  }, []);
 
   // Audio ducks rather than pauses during the overview — you're choosing
   // what to hear next, silence mid-decision is worse than a quieter one (§6.7).
@@ -179,20 +183,14 @@ export function WavrDeck({
 
   return (
     <div className="relative">
-      {/* Just the settings affordance up top — the tags and the overview
-          trigger both moved to the bottom controls, within thumb reach on
-          mobile (§ user request: nothing worth reaching for lives at the top). */}
-      <div className="mb-2 flex items-center justify-end">
-        <DeckSettingsMenu localPrefs={localPrefs} />
-      </div>
       {/* The single <audio> element — one clip plays at a time. Kept OUTSIDE
           the card so advancing (which remounts the card) never remounts the
           element and reloads the stream. */}
       <audio ref={audioElRef} preload="none" />
 
-      {/* The waveform, as its own visible band ABOVE the card (was a hidden
-          -z-10 background before) — animates while playing, flat when not. */}
-      {localPrefs.waveField && <WaveField playState={audio.playState} progress={audio.progress} />}
+      {/* The waveform, as its own visible band ABOVE the card — animates
+          while playing, flat when not. Always on. */}
+      <WaveField playState={audio.playState} progress={audio.progress} />
 
       <div
         role="group"
@@ -204,7 +202,7 @@ export function WavrDeck({
         onPointerMove={gesture.onPointerMove}
         onPointerUp={gesture.onPointerUp}
         onPointerCancel={gesture.onPointerUp}
-        className="relative h-[26rem] w-full touch-none outline-none focus-visible:outline-2 focus-visible:outline-accent"
+        className="relative h-[28rem] w-full touch-none outline-none focus-visible:outline-2 focus-visible:outline-accent"
       >
         {overview && (
           <DeckOverview
@@ -239,6 +237,8 @@ export function WavrDeck({
             remaining={Math.max(0, deck.state.queue.length - deck.state.index)}
             activeTag={focusedTag}
             onTagClick={handleTagClick}
+            onAddTag={onAddTag}
+            onRemoveTag={onRemoveTag}
           />
           <DeckControls
             onSkip={() => handleDecide("skip", -1)}
@@ -254,7 +254,7 @@ export function WavrDeck({
           <button
             type="button"
             onClick={deck.undo}
-            className="rounded-pill bg-foreground px-4 py-2 text-sm font-semibold text-background shadow-lg active:scale-95"
+            className="font-brand rounded-[2px] bg-foreground px-4 py-2 text-xs uppercase tracking-[0.14em] text-background shadow-lg active:scale-95"
           >
             {deck.state.undoable.decision === "save" ? "Saved" : "Skipped"} · Undo
           </button>

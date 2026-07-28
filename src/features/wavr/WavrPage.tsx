@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { WavrCard } from "@/src/core/wavr";
 import type { Decision } from "@/src/core/wavr/deckReducer";
-import { getPrefs } from "@/src/data/repos/prefsRepo";
+import { getPrefs, setInterests } from "@/src/data/repos/prefsRepo";
 import { player } from "@/src/state/player";
 import { useSession } from "@/src/state/useSession";
 import { DeckEmpty } from "./DeckEmpty";
@@ -44,7 +44,30 @@ export function WavrPage() {
   }, []);
 
   const prefsQ = useQuery({ queryKey: ["prefs", scope], queryFn: getPrefs });
-  const interests = prefsQ.data?.interests ?? [];
+  // Stable identity so the add/remove callbacks (and useWavrFeed's key) don't
+  // churn every render when the query data is momentarily undefined.
+  const interests = useMemo(() => prefsQ.data?.interests ?? [], [prefsQ.data]);
+
+  // Editing tags here writes to the SAME prefs.interests store the Discovery
+  // tab reads (and invalidates the same query key), so a tag added or removed
+  // on either tab shows on both — and syncs across devices when signed in
+  // (prefsRepo upserts to Supabase; localStorage only when signed out).
+  const addInterest = useCallback(
+    async (raw: string) => {
+      const t = raw.trim();
+      if (!t || interests.includes(t)) return;
+      await setInterests([...interests, t]);
+      await queryClient.invalidateQueries({ queryKey: ["prefs"] });
+    },
+    [interests, queryClient],
+  );
+  const removeInterest = useCallback(
+    async (t: string) => {
+      await setInterests(interests.filter((i) => i !== t));
+      await queryClient.invalidateQueries({ queryKey: ["prefs"] });
+    },
+    [interests, queryClient],
+  );
 
   const feed = useWavrFeed(interests);
   const noMorePages = !feed.hasNextPage && !feed.isFetchingNextPage;
@@ -139,6 +162,8 @@ export function WavrPage() {
         noMorePages={noMorePages}
         onNearEnd={onNearEnd}
         onDecidedChange={onDecidedChange}
+        onAddTag={addInterest}
+        onRemoveTag={removeInterest}
       />
     </Shell>
   );
