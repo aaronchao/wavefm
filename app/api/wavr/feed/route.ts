@@ -268,6 +268,7 @@ async function fromInterestEpisodeSearch(
         audioUrl: ep.audioUrl,
         durationSec: ep.durationSec,
         appleUrl: ep.appleUrl,
+        publishedAt: ep.publishedAt,
         matchedTags: [term],
         why: `Because you follow ${term}`,
         score: DIRECT_MATCH_SCORE,

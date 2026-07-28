@@ -59,6 +59,8 @@ export type WavrCard = {
   audioUrl?: string;
   durationSec?: number;
   appleUrl?: string;
+  /** ISO date the episode was published — real catalog metadata, shown on the card. */
+  publishedAt?: string;
   /**
    * The community quote that earned this card its slot. Omitted for cards
    * sourced by a plain search on the user's own tags when no real discussion

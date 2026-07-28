@@ -54,6 +54,7 @@ export function buildDeck(
       audioUrl: c.audioUrl,
       durationSec: c.durationSec,
       appleUrl: c.appleUrl,
+      publishedAt: c.publishedAt,
       quote: match.quote,
       matchedTags: match.matchedTags,
       why: buildWhy(match.matchedTags, match.quote),
