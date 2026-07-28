@@ -86,7 +86,17 @@ the repo. Use `claude.ai/code` in the phone browser instead.
 
 ## 5. ✅ ALWAYS do BEFORE finishing work
 
-Run the **full verification suite** (the same gates CI runs) — all must pass:
+> **Terminal vs chat:** everything in this section is **shell commands** — run them
+> in a terminal, or in Claude Code just say *"run the full verification and push"*
+> and Claude runs them for you (or prefix a line with `!` to run it directly). They
+> do **not** work in the regular Claude phone chat app.
+
+Run the **full verification suite** (the same gates CI runs) — all must pass.
+Copy-paste one-liner (`&&` stops at the first failure, ends on `git status`):
+```bash
+npx tsc --noEmit && npm run lint && npm run test && npm run e2e && npm run build && git status
+```
+What each gate is:
 ```bash
 npx tsc --noEmit        # 1. TypeScript strict, no errors
 npm run lint            # 2. eslint clean
@@ -94,7 +104,15 @@ npm run test            # 3. unit tests (vitest) — /src/core changes MUST have
 npm run e2e             # 4. Playwright end-to-end
 npm run build           # 5. production build succeeds
 ```
-Then:
+Then (commit/push is kept separate — messages need real thought, and work goes in
+logical chunks, not one blob):
+```bash
+git add <files>                                   # stage one logical group
+git commit -m "type(scope): what changed and why"  # end with the Co-Authored-By trailer
+git push origin main                              # Vercel auto-deploys
+git status                                        # confirm clean tree, nothing unpushed
+```
+And:
 6. `git status` — review everything staged; **double-check no secrets/keys** slipped in.
 7. Commit in **logical chunks** (not one giant commit), with clear messages.
    End commit messages with the `Co-Authored-By:` trailer.
@@ -108,6 +126,10 @@ Then:
 ---
 
 ## 6. Resume prompt (paste into a fresh session on any device)
+
+> This is a **chat message, not a shell command** — paste it into the Claude prompt
+> (the conversation box), not the terminal. Works on any Claude Code surface:
+> terminal CLI, desktop app, or `claude.ai/code` on web/phone browser.
 
 ```
 This is the wavefm/Wavr repo (Next.js podcast-discovery app). Before we continue:
