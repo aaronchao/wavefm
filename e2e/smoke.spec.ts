@@ -642,6 +642,19 @@ test("/wavr: the card exposes a draggable progress slider", async ({ page }) => 
   await expect(slider).toBeVisible();
   await expect(slider).toHaveAttribute("aria-valuemin", "0");
   await expect(slider).toHaveAttribute("aria-valuemax", "100");
+
+  // A long-press on the deck must open the deck's OWN overview, never the
+  // browser's native long-press menus (image "open/copy", text "Search"
+  // callout, context menu). The deck cancels the context menu event.
+  const prevented = await page.evaluate(() => {
+    const deck = document.querySelector('[role="group"][aria-label="Recommended episodes"]');
+    const target = deck?.querySelector("img") ?? deck;
+    if (!target) return false;
+    const evt = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    target.dispatchEvent(evt);
+    return evt.defaultPrevented;
+  });
+  expect(prevented).toBe(true);
 });
 
 test("/wavr: the card's show name links to the show's page", async ({ page }) => {
