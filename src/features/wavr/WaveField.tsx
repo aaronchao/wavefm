@@ -100,14 +100,14 @@ export function WaveField({
   // Reduced motion: a plain static line, no animation.
   if (reduce) {
     return (
-      <div aria-hidden="true" className="flex h-16 items-center">
+      <div aria-hidden="true" className="flex h-9 items-center">
         <div className="h-0.5 w-full rounded-full bg-accent/40" />
       </div>
     );
   }
 
   return (
-    <div aria-hidden="true" className="h-16 w-full">
+    <div aria-hidden="true" className="h-9 w-full">
       <canvas ref={canvasRef} className="h-full w-full" />
     </div>
   );

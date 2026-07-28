@@ -3,11 +3,11 @@
 import { useState } from "react";
 
 /**
- * The Wavr tag bar — Nothing-brand: sharp-edged monochrome chips, dot-matrix
- * type, Signal-Red reserved for the focused lens. These ARE the user's "For
- * You" interests (same store the Discovery tab edits), so add/remove here
- * syncs everywhere. Tapping a chip focuses that lens (jump + fetch more for
- * it); the × removes it; the dashed field on the end adds a new one.
+ * The Wavr tag bar — the user's "For You" interests (same store the Discovery
+ * tab edits, so add/remove syncs everywhere). The add field comes FIRST so
+ * it's always reachable without scrolling to the end, and the chips wrap so
+ * every interest is visible at once. Tapping a chip focuses that lens (jump +
+ * fetch more for it); the × removes it.
  */
 export function LensBar({
   tags,
@@ -25,8 +25,17 @@ export function LensBar({
   onRemoveTag?: (tag: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-1">
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between px-0.5">
+        <span className="font-brand text-[10px] uppercase tracking-[0.14em] text-zinc-400">
+          Your interests
+        </span>
+        <span className="font-brand text-[10px] uppercase tracking-[0.14em] text-zinc-400">
+          {remaining} left
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {onAddTag && <AddTag onAdd={onAddTag} />}
         {tags.map((t) => {
           const focused = activeTag === t;
           return (
@@ -56,16 +65,12 @@ export function LensBar({
             </span>
           );
         })}
-        {onAddTag && <AddTag onAdd={onAddTag} />}
       </div>
-      <span className="font-brand shrink-0 text-[10px] uppercase tracking-[0.14em] text-zinc-400">
-        {remaining} left
-      </span>
     </div>
   );
 }
 
-/** Distinct dashed add-field — separate from the interest chips (§ request). */
+/** The dashed add-field — deliberately first in the row, always reachable. */
 function AddTag({ onAdd }: { onAdd: (tag: string) => void }) {
   const [draft, setDraft] = useState("");
   function commit() {

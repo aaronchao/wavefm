@@ -202,7 +202,14 @@ export function WavrDeck({
         onPointerMove={gesture.onPointerMove}
         onPointerUp={gesture.onPointerUp}
         onPointerCancel={gesture.onPointerUp}
-        className="relative h-[28rem] w-full touch-none outline-none focus-visible:outline-2 focus-visible:outline-accent"
+        // The deck's own long-press (→ overview) must not also trigger the
+        // browser's native long-press menus on mobile: the image "open/copy
+        // image" menu, the text-selection "Search" callout, or the generic
+        // context menu. touch-none already stops scroll/zoom; these stop the
+        // rest — no text selection, no iOS callout, no context menu.
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
+        className="relative h-[27rem] w-full touch-none select-none outline-none focus-visible:outline-2 focus-visible:outline-accent"
       >
         {overview && (
           <DeckOverview
