@@ -156,6 +156,10 @@ export function WavrDeck({
   function handleKeyDown(e: React.KeyboardEvent) {
     const target = e.target as HTMLElement;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    // While the overview is open it owns the keyboard (arrows scrub the flow,
+    // Enter/Escape pick/close) — the deck must NOT also read arrows as a
+    // save/skip on the card underneath.
+    if (overview) return;
     if (e.key === "ArrowLeft") handleDecide("skip", -1);
     else if (e.key === "ArrowRight") handleDecide("save", 1);
     else if (e.key === " ") {
