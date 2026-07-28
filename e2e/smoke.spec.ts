@@ -578,7 +578,7 @@ test("/wavr: a quick drag decides, a long-press opens the overview to scrub", as
   await expect(page.getByRole("heading", { name: "Scrub card 3" })).toBeVisible();
 });
 
-test("/wavr: overview sits in the bottom row as '?', settings stay labeled", async ({ page }) => {
+test("/wavr: bottom controls are skip / '?' overview / save, no settings menu", async ({ page }) => {
   await stub(page);
   await page.route("**/api/wavr/feed**", (r) =>
     r.fulfill({ json: { cards: WAVR_CARDS, cursor: null, degraded: false } }),
@@ -598,10 +598,9 @@ test("/wavr: overview sits in the bottom row as '?', settings stay labeled", asy
   await expect(page.getByRole("button", { name: "Skip this episode" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save to library" })).toBeVisible();
 
-  // haptics/wave-background live behind one labeled settings menu
-  await page.getByRole("button", { name: "Deck settings" }).click();
-  await expect(page.getByText("Haptics")).toBeVisible();
-  await expect(page.getByText("Wave background")).toBeVisible();
+  // The settings menu is gone (haptics + waveform are always on now), giving
+  // the card that space back.
+  await expect(page.getByRole("button", { name: "Deck settings" })).toHaveCount(0);
 });
 
 test("/wavr: the card exposes a draggable progress slider", async ({ page }) => {
@@ -716,12 +715,55 @@ test("/wavr: tapping a tag jumps to the next card that matches it", async ({ pag
   await expect(page.getByRole("heading", { name: "Tag card 0" })).toBeVisible();
 
   // tapping "storytelling" jumps straight to the next card tagged with it
-  await page.getByRole("button", { name: "storytelling" }).click();
+  await page.getByRole("button", { name: "storytelling", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Tag card 2" })).toBeVisible();
 
   // tapping the SAME tag again just clears the focus — no further jump
-  await page.getByRole("button", { name: "storytelling" }).click();
+  await page.getByRole("button", { name: "storytelling", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Tag card 2" })).toBeVisible();
+});
+
+test("/wavr: tags are editable at the bottom (add + remove), backed by prefs", async ({ page }) => {
+  await stub(page);
+  await page.route("**/api/wavr/feed**", (r) =>
+    r.fulfill({
+      json: {
+        cards: [
+          {
+            id: "e0:ep0",
+            episodeId: "ep0",
+            showId: "e0",
+            title: "A card",
+            showTitle: "Show 0",
+            audioUrl: "https://cdn/ep0.mp3",
+            matchedTags: ["psychology"],
+            why: "reason",
+            score: 0.9,
+          },
+        ],
+        cursor: null,
+        degraded: false,
+      },
+    }),
+  );
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "wavr.prefs.v1",
+      JSON.stringify({ interests: ["psychology"], rating_sources: { douban: true, xiaoyuzhou: true } }),
+    );
+  });
+  await page.goto("/wavr");
+  await expect(page.getByRole("heading", { name: "A card" })).toBeVisible();
+
+  // add a new interest from the bottom field — the chip appears (same prefs
+  // store the Discovery tab reads, so it's synced there too)
+  await page.getByRole("textbox", { name: "Add an interest" }).fill("comedy");
+  await page.getByRole("textbox", { name: "Add an interest" }).press("Enter");
+  await expect(page.getByRole("button", { name: "comedy", exact: true })).toBeVisible();
+
+  // remove it via the × on the chip
+  await page.getByRole("button", { name: "Remove comedy" }).click();
+  await expect(page.getByRole("button", { name: "comedy", exact: true })).toHaveCount(0);
 });
 
 test("/wavr: tapping a tag with no existing match fetches and jumps to fresh cards", async ({
@@ -785,7 +827,7 @@ test("/wavr: tapping a tag with no existing match fetches and jumps to fresh car
   await expect(page.getByRole("heading", { name: "Starting card" })).toBeVisible();
 
   // no "comedy" card is in the queue yet — tapping it should fetch one and land on it
-  await page.getByRole("button", { name: "comedy" }).click();
+  await page.getByRole("button", { name: "comedy", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Freshly fetched comedy card" })).toBeVisible();
 });
 
