@@ -645,6 +645,44 @@ test("/wavr: the card exposes a draggable progress slider", async ({ page }) => 
   await expect(slider).toHaveAttribute("aria-valuemax", "100");
 });
 
+test("/wavr: the card's show name links to the show's page", async ({ page }) => {
+  await stub(page);
+  await page.route("**/api/wavr/feed**", (r) =>
+    r.fulfill({
+      json: {
+        cards: [
+          {
+            id: "999:ep1",
+            episodeId: "ep1",
+            showId: "999",
+            title: "An episode",
+            showTitle: "Psychology In Seattle",
+            audioUrl: "https://cdn/ep1.mp3",
+            publishedAt: "2026-07-12T00:00:00Z",
+            matchedTags: ["psychology"],
+            why: "Because you follow psychology",
+            score: 0.9,
+          },
+        ],
+        cursor: null,
+        degraded: false,
+      },
+    }),
+  );
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "wavr.prefs.v1",
+      JSON.stringify({ interests: ["psychology"], rating_sources: { douban: true, xiaoyuzhou: true } }),
+    );
+  });
+  await page.goto("/wavr");
+  await expect(page.getByRole("heading", { name: "An episode" })).toBeVisible();
+
+  // The show name is a real link (a small, clearly-tappable target) to its page.
+  await page.getByRole("link", { name: /Psychology In Seattle/ }).click();
+  await expect(page).toHaveURL(/\/show\/999$/);
+});
+
 test("/wavr: tapping a tag jumps to the next card that matches it", async ({ page }) => {
   await stub(page);
   const cards = [
