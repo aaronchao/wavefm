@@ -49,13 +49,15 @@ export async function GET(request: Request) {
   }));
 
   // two passes: cheap popularity rank first, then Reddit + Listen Notes
-  // (rate-limited) only for the finalists that could make the board
+  // only for the finalists that could make the board. Listen Notes is bounded
+  // further to the top few — its free quota is tiny (see listennotes.ts).
   const shortlist = topPicks({ saved: [], candidates: baseCandidates, limit: Math.min(limit + 6, 40) });
+  const LISTEN_NOTES_CAP = 6;
   const enriched: SimilarItemInput[] = await Promise.all(
-    shortlist.map(async (p) => {
+    shortlist.map(async (p, i) => {
       const [reddit, listen] = await Promise.all([
         redditBuzz(p.item.title),
-        listenNotesBuzz(p.item.title),
+        i < LISTEN_NOTES_CAP ? listenNotesBuzz(p.item.title) : Promise.resolve(null),
       ]);
       return { ...p.item, buzz: mergeBuzz(p.item.buzz, listen, reddit) };
     }),

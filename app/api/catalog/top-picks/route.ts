@@ -102,8 +102,14 @@ export async function GET(request: Request) {
   // counts AND the actual threads for readable evidence — and mark whichever
   // are currently charted so the ranker can penalise them
   const evidenceById = new Map<string, EvidenceItem[]>();
+  // The rate-sensitive providers run ONLY for the top few shows, never the
+  // whole pool: Xiaoyuzhou's account-authenticated app API (per-request calls
+  // on a personal login got an account banned) and Listen Notes' tiny free
+  // quota. Everything else stays best-effort for every show.
+  const RATE_SENSITIVE_CAP = 6;
   const candidates: SimilarItemInput[] = await Promise.all(
-    finalPool.map(async (s) => {
+    finalPool.map(async (s, i) => {
+      const gentle = i < RATE_SENSITIVE_CAP;
       const [xyz, reddit, v2ex, dcard, ptt, lihkg, douban, xiaoyuzhou, listen] =
         await Promise.all([
           xyzrankBuzz(s.title),
@@ -113,8 +119,8 @@ export async function GET(request: Request) {
           pttDiscussion(s.title),
           lihkgDiscussion(s.title),
           doubanGroupDiscussion(s.title),
-          xiaoyuzhouBuzz(s.title),
-          listenNotesBuzz(s.title),
+          gentle ? xiaoyuzhouBuzz(s.title) : Promise.resolve(null),
+          gentle ? listenNotesBuzz(s.title) : Promise.resolve(null),
         ]);
       const evidence = [
         ...(reddit?.evidence ?? []),

@@ -91,8 +91,13 @@ export async function GET(request: Request) {
   }
 
   const evidenceById = new Map<string, EvidenceItem[]>();
+  // Rate-sensitive providers (Xiaoyuzhou's account-authenticated app API,
+  // Listen Notes' tiny free quota) run ONLY for the top few shows per request,
+  // never the whole pool — see top-picks route for the why (a banned account).
+  const RATE_SENSITIVE_CAP = 6;
   const candidates: SimilarItemInput[] = await Promise.all(
-    pool.map(async (s) => {
+    pool.map(async (s, i) => {
+      const gentle = i < RATE_SENSITIVE_CAP;
       const [xyzBuzz, reddit, v2ex, dcard, ptt, lihkg, douban, xiaoyuzhou, listen] =
         await Promise.all([
           xyzrankBuzz(s.title),
@@ -102,8 +107,8 @@ export async function GET(request: Request) {
           pttDiscussion(s.title),
           lihkgDiscussion(s.title),
           doubanGroupDiscussion(s.title),
-          xiaoyuzhouBuzz(s.title),
-          listenNotesBuzz(s.title),
+          gentle ? xiaoyuzhouBuzz(s.title) : Promise.resolve(null),
+          gentle ? listenNotesBuzz(s.title) : Promise.resolve(null),
         ]);
       const evidence = [
         ...(reddit?.evidence ?? []),

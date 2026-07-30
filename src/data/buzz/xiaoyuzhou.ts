@@ -8,9 +8,17 @@ import { titlesMatch } from "./match";
  *   XIAOYUZHOU_ACCESS_TOKEN / XIAOYUZHOU_REFRESH_TOKEN
  * in the environment. Without tokens this provider is silently absent —
  * xyzrank still supplies 小宇宙-derived buzz for ranked shows for free.
+ *
+ * ⚠️ ACCOUNT-BAN RISK: this authenticates as a REAL 小宇宙 account and hits
+ * the private app API programmatically. Automated searches on a personal
+ * account got one banned. Mitigations: it's now bounded to the top few shows
+ * per request (see the chart/top-picks routes) and cached for 7 days. But the
+ * only real protection is to NOT use a personal account — remove the env
+ * tokens, or use a throwaway account you don't mind losing. xyzrank (a
+ * separate third-party site) provides 小宇宙-derived buzz without any account.
  */
 
-const REVALIDATE_SECONDS = 24 * 60 * 60;
+const REVALIDATE_SECONDS = 7 * 24 * 60 * 60; // 7d cache — keep call volume low
 const BASE = "https://api.xiaoyuzhoufm.com";
 // headers 小宇宙's app API expects alongside the token
 const APP_HEADERS: Record<string, string> = {
