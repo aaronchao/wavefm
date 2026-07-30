@@ -18,7 +18,7 @@ handoff note are enough to fully reconstruct where we are.
 
 | Thing | Value |
 |---|---|
-| Local project folder | `/Users/aaron.liu/Gdrive/claudeT/wavefm` |
+| Local project folder | `/Users/aaron.liu/Gdrive/claude/wavefm` |
 | GitHub repo | `github.com/aaronchao/wavefm` |
 | Default / working branch | `main` |
 | Dev server | `npm run dev` → http://localhost:3000 |
@@ -47,7 +47,7 @@ which Gdrive doesn't cover.
 
 **Same Mac, terminal (full transcript):**
 ```bash
-cd /Users/aaron.liu/Gdrive/claudeT/wavefm
+cd /Users/aaron.liu/Gdrive/claude/wavefm
 git pull
 claude --continue     # resume THIS conversation (most recent in this folder)
 # or: claude --resume  # pick from a list of past sessions in this project
@@ -73,7 +73,7 @@ the repo. Use `claude.ai/code` in the phone browser instead.
 
 ## 4. ✅ ALWAYS do at the START of work
 
-1. `cd /Users/aaron.liu/Gdrive/claudeT/wavefm`
+1. `cd /Users/aaron.liu/Gdrive/claude/wavefm`
 2. `git pull` — get anything pushed from another device.
 3. `git status` — confirm a clean tree and that you're on `main`
    (`git branch --show-current` → `main`).
