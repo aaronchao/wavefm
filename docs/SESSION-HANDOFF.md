@@ -3,9 +3,24 @@
 > Living snapshot. Update this at the end of each session (see
 > `docs/CONTINUING-WORK.md` §5). For how to resume, read `CONTINUING-WORK.md`.
 
-**Last updated:** 2026-07-28
+**Last updated:** 2026-07-30
 **Branch:** `main` (everything committed + pushed; working tree clean)
-**Latest commit:** `40f702c test(wavr): assert the deck cancels the native long-press context menu`
+**Latest commit:** `92316e6 feat(buzz): re-enable Listen Notes with just an API key`
+
+---
+
+## ⚠️ Action items for you (require the Vercel dashboard — I can't set env vars)
+
+- **Xiaoyuzhou account ban:** the `buzz/xiaoyuzhou.ts` provider authenticates as a
+  **personal 小宇宙 account** (env `XIAOYUZHOU_ACCESS_TOKEN` / `_REFRESH_TOKEN`) and
+  hits the private app API per request — the likely cause of the ban. Code now
+  bounds/caches it, but the real fix is to **remove those two env vars from Vercel**
+  (or replace with a throwaway account's tokens). `xyzrank` still gives 小宇宙-derived
+  buzz for free with no account.
+- **Re-enable Listen Notes:** set **`LISTEN_NOTES_API_KEY`** in Vercel (a free key
+  from listennotes.com/api) and redeploy. It's now bounded + 7-day-cached, so the
+  old `LISTEN_NOTES_ENABLED` flag is no longer needed. Watch usage — the free quota
+  is small.
 
 ---
 
