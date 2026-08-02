@@ -11,7 +11,12 @@
  * Library's OPML export for apps that do support add-by-URL.
  */
 
-export type PlatformId = "apple" | "spotify" | "youtubeMusic" | "xiaoyuzhou";
+export type PlatformId =
+  | "apple"
+  | "spotify"
+  | "youtubeMusic"
+  | "pocketCasts"
+  | "xiaoyuzhou";
 
 export type PlatformLink = {
   id: PlatformId;
@@ -22,9 +27,19 @@ export type PlatformLink = {
   isSearch: boolean;
 };
 
+/**
+ * The numeric iTunes id, if `id` is one (iTunes-sourced shows carry the
+ * collectionId as their id; Podcast-Index/RSS shows use `pi-`/`rss-` prefixes
+ * and return undefined). Used to build a Pocket Casts deep link.
+ */
+export function itunesId(id: string | undefined): string | undefined {
+  return id && /^\d+$/.test(id) ? id : undefined;
+}
+
 export function platformLinks(
   title: string,
   stored: Partial<Record<PlatformId, string>> = {},
+  itunes?: string,
 ): PlatformLink[] {
   const q = encodeURIComponent(title);
   const entry = (
@@ -36,10 +51,21 @@ export function platformLinks(
     if (storedUrl) return { id, label, url: storedUrl, isSearch: false };
     return { id, label, url: searchUrl, isSearch: searchUrl !== null };
   };
+  // Pocket Casts has no public title-search web URL, but `pca.st/itunes/<id>`
+  // deep-links straight to the show (and opens the app on mobile). So a stored
+  // URL or an iTunes id both give a real link; without either, the icon dims.
+  const pocketCasts = (): PlatformLink => {
+    if (stored.pocketCasts)
+      return { id: "pocketCasts", label: "Pocket Casts", url: stored.pocketCasts, isSearch: false };
+    if (itunes)
+      return { id: "pocketCasts", label: "Pocket Casts", url: `https://pca.st/itunes/${itunes}`, isSearch: false };
+    return { id: "pocketCasts", label: "Pocket Casts", url: null, isSearch: false };
+  };
   return [
     entry("apple", "Apple Podcasts", `https://podcasts.apple.com/us/search?term=${q}`),
     entry("spotify", "Spotify", `https://open.spotify.com/search/${q}`),
     entry("youtubeMusic", "YouTube Music", `https://music.youtube.com/search?q=${q}`),
+    pocketCasts(),
     entry("xiaoyuzhou", "小宇宙", `https://www.xiaoyuzhoufm.com/search/${q}`),
   ];
 }

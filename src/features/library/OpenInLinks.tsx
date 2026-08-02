@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { platformLinks, type PlatformId } from "@/src/core/links";
+import { itunesId, platformLinks, type PlatformId } from "@/src/core/links";
 import type { PlatformLinks } from "@/src/data/catalog/types";
 
 /**
@@ -27,6 +27,7 @@ export function OpenInLinks({
   appleUrl,
   feedUrl,
   stored,
+  showId,
   className = "",
   label = "Open in",
   size = "sm",
@@ -38,6 +39,9 @@ export function OpenInLinks({
   feedUrl?: string;
   /** Stored player deep-links from the payload (brand-coloured when present). */
   stored?: PlatformLinks;
+  /** The show's catalog id — a numeric one is its iTunes id, which builds a
+   *  Pocket Casts deep link (`pca.st/itunes/<id>`). */
+  showId?: string;
   className?: string;
   /** Tiny inline caption; pass "" for icons only (a heading supplies context). */
   label?: string;
@@ -46,7 +50,7 @@ export function OpenInLinks({
   /** Fired when a link is opened (e.g. to record an 'open' engagement). */
   onOpen?: () => void;
 }) {
-  const links = platformLinks(title, { apple: appleUrl, ...stored });
+  const links = platformLinks(title, { apple: appleUrl, ...stored }, itunesId(showId));
   const box = size === "md" ? "h-9 w-9" : "h-7 w-7";
   const glyph = size === "md" ? "h-5 w-5" : "h-4 w-4";
   return (
@@ -168,6 +172,7 @@ const PLATFORM_COLORS: Record<PlatformId, string> = {
   apple: "#9933CC",
   spotify: "#1DB954",
   youtubeMusic: "#FF0000",
+  pocketCasts: "#F43E37",
   xiaoyuzhou: "#FA5757",
 };
 const RSS_COLOR = "#EE802F";
@@ -177,6 +182,7 @@ const PLATFORM_ICONS: Record<PlatformId, (p: IconProps) => React.ReactElement> =
   apple: AppleIcon,
   spotify: SpotifyIcon,
   youtubeMusic: YoutubeMusicIcon,
+  pocketCasts: PocketCastsIcon,
   xiaoyuzhou: XiaoyuzhouIcon,
 };
 
@@ -203,6 +209,22 @@ function YoutubeMusicIcon({ className }: IconProps) {
       <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" />
       <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" strokeWidth="1.4" />
       <path d="M10.6 9.8l4 2.2-4 2.2z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function PocketCastsIcon({ className }: IconProps) {
+  // Pocket Casts mark: a play triangle inside an open ring.
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path
+        d="M12 4a8 8 0 108 8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path d="M10 8.5l5 3.5-5 3.5z" fill="currentColor" />
     </svg>
   );
 }

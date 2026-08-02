@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { platformLinks } from "@/src/core/links";
+import { itunesId, platformLinks } from "@/src/core/links";
 
 describe("platformLinks", () => {
   it("uses stored URLs when known", () => {
@@ -26,12 +26,39 @@ describe("platformLinks", () => {
     expect(apple.isSearch).toBe(true);
   });
 
-  it("always returns all four platforms in stable order", () => {
+  it("always returns all platforms in stable order (Pocket Casts after YouTube Music)", () => {
     expect(platformLinks("x").map((l) => l.id)).toEqual([
       "apple",
       "spotify",
       "youtubeMusic",
+      "pocketCasts",
       "xiaoyuzhou",
     ]);
+  });
+
+  it("builds a Pocket Casts deep link from an iTunes id (not a search)", () => {
+    const pc = platformLinks("Some Show", {}, "1325018583").find((l) => l.id === "pocketCasts")!;
+    expect(pc.url).toBe("https://pca.st/itunes/1325018583");
+    expect(pc.isSearch).toBe(false);
+  });
+
+  it("prefers a stored Pocket Casts URL over the iTunes deep link", () => {
+    const pc = platformLinks("Some Show", { pocketCasts: "https://pca.st/abcdef" }, "1325018583").find(
+      (l) => l.id === "pocketCasts",
+    )!;
+    expect(pc.url).toBe("https://pca.st/abcdef");
+  });
+
+  it("dims Pocket Casts when there is neither a stored URL nor an iTunes id", () => {
+    const pc = platformLinks("Some Show").find((l) => l.id === "pocketCasts")!;
+    expect(pc.url).toBeNull();
+    expect(pc.isSearch).toBe(false);
+  });
+
+  it("itunesId returns the id only for a numeric (iTunes-sourced) id", () => {
+    expect(itunesId("1325018583")).toBe("1325018583");
+    expect(itunesId("pi-42")).toBeUndefined();
+    expect(itunesId("rss-abc123")).toBeUndefined();
+    expect(itunesId(undefined)).toBeUndefined();
   });
 });

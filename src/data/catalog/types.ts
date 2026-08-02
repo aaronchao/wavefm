@@ -3,6 +3,7 @@ export type PlatformLinks = {
   apple?: string;
   spotify?: string;
   youtubeMusic?: string;
+  pocketCasts?: string;
   xiaoyuzhou?: string;
 };
 

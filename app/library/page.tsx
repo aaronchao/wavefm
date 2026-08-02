@@ -371,6 +371,7 @@ function LibraryShowCard({
             appleUrl={show.appleUrl}
             feedUrl={show.feedUrl}
             stored={show.platformLinks}
+            showId={show.id}
             className="relative z-10 mt-1.5"
           />
           <InlineTagInput
@@ -522,6 +523,7 @@ function EpisodeRow({
           <OpenInLinks
             title={episode.showTitle ? `${episode.showTitle} ${episode.title}` : episode.title}
             appleUrl={episode.appleUrl}
+            showId={episode.showId}
             className="relative z-10 mt-1.5"
           />
           <InlineTagInput

@@ -14,6 +14,7 @@ import {
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { player, usePlayerState, type PreviewMeta } from "@/src/state/player";
 import { CoverTile, NothingToggle } from "@/src/ui";
+import { SiriWaveform } from "./SiriWaveform";
 import { useClipWindow } from "./useClipWindow";
 
 /**
@@ -180,12 +181,7 @@ export function PreviewPlayer() {
               </div>
 
               {(s.status === "playing" || s.status === "done") && (
-                <div className="h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                  <div
-                    className="h-full rounded-full bg-zinc-900 transition-[width] duration-300 dark:bg-zinc-100"
-                    style={{ width: `${progress * 100}%` }}
-                  />
-                </div>
+                <SiriWaveform active={s.status === "playing"} progress={progress} />
               )}
 
               {/* While a clip is live: skip to another episode of this show,
@@ -230,6 +226,7 @@ export function PreviewPlayer() {
                   appleUrl={s.meta.appleUrl}
                   feedUrl={s.meta.feedUrl}
                   stored={s.meta.platformLinks}
+                  showId={s.meta.showId}
                   label=""
                 />
               )}

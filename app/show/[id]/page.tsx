@@ -101,6 +101,7 @@ function ShowDetail({ show }: { show: CatalogShow }) {
           appleUrl={show.appleUrl}
           feedUrl={show.feedUrl}
           stored={show.platformLinks}
+          showId={show.id}
           label=""
           size="md"
           onOpen={onOpen}
