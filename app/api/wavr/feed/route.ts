@@ -3,6 +3,7 @@ import { buildDeck, interestProfile, parseDiscussion, type WavrCandidate, type W
 import type { EdgeEvidence } from "@/src/core/mining/types";
 import { dcardDiscussion } from "@/src/data/buzz/dcard";
 import { doubanGroupDiscussion, lihkgDiscussion, pttDiscussion } from "@/src/data/buzz/forums";
+import { hackerNewsDiscussion } from "@/src/data/buzz/hackernews";
 import { redditDiscussion } from "@/src/data/buzz/reddit";
 import { v2exDiscussion } from "@/src/data/buzz/v2ex";
 import { itunesEpisodeSearch, itunesSearch } from "@/src/data/catalog/server";
@@ -176,8 +177,9 @@ async function fromInterestSearch(tags: string[]): Promise<Pooled[]> {
 
   const withEvidence = await Promise.all(
     candidates.map(async (show) => {
-      const [reddit, douban, dcard, ptt, lihkg, v2ex] = await Promise.all([
+      const [reddit, hn, douban, dcard, ptt, lihkg, v2ex] = await Promise.all([
         redditDiscussion(show.title),
+        hackerNewsDiscussion(show.title),
         doubanGroupDiscussion(show.title),
         dcardDiscussion(show.title),
         pttDiscussion(show.title),
@@ -186,6 +188,7 @@ async function fromInterestSearch(tags: string[]): Promise<Pooled[]> {
       ]);
       const evidence = [
         ...(reddit?.evidence ?? []),
+        ...(hn?.evidence ?? []),
         ...(douban?.evidence ?? []),
         ...(dcard?.evidence ?? []),
         ...(ptt?.evidence ?? []),

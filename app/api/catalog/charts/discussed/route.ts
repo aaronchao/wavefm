@@ -7,12 +7,14 @@ import {
   lihkgDiscussion,
   pttDiscussion,
 } from "@/src/data/buzz/forums";
+import { hackerNewsDiscussion } from "@/src/data/buzz/hackernews";
 import { listenNotesBuzz } from "@/src/data/buzz/listennotes";
 import { normalizeForMatch } from "@/src/data/buzz/match";
 import { redditDiscussion } from "@/src/data/buzz/reddit";
 import { v2exDiscussion } from "@/src/data/buzz/v2ex";
 import { mergeBuzz, xiaoyuzhouBuzz } from "@/src/data/buzz/xiaoyuzhou";
 import { xyzrankBuzz, xyzrankChart } from "@/src/data/buzz/xyzrank";
+import { youtubeDiscussion } from "@/src/data/buzz/youtube";
 import {
   itunesSearch,
   itunesTopChartRanks,
@@ -98,10 +100,11 @@ export async function GET(request: Request) {
   const candidates: SimilarItemInput[] = await Promise.all(
     pool.map(async (s, i) => {
       const gentle = i < RATE_SENSITIVE_CAP;
-      const [xyzBuzz, reddit, v2ex, dcard, ptt, lihkg, douban, xiaoyuzhou, listen] =
+      const [xyzBuzz, reddit, hn, v2ex, dcard, ptt, lihkg, douban, xiaoyuzhou, listen, youtube] =
         await Promise.all([
           xyzrankBuzz(s.title),
           redditDiscussion(s.title),
+          hackerNewsDiscussion(s.title),
           v2exDiscussion(s.title),
           dcardDiscussion(s.title),
           pttDiscussion(s.title),
@@ -109,9 +112,12 @@ export async function GET(request: Request) {
           doubanGroupDiscussion(s.title),
           gentle ? xiaoyuzhouBuzz(s.title) : Promise.resolve(null),
           gentle ? listenNotesBuzz(s.title) : Promise.resolve(null),
+          gentle ? youtubeDiscussion(s.title) : Promise.resolve(null),
         ]);
       const evidence = [
         ...(reddit?.evidence ?? []),
+        ...(hn?.evidence ?? []),
+        ...(youtube?.evidence ?? []),
         ...(douban?.evidence ?? []),
         ...(dcard?.evidence ?? []),
         ...(ptt?.evidence ?? []),
@@ -131,12 +137,14 @@ export async function GET(request: Request) {
         buzz: mergeBuzz(
           xyzBuzz,
           listen,
+          youtube?.buzz,
           xiaoyuzhou,
           douban?.buzz,
           dcard?.buzz,
           ptt?.buzz,
           lihkg?.buzz,
           v2ex?.buzz,
+          hn?.buzz,
           reddit?.buzz,
         ),
       };

@@ -39,6 +39,7 @@ afterEach(() => {
   delete process.env.LISTEN_NOTES_API_KEY;
   delete process.env.XIAOYUZHOU_ACCESS_TOKEN;
   delete process.env.XIAOYUZHOU_REFRESH_TOKEN;
+  delete process.env.YOUTUBE_API_KEY;
 });
 
 describe("listenNotesBuzz", () => {
@@ -160,5 +161,111 @@ describe("redditBuzz", () => {
     mockFetch(() => ({ status: 403, body: {} }));
     const { redditBuzz } = await import("@/src/data/buzz/reddit");
     expect(await redditBuzz("Dear Therapist")).toBeNull();
+  });
+});
+
+describe("hackerNewsBuzz", () => {
+  it("aggregates story volume, points, and comments", async () => {
+    mockFetch(() => ({
+      body: {
+        hits: [
+          { objectID: "1", title: "Show X is great", points: 120, num_comments: 44 },
+          { objectID: "2", title: "Another thread", points: 10, num_comments: 6 },
+        ],
+      },
+    }));
+    const { hackerNewsBuzz } = await import("@/src/data/buzz/hackernews");
+    expect(await hackerNewsBuzz("Show X")).toEqual({
+      hnStories: 2,
+      hnPoints: 130,
+      hnComments: 50,
+    });
+  });
+
+  it("returns zero-stories (not null) when the search is empty", async () => {
+    mockFetch(() => ({ body: { hits: [] } }));
+    const { hackerNewsBuzz } = await import("@/src/data/buzz/hackernews");
+    expect(await hackerNewsBuzz("Obscure Show")).toEqual({ hnStories: 0 });
+  });
+
+  it("surfaces the top thread as evidence, sorted by points", async () => {
+    mockFetch(() => ({
+      body: {
+        hits: [
+          { objectID: "9", title: "low", points: 3, num_comments: 1 },
+          { objectID: "42", title: "high", points: 200, num_comments: 90 },
+        ],
+      },
+    }));
+    const { hackerNewsDiscussion } = await import("@/src/data/buzz/hackernews");
+    const res = await hackerNewsDiscussion("Show X");
+    expect(res?.evidence[0]).toEqual({
+      source: "Hacker News",
+      text: "high",
+      url: "https://news.ycombinator.com/item?id=42",
+    });
+  });
+
+  it("returns null when Algolia fails (never throws)", async () => {
+    mockFetch(() => ({ status: 500, body: {} }));
+    const { hackerNewsBuzz } = await import("@/src/data/buzz/hackernews");
+    expect(await hackerNewsBuzz("Show X")).toBeNull();
+  });
+});
+
+describe("youtubeBuzz", () => {
+  it("is silently absent without a key (no fetch)", async () => {
+    const spy = vi.fn();
+    mockFetch(() => {
+      spy();
+      return { body: {} };
+    });
+    const { youtubeBuzz } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeBuzz("Show X")).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("sums views and comments across matched videos", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch((url) => {
+      if (url.includes("/search")) {
+        return {
+          body: {
+            items: [
+              { id: { videoId: "a" }, snippet: { title: "Show X ep 1" } },
+              { id: { videoId: "b" }, snippet: { title: "Show X clip" } },
+            ],
+          },
+        };
+      }
+      return {
+        body: {
+          items: [
+            { id: "a", statistics: { viewCount: "1000", commentCount: "30" } },
+            { id: "b", statistics: { viewCount: "500", commentCount: "20" } },
+          ],
+        },
+      };
+    });
+    const { youtubeBuzz } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeBuzz("Show X")).toEqual({
+      youtubeVideos: 2,
+      youtubeViews: 1500,
+      youtubeComments: 50,
+    });
+  });
+
+  it("returns zero-videos when the search finds nothing", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch(() => ({ body: { items: [] } }));
+    const { youtubeBuzz } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeBuzz("Show X")).toEqual({ youtubeVideos: 0 });
+  });
+
+  it("returns null on an API error (never throws)", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch(() => ({ status: 403, body: {} }));
+    const { youtubeBuzz } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeBuzz("Show X")).toBeNull();
   });
 });

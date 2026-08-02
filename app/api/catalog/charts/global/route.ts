@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { topPicks, type SimilarItemInput } from "@/src/core/recommend";
+import { hackerNewsBuzz } from "@/src/data/buzz/hackernews";
 import { listenNotesBuzz } from "@/src/data/buzz/listennotes";
 import { redditBuzz } from "@/src/data/buzz/reddit";
 import { mergeBuzz } from "@/src/data/buzz/xiaoyuzhou";
+import { youtubeBuzz } from "@/src/data/buzz/youtube";
 import {
   itunesTopChartRanks,
   itunesTopChartShows,
@@ -52,14 +54,19 @@ export async function GET(request: Request) {
   // only for the finalists that could make the board. Listen Notes is bounded
   // further to the top few — its free quota is tiny (see listennotes.ts).
   const shortlist = topPicks({ saved: [], candidates: baseCandidates, limit: Math.min(limit + 6, 40) });
-  const LISTEN_NOTES_CAP = 6;
+  // Reddit + HN are free (all finalists); Listen Notes + YouTube are quota- or
+  // key-bounded to the top few (see listennotes.ts / youtube.ts).
+  const BOUNDED_CAP = 6;
   const enriched: SimilarItemInput[] = await Promise.all(
     shortlist.map(async (p, i) => {
-      const [reddit, listen] = await Promise.all([
+      const bounded = i < BOUNDED_CAP;
+      const [reddit, hn, listen, youtube] = await Promise.all([
         redditBuzz(p.item.title),
-        i < LISTEN_NOTES_CAP ? listenNotesBuzz(p.item.title) : Promise.resolve(null),
+        hackerNewsBuzz(p.item.title),
+        bounded ? listenNotesBuzz(p.item.title) : Promise.resolve(null),
+        bounded ? youtubeBuzz(p.item.title) : Promise.resolve(null),
       ]);
-      return { ...p.item, buzz: mergeBuzz(p.item.buzz, listen, reddit) };
+      return { ...p.item, buzz: mergeBuzz(p.item.buzz, listen, youtube, reddit, hn) };
     }),
   );
   const finalists = topPicks({ saved: [], candidates: enriched, limit });

@@ -1,0 +1,125 @@
+import type { BuzzInput } from "@/src/core/recommend";
+import type { EvidenceItem } from "@/src/data/catalog/types";
+import { normalizeForMatch } from "./match";
+
+/**
+ * YouTube presence via the official Data API v3 — many podcasts publish full
+ * episodes / clips on YouTube, so summed views are a real popularity signal
+ * and summed comments a real discussion signal that the audio-only catalogs
+ * miss. Server-side only, key via YOUTUBE_API_KEY.
+ *
+ * QUOTA SAFETY (mirrors listennotes.ts): a `search.list` costs 100 of the
+ * 10,000 free daily units (~100 searches/day), so this must be BOUNDED at the
+ * call sites (top few shows per request) and is cached 7 days — at most one
+ * lookup per title per week. One extra `videos.list` (1 unit, batched) fetches
+ * real view/comment counts for the matched videos.
+ *
+ * To enable: set YOUTUBE_API_KEY (a free key from the Google Cloud console,
+ * "YouTube Data API v3"). No key → zero API calls → the other signals stand.
+ */
+
+const REVALIDATE_SECONDS = 7 * 24 * 60 * 60; // presence moves slowly
+const BASE = "https://www.googleapis.com/youtube/v3";
+const MAX_VIDEOS = 5;
+
+function apiKey(): string | null {
+  return process.env.YOUTUBE_API_KEY || null;
+}
+
+type SearchItem = {
+  id?: { videoId?: string };
+  snippet?: { title?: string; channelTitle?: string };
+};
+type StatsItem = {
+  id?: string;
+  statistics?: { viewCount?: string; commentCount?: string };
+};
+
+type Matched = {
+  videoId: string;
+  title: string;
+  views: number;
+  comments: number;
+};
+
+const normalize = normalizeForMatch;
+
+async function fetchMatched(title: string): Promise<Matched[] | null> {
+  const key = apiKey();
+  if (!key) return null; // not enabled/configured — skip, never an error
+  try {
+    const searchUrl =
+      `${BASE}/search?part=snippet&type=video&maxResults=${MAX_VIDEOS}` +
+      `&q=${encodeURIComponent(`${title} podcast`)}&key=${key}`;
+    const searchRes = await fetch(searchUrl, { next: { revalidate: REVALIDATE_SECONDS } });
+    if (!searchRes.ok) return null;
+    const searchJson = (await searchRes.json()) as { items?: SearchItem[] };
+    const found = (searchJson.items ?? [])
+      .map((it) => ({ videoId: it.id?.videoId, title: it.snippet?.title ?? "" }))
+      .filter((v): v is { videoId: string; title: string } => Boolean(v.videoId));
+    if (found.length === 0) return [];
+
+    // one batched stats call (1 quota unit) for real view/comment counts
+    const ids = found.map((v) => v.videoId).join(",");
+    const statsRes = await fetch(
+      `${BASE}/videos?part=statistics&id=${ids}&key=${key}`,
+      { next: { revalidate: REVALIDATE_SECONDS } },
+    );
+    if (!statsRes.ok) return null;
+    const statsJson = (await statsRes.json()) as { items?: StatsItem[] };
+    const statsById = new Map(
+      (statsJson.items ?? []).map((s) => [
+        s.id,
+        {
+          views: Number(s.statistics?.viewCount ?? 0),
+          comments: Number(s.statistics?.commentCount ?? 0),
+        },
+      ]),
+    );
+    return found.map((v) => ({
+      videoId: v.videoId,
+      title: v.title,
+      views: statsById.get(v.videoId)?.views ?? 0,
+      comments: statsById.get(v.videoId)?.comments ?? 0,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+function tally(matched: Matched[]): BuzzInput {
+  let views = 0;
+  let comments = 0;
+  for (const m of matched) {
+    views += m.views;
+    comments += m.comments;
+  }
+  return { youtubeVideos: matched.length, youtubeViews: views, youtubeComments: comments };
+}
+
+export async function youtubeBuzz(title: string): Promise<BuzzInput | null> {
+  const matched = await fetchMatched(title);
+  if (matched === null) return null;
+  if (matched.length === 0) return { youtubeVideos: 0 };
+  return tally(matched);
+}
+
+/** Buzz + the top few videos (title + watch URL) as readable evidence. */
+export async function youtubeDiscussion(
+  title: string,
+): Promise<{ buzz: BuzzInput; evidence: EvidenceItem[] } | null> {
+  const matched = await fetchMatched(title);
+  if (matched === null) return null;
+  // Prefer videos whose title actually references the show, so evidence is
+  // relevant even when the search returns loosely-related uploads.
+  const relevant = matched.filter((m) => normalize(m.title).includes(normalize(title)));
+  const evidence: EvidenceItem[] = (relevant.length > 0 ? relevant : matched)
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 2)
+    .map((m) => ({
+      source: "YouTube",
+      text: m.title,
+      url: `https://www.youtube.com/watch?v=${m.videoId}`,
+    }));
+  return { buzz: tally(matched), evidence };
+}
