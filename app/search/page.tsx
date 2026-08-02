@@ -51,19 +51,19 @@ function SearchInner() {
   return (
     <main className="mx-auto w-full max-w-5xl p-4 pb-40 sm:p-8 sm:pb-40">
       <h1 className="mb-4 text-2xl font-bold">Search</h1>
+      {/* No autoFocus: on mobile, focusing an input on load pops the
+          keyboard and the browser scrolls/zooms to it before the user has
+          seen anything else — the page should show its full content first,
+          and let a tap open the keyboard when the user is ready to type. */}
       <input
         value={input}
         onChange={(e) => setInput(e.target.value)}
         placeholder="Find a podcast… results appear as you type"
-        autoFocus
         className="mb-6 w-full rounded-xl border border-zinc-300 px-4 py-2 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
       />
 
       {!term && (
-        <p className="text-zinc-500">
-          Find any show — try a name, a topic, or 中文. Click a result to hear
-          a 30-second clip.
-        </p>
+        <p className="text-zinc-500">Find any show — try a name, a topic, or 中文.</p>
       )}
       {isFetching && <p className="mb-3 text-sm text-zinc-400">Searching…</p>}
       {data?.degraded && (
@@ -75,26 +75,10 @@ function SearchInner() {
         <p className="text-zinc-500">No shows found for “{term}”.</p>
       )}
 
-      {/* Shows and Episodes side by side — scan both at a glance */}
+      {/* Episodes lead — most searches are chasing a specific episode, not
+          browsing shows, so it's the first column (and first on mobile). */}
       {data && (data.shows.length > 0 || data.episodes.length > 0) && (
         <div className="grid items-start gap-8 md:grid-cols-2">
-          <section>
-            <h2 className="font-brand mb-3 text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
-              Shows
-            </h2>
-            <ul className="flex flex-col gap-3">
-              {rankedShows.slice(0, showCount).map((show) => (
-                <SearchShowRow key={show.id} show={show} />
-              ))}
-            </ul>
-            {rankedShows.length > showCount && (
-              <MoreButton
-                label="More shows"
-                onClick={() => setShowCount((n) => n + PAGE_SIZE)}
-              />
-            )}
-          </section>
-
           <section>
             <h2 className="font-brand mb-3 text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
               Episodes
@@ -112,6 +96,23 @@ function SearchInner() {
               <MoreButton
                 label="More episodes"
                 onClick={() => setEpCount((n) => n + PAGE_SIZE)}
+              />
+            )}
+          </section>
+
+          <section>
+            <h2 className="font-brand mb-3 text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
+              Shows
+            </h2>
+            <ul className="flex flex-col gap-3">
+              {rankedShows.slice(0, showCount).map((show) => (
+                <SearchShowRow key={show.id} show={show} />
+              ))}
+            </ul>
+            {rankedShows.length > showCount && (
+              <MoreButton
+                label="More shows"
+                onClick={() => setShowCount((n) => n + PAGE_SIZE)}
               />
             )}
           </section>

@@ -25,6 +25,11 @@ export type PreviewMeta = {
   platformLinks?: PlatformLinks;
   /** The show's catalog id, when known — lets the Play bar link to its page. */
   showId?: string;
+  /** Stable catalog episode id, when known — enables the Play bar's Save
+   *  toggle and lets it find this episode in the show's ranked list for
+   *  prev/next. Absent for episodes sampled without a catalog id (e.g. a
+   *  random pick from a bare RSS feed). */
+  episodeId?: string;
 };
 
 export type PlayerState = {

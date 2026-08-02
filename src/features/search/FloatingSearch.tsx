@@ -103,23 +103,26 @@ export function FloatingSearch() {
             {data && !data.degraded && shows.length === 0 && episodes.length === 0 && !isFetching && (
               <p className="px-1 py-3 text-sm text-zinc-500">No results for “{term}”.</p>
             )}
+            {/* Episodes lead — most searches are chasing a specific episode,
+                not browsing shows, so that result should be the first thing
+                scanned (and the first thing stacked on mobile). */}
             <div className="grid items-start gap-5 md:grid-cols-2">
-              {shows.length > 0 && (
-                <section>
-                  <PanelLabel>Shows</PanelLabel>
-                  <ul className="flex flex-col gap-2">
-                    {shows.map((show) => (
-                      <SearchShowRow key={show.id} show={show} />
-                    ))}
-                  </ul>
-                </section>
-              )}
               {episodes.length > 0 && (
                 <section>
                   <PanelLabel>Episodes</PanelLabel>
                   <ul className="flex flex-col gap-2">
                     {episodes.map((ep) => (
                       <SearchEpisodeRow key={ep.id} episode={ep} />
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {shows.length > 0 && (
+                <section>
+                  <PanelLabel>Shows</PanelLabel>
+                  <ul className="flex flex-col gap-2">
+                    {shows.map((show) => (
+                      <SearchShowRow key={show.id} show={show} />
                     ))}
                   </ul>
                 </section>

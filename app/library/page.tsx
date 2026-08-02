@@ -503,9 +503,17 @@ function EpisodeRow({
               {episode.title}
             </p>
           )}
-          {episode.showTitle && (
-            <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
-          )}
+          {episode.showTitle &&
+            (episode.showId ? (
+              <Link
+                href={`/show/${episode.showId}`}
+                className="relative z-10 line-clamp-1 text-sm text-zinc-500 hover:text-accent hover:underline underline-offset-2 dark:text-zinc-400"
+              >
+                {episode.showTitle} →
+              </Link>
+            ) : (
+              <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
+            ))}
           <p className="truncate text-xs text-zinc-400">
             {finished ? "Finished" : episode.status === "in_progress" ? "In progress" : "Queued"}
             {resume ? ` · ${resume}` : ""}

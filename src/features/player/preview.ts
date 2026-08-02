@@ -69,7 +69,7 @@ export function previewShowTopEpisodeMiddle(
   void getRankedEpisodes(show.id).then((eps) => {
     const top = eps.find((e) => e.audioUrl);
     if (!top?.audioUrl) return player.fail(meta);
-    playMiddle({ ...meta, title: top.title, showTitle: show.title }, top);
+    playMiddle({ ...meta, title: top.title, showTitle: show.title, episodeId: top.id }, top);
   });
 }
 
@@ -87,6 +87,7 @@ export function previewRankedEpisode(
     feedUrl: show.feedUrl,
     platformLinks: show.platformLinks,
     showId: show.id,
+    episodeId: item.id,
   };
   if (!item.audioUrl) return player.fail(meta);
   playMiddle(meta, item);
@@ -108,6 +109,7 @@ export function previewEpisode(episode: CatalogEpisode) {
     searchTitle: episode.title,
     appleUrl: episode.appleUrl,
     showId: episode.showId,
+    episodeId: episode.id,
   };
   if (episode.audioUrl) {
     player.play(meta, episode.audioUrl, clipStart(episode.durationSec, Math.random()));
@@ -121,8 +123,13 @@ export function previewEpisode(episode: CatalogEpisode) {
         episodes.find((e) => e.title === episode.title) ??
         episodes[pickIndex(episodes.length, Math.random())];
       if (!match) return player.fail(meta);
+      // Only keep the requested episode's id when we actually landed on it
+      // by title — the random fallback plays a different episode, and
+      // tagging that with the wrong id would let Save file it under the
+      // one the user asked for instead of the one that's actually playing.
+      const isRequestedEpisode = match.title === episode.title;
       player.play(
-        { ...meta, title: match.title },
+        { ...meta, title: match.title, episodeId: isRequestedEpisode ? episode.id : undefined },
         match.audioUrl,
         clipStart(match.durationSec, Math.random()),
       );

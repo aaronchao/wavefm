@@ -10,8 +10,14 @@ import {
   saveEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
+import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode, previewShow } from "@/src/features/player/preview";
-import { CoverTile, NothingToggle, PlayableCard } from "@/src/ui";
+import { Card, NothingToggle } from "@/src/ui";
+
+// Shows and episodes render at the same size so the two result columns
+// read as one consistent grid; bigger than the old 56/64px split so the
+// tappable play target — and the art itself — has real presence.
+const COVER_SIZE = 72;
 
 /** A matching episode with one-click "Later" to queue it into the Library. */
 export function SearchEpisodeRow({ episode }: { episode: CatalogEpisode }) {
@@ -39,41 +45,40 @@ export function SearchEpisodeRow({ episode }: { episode: CatalogEpisode }) {
 
   return (
     <li>
-      <PlayableCard
-        onPlay={() => previewEpisode(episode)}
-        playLabel={`Preview ${episode.title}`}
-        className="cursor-pointer gap-4"
-      >
-        <CoverTile src={episode.coverUrl} size={56} />
+      <Card className="flex items-center gap-4">
+        {/* Only the cover (with its play-triangle overlay) starts a clip —
+            the rest of the row is plain text/links, no hidden hit target. */}
+        <CoverPlay
+          src={episode.coverUrl}
+          size={COVER_SIZE}
+          onPlay={() => previewEpisode(episode)}
+          label={`Play a clip of ${episode.title}`}
+        />
         <div className="min-w-0 flex-1">
           <p className="line-clamp-3 font-semibold leading-snug">{episode.title}</p>
           {episode.showTitle &&
             (episode.showId ? (
               <Link
                 href={`/show/${episode.showId}`}
-                className="relative z-10 line-clamp-1 text-sm text-zinc-500 hover:text-accent hover:underline underline-offset-2 dark:text-zinc-400"
+                className="line-clamp-1 text-sm text-zinc-500 hover:text-accent hover:underline underline-offset-2 dark:text-zinc-400"
               >
                 {episode.showTitle} →
               </Link>
             ) : (
               <p className="line-clamp-1 text-sm text-zinc-500">{episode.showTitle}</p>
             ))}
-          <p className="truncate text-xs text-zinc-400">▶ Click for a 30s clip</p>
         </div>
         <NothingToggle
           active={queued}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleLater();
-          }}
+          onClick={toggleLater}
           // aria-label keeps the accessible name stable for tests/screen
           // readers even though the visible label is now icon-only.
           ariaLabel={queued ? "Queued ✓" : "+ Later"}
-          className="relative z-10 shrink-0"
+          className="shrink-0"
         >
           {queued ? "✓" : "+"}
         </NothingToggle>
-      </PlayableCard>
+      </Card>
     </li>
   );
 }
@@ -103,34 +108,31 @@ export function SearchShowRow({ show }: { show: CatalogShow }) {
 
   return (
     <li>
-      <PlayableCard
-        onPlay={() => previewShow(show)}
-        playLabel={`Preview ${show.title}`}
-        className="cursor-pointer gap-4"
-      >
-        <CoverTile src={show.coverUrl} size={64} />
+      <Card className="flex items-center gap-4">
+        <CoverPlay
+          src={show.coverUrl}
+          size={COVER_SIZE}
+          onPlay={() => previewShow(show)}
+          label={`Play a clip of ${show.title}`}
+        />
         <div className="min-w-0 flex-1">
           <Link
             href={`/show/${show.id}`}
-            className="relative z-10 line-clamp-2 font-semibold leading-snug hover:text-accent hover:underline underline-offset-2"
+            className="line-clamp-2 font-semibold leading-snug hover:text-accent hover:underline underline-offset-2"
           >
             {show.title}
           </Link>
           <p className="line-clamp-1 text-sm text-zinc-500">{show.author}</p>
-          <p className="truncate text-xs text-zinc-400">▶ Click for a 30s clip</p>
         </div>
         <NothingToggle
           active={saved}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleSave();
-          }}
+          onClick={toggleSave}
           ariaLabel={saved ? "Saved ✓" : "Save"}
-          className="relative z-10 shrink-0"
+          className="shrink-0"
         >
           {saved ? "✓" : "+"}
         </NothingToggle>
-      </PlayableCard>
+      </Card>
     </li>
   );
 }

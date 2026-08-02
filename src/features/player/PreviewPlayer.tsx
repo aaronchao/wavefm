@@ -1,18 +1,28 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { middleFraction } from "@/src/core/preview";
+import { getRankedEpisodes } from "@/src/data/catalog/client";
+import {
+  isEpisodeSaved,
+  removeEpisode,
+  saveEpisode,
+} from "@/src/data/repos/savedEpisodesRepo";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
-import { player, usePlayerState } from "@/src/state/player";
-import { CoverTile } from "@/src/ui";
+import { player, usePlayerState, type PreviewMeta } from "@/src/state/player";
+import { CoverTile, NothingToggle } from "@/src/ui";
 import { useClipWindow } from "./useClipWindow";
 
 /**
  * App-wide 30-second preview bar, mounted once in the root layout.
  * Audio streams straight from the podcast's public CDN into an <audio>
  * element (only metadata goes through /api/*). When a clip can't play,
- * the bar keeps the "listen in full" platform links — never a dead end.
+ * the bar falls back to the "listen in full" platform links — never a
+ * dead end — but while a clip is actually live it surfaces Save plus
+ * prev/next through the show's other episodes instead.
  */
 export function PreviewPlayer() {
   const s = usePlayerState();
@@ -33,6 +43,82 @@ export function PreviewPlayer() {
       : null,
     { onFinish, onError },
   );
+
+  // The show's own episode list (RSS-derived, same source as the rest of
+  // the app's ranking — no extra external calls) doubles as the prev/next
+  // queue and gives episodes a stable id even when the clip started from a
+  // random pick that didn't carry one.
+  const showId = s.meta?.showId;
+  const episodeListQ = useQuery({
+    queryKey: ["catalog", "episodes-ranked", showId],
+    queryFn: () => getRankedEpisodes(showId ?? ""),
+    enabled: Boolean(showId) && s.status !== "idle",
+    staleTime: 60 * 60 * 1000,
+  });
+  const list = episodeListQ.data ?? [];
+  const currentIndex = list.findIndex((e) =>
+    s.meta?.episodeId ? e.id === s.meta.episodeId : e.title === s.meta?.title,
+  );
+
+  function findPlayable(from: number, dir: 1 | -1): number {
+    for (let i = from; i >= 0 && i < list.length; i += dir) {
+      if (list[i].audioUrl) return i;
+    }
+    return -1;
+  }
+  const prevIndex = currentIndex > 0 ? findPlayable(currentIndex - 1, -1) : -1;
+  const nextIndex =
+    currentIndex === -1 ? findPlayable(0, 1) : findPlayable(currentIndex + 1, 1);
+
+  function playListIndex(idx: number) {
+    if (!s.meta || idx < 0 || idx >= list.length) return;
+    const item = list[idx];
+    if (!item.audioUrl) return;
+    const meta: PreviewMeta = { ...s.meta, title: item.title, searchTitle: item.title, episodeId: item.id };
+    const fraction = middleFraction(Math.random());
+    const startAt = item.durationSec ? Math.floor(item.durationSec * fraction) : 0;
+    player.play(meta, item.audioUrl, startAt, fraction);
+  }
+
+  // Save toggle — needs a stable episode id, which not every clip carries
+  // (a random show-level pick may not resolve against the ranked list).
+  const effectiveEpisodeId = s.meta?.episodeId ?? (currentIndex >= 0 ? list[currentIndex].id : undefined);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    // No stable id -> the toggle stays hidden (see render below), so
+    // there's nothing to synchronize; leave prior state untouched rather
+    // than setState-on-mount for a value nobody will see.
+    if (!effectiveEpisodeId) return;
+    let cancelled = false;
+    void isEpisodeSaved(effectiveEpisodeId).then((v) => {
+      if (!cancelled) setSaved(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveEpisodeId]);
+
+  function toggleSave() {
+    if (!effectiveEpisodeId || !s.meta) return;
+    const next = !saved;
+    setSaved(next);
+    if (next) {
+      const durationSec = currentIndex >= 0 ? list[currentIndex].durationSec : undefined;
+      void saveEpisode({
+        id: effectiveEpisodeId,
+        title: s.meta.title,
+        showId: s.meta.showId,
+        showTitle: s.meta.showTitle,
+        coverUrl: s.meta.coverUrl,
+        appleUrl: s.meta.appleUrl,
+        audioUrl: s.audioUrl ?? undefined,
+        durationSec,
+        categories: [],
+      });
+    } else {
+      void removeEpisode(effectiveEpisodeId);
+    }
+  }
 
   const statusLine =
     s.status === "loading"
@@ -102,11 +188,43 @@ export function PreviewPlayer() {
                 </div>
               )}
 
-              {/* Icons only — no text labels — per the Play-bar spec. */}
-              <div className="flex items-center gap-2">
-                <span className="font-brand shrink-0 text-[10px] uppercase tracking-wider text-zinc-400">
-                  Listen in full
-                </span>
+              {/* While a clip is live: skip to another episode of this show,
+                  plus a one-click Save. Once it's done or blocked, fall back
+                  to the platform deep-links so the bar never dead-ends. */}
+              {s.status === "playing" || s.status === "loading" ? (
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => playListIndex(prevIndex)}
+                    disabled={prevIndex === -1}
+                    aria-label="Previous episode"
+                    title="Previous episode"
+                    className="nothing-circle h-8 w-8 shrink-0"
+                  >
+                    <SkipIcon direction="prev" className="h-3.5 w-3.5" />
+                  </button>
+                  {effectiveEpisodeId && (
+                    <NothingToggle
+                      active={saved}
+                      onClick={toggleSave}
+                      ariaLabel={saved ? "Saved ✓" : "Save episode"}
+                      className="shrink-0"
+                    >
+                      {saved ? "✓" : "+"}
+                    </NothingToggle>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => playListIndex(nextIndex)}
+                    disabled={nextIndex === -1}
+                    aria-label="Next episode"
+                    title="Next episode"
+                    className="nothing-circle h-8 w-8 shrink-0"
+                  >
+                    <SkipIcon direction="next" className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
                 <OpenInLinks
                   title={s.meta.searchTitle}
                   appleUrl={s.meta.appleUrl}
@@ -114,11 +232,29 @@ export function PreviewPlayer() {
                   stored={s.meta.platformLinks}
                   label=""
                 />
-              </div>
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+/** Double-triangle skip glyph, mirroring the single-triangle PlayButton. */
+function SkipIcon({ direction, className }: { direction: "prev" | "next"; className?: string }) {
+  return (
+    <svg
+      width={14}
+      height={12}
+      viewBox="0 0 14 12"
+      fill="currentColor"
+      className={className}
+      style={direction === "prev" ? { transform: "scaleX(-1)" } : undefined}
+      aria-hidden
+    >
+      <path d="M0 0l6 6-6 6z" />
+      <path d="M7 0l6 6-6 6z" />
+    </svg>
   );
 }
