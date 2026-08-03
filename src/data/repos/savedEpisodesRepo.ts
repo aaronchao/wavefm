@@ -12,6 +12,15 @@ const LOCAL_KEY = "wavr.savedEpisodes.v1";
 
 export type EpisodeStatus = "queued" | "in_progress" | "finished";
 
+/**
+ * Inbox/Queue triage (REFINEMENTS.md #1/#3): fresh saves land in `inbox`
+ * untouched; a one-gesture triage commits them into the ordered `queue`
+ * (ranked by `queueRank`, fractional — see src/core/queue/rank.ts) or
+ * `archived`. Existing rows from before this model was added were
+ * backfilled into `queue` by the migration, not dumped into `inbox`.
+ */
+export type Bucket = "inbox" | "queue" | "archived";
+
 export type SavedEpisode = {
   episodeId: string;
   showId?: string;
@@ -23,6 +32,9 @@ export type SavedEpisode = {
   durationSec?: number;
   status: EpisodeStatus;
   positionSec: number;
+  bucket: Bucket;
+  /** Fractional rank within the queue; null outside `queue`. */
+  queueRank: number | null;
   savedAt: string;
   updatedAt: string;
 };
@@ -40,6 +52,8 @@ export function episodeToSaved(e: CatalogEpisode): SavedEpisode {
     durationSec: e.durationSec,
     status: "queued",
     positionSec: 0,
+    bucket: "inbox",
+    queueRank: null,
     savedAt: now,
     updatedAt: now,
   };
@@ -81,6 +95,8 @@ type Row = {
   duration_sec: number | null;
   status: EpisodeStatus;
   position_sec: number;
+  bucket: Bucket;
+  queue_rank: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -97,6 +113,8 @@ function rowToSaved(r: Row): SavedEpisode {
     durationSec: r.duration_sec ?? undefined,
     status: r.status,
     positionSec: r.position_sec,
+    bucket: r.bucket,
+    queueRank: r.queue_rank,
     savedAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -115,6 +133,8 @@ function savedToRow(userId: string, e: SavedEpisode) {
     duration_sec: e.durationSec ?? null,
     status: e.status,
     position_sec: e.positionSec,
+    bucket: e.bucket,
+    queue_rank: e.queueRank,
     updated_at: new Date().toISOString(),
   };
 }
@@ -131,6 +151,61 @@ export async function listSavedEpisodes(): Promise<SavedEpisode[]> {
   // table missing / offline -> local fallback keeps the feature alive
   if (error || !data) return readLocal();
   return (data as Row[]).map(rowToSaved);
+}
+
+/** One bucket, pre-sorted: queue by rank (ascending), inbox/archived by most-recently-saved. */
+export async function listByBucket(bucket: Bucket): Promise<SavedEpisode[]> {
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  const sortLocal = (items: SavedEpisode[]) =>
+    bucket === "queue"
+      ? items
+          .filter((e) => e.bucket === bucket)
+          .sort((a, b) => (a.queueRank ?? 0) - (b.queueRank ?? 0))
+      : items
+          .filter((e) => e.bucket === bucket)
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  if (!sb || !userId) return sortLocal(readLocal());
+  const { data, error } = await sb
+    .from("saved_episodes")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("bucket", bucket)
+    .order(bucket === "queue" ? "queue_rank" : "updated_at", {
+      ascending: bucket === "queue",
+    });
+  if (error || !data) return sortLocal(readLocal());
+  return (data as Row[]).map(rowToSaved);
+}
+
+/**
+ * Triage action: move an episode into a bucket, setting its queue rank
+ * (compute with src/core/queue/rank.ts — top/bottom/reorder-between-
+ * neighbors — before calling this; it just writes what it's given).
+ * `queueRank` is ignored outside `"queue"` (stored as null).
+ */
+export async function setEpisodeBucket(
+  episodeId: string,
+  bucket: Bucket,
+  queueRank: number | null = null,
+): Promise<void> {
+  const rank = bucket === "queue" ? queueRank : null;
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (sb && userId) {
+    const { error } = await sb
+      .from("saved_episodes")
+      .update({ bucket, queue_rank: rank, updated_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("episode_id", episodeId);
+    if (!error) return;
+  }
+  const now = new Date().toISOString();
+  writeLocal(
+    readLocal().map((e) =>
+      e.episodeId === episodeId ? { ...e, bucket, queueRank: rank, updatedAt: now } : e,
+    ),
+  );
 }
 
 export async function isEpisodeSaved(episodeId: string): Promise<boolean> {

@@ -40,7 +40,11 @@ export type EngagementRow = {
 export type PrefsRow = {
   user_id: string;
   interests: string[];
-  rating_sources: { douban?: boolean; xiaoyuzhou?: boolean };
+  rating_sources: { apple?: boolean; douban?: boolean; xiaoyuzhou?: boolean };
+  /** One-tap default for the primary "Listen" action — REFINEMENTS.md #4. */
+  preferred_player?: "apple" | "spotify" | "youtubeMusic" | "pocketCasts" | "xiaoyuzhou" | null;
+  /** Opaque token for the personal Listen-Later feed URL — REFINEMENTS.md #2. */
+  feed_token?: string;
   updated_at: string;
 };
 

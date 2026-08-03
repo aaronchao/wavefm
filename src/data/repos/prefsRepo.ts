@@ -8,11 +8,12 @@ import type { PrefsRow } from "@/src/data/supabase/types";
 
 const LOCAL_KEY = "wavr.prefs.v1";
 
-export type Prefs = Pick<PrefsRow, "interests" | "rating_sources">;
+export type Prefs = Pick<PrefsRow, "interests" | "rating_sources" | "preferred_player">;
 
 export const DEFAULT_PREFS: Prefs = {
   interests: [],
-  rating_sources: { douban: true, xiaoyuzhou: true },
+  rating_sources: { apple: true, douban: true, xiaoyuzhou: true },
+  preferred_player: null,
 };
 
 function readLocal(): Prefs {
@@ -46,10 +47,57 @@ export async function getPrefs(): Promise<Prefs> {
   if (!sb || !userId) return readLocal();
   const { data } = await sb
     .from("prefs")
-    .select("interests, rating_sources")
+    .select("interests, rating_sources, preferred_player")
     .eq("user_id", userId)
     .maybeSingle();
   return (data as Prefs | null) ?? DEFAULT_PREFS;
+}
+
+export async function setPreferredPlayer(
+  preferred_player: Prefs["preferred_player"],
+): Promise<void> {
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (!sb || !userId) {
+    writeLocal({ ...readLocal(), preferred_player });
+    return;
+  }
+  await sb.from("prefs").upsert({
+    user_id: userId,
+    preferred_player,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+/**
+ * The personal Listen-Later feed URL's token (REFINEMENTS.md #2) — server
+ * generated (`prefs.feed_token` defaults to `gen_random_uuid()`), so this
+ * is Supabase-only; there's no meaningful local-only equivalent (syncing
+ * to an external podcast app requires a stable server-side URL, same
+ * sign-in requirement as every other cross-device feature here).
+ */
+export async function getFeedToken(): Promise<string | null> {
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (!sb || !userId) return null;
+  const { data } = await sb
+    .from("prefs")
+    .select("feed_token")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return (data as { feed_token?: string } | null)?.feed_token ?? null;
+}
+
+/** Regenerates the feed token (e.g. if the URL ever leaks) and returns the new one. */
+export async function regenerateFeedToken(): Promise<string | null> {
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (!sb || !userId) return null;
+  const feed_token = crypto.randomUUID();
+  const { error } = await sb
+    .from("prefs")
+    .upsert({ user_id: userId, feed_token, updated_at: new Date().toISOString() });
+  return error ? null : feed_token;
 }
 
 export async function setInterests(interests: string[]): Promise<void> {

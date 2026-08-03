@@ -14,7 +14,149 @@ place to capture "we should make X better someday" so it isn't lost.
   `PROXY_EXTERNAL_CALLS`, `PURE_CORE`) belongs in **Deferred**, not here,
   unless we're consciously revisiting the rule.
 
-Last updated: 2026-07-13.
+Last updated: 2026-08-03.
+
+---
+
+## Current top priorities — ranked by UX impact (2026-08-03)
+
+Re-ranked against the product's core objective: help users **discover niche
+content matching their taste via human discussion/recommendation** (needs
+more EN *and* CN discussion sources), **easily collect and organise** what
+they find, and **start listening in one click on whatever app they actually
+use** — the recurring pain being platforms (YouTube Music above all) that
+don't natively carry a show, forcing a manual RSS add. Each item below
+expands into its home section (§ links); this list is the priority order.
+
+1. **[organise] Inbox/Queue triage for the Library**, Castro-style. Today
+   every Discovery save lands in one flat "Listen Later" list — the direct
+   cause of "unmanageable as it grows." Split it: new saves land in an
+   untouched **Inbox**; a one-gesture triage ("top of queue" / "bottom of
+   queue" / archive) moves each into a small, deliberately-ordered
+   **Queue**. Volume is allowed to pile up in the Inbox precisely *because*
+   nothing there has been committed to yet — the Queue stays manageable
+   because everything in it was a decision. This is the actual fix for
+   "growing fast," more so than resequencing a flat pile. → §3.
+2. **[one-click] Personal "Listen Later" RSS feed, synced to any podcast
+   app.** Generate a private per-user feed (`/api/feed/listen-later/<token>`)
+   from `saved_episodes` — real `<enclosure>` URLs already on hand (no
+   rehosting), items ordered by a new `queue_rank` (see #3) via synthetic
+   `pubDate` spacing. One URL, added once via each app's own "Add by URL"
+   (confirmed working in Apple Podcasts, Overcast, Pocket Casts, AntennaPod,
+   Castro, Downcast — standard on serious podcast clients) — from then on
+   the user listens straight from their player and only opens WaveFM to
+   discover more. Direct prior art: Listen Notes ships exactly this
+   ("Listen Later" custom-playlist RSS). **Honest limits:** Spotify and
+   YouTube Music have no listener-facing "add arbitrary RSS" at all — this
+   doesn't reach them, matching the existing `links.ts` caveat; and any
+   player picks up changes on its own poll schedule (often hourly+), not
+   instantly. → §3.
+3. **[organise] Resequence saved episodes.** `saved_episodes` currently has
+   no ordering field at all (`status`/`position_sec` are playback state,
+   not queue position). Add `queue_rank` (float, fractional-rank drag
+   reorder — moving an item averages its new neighbors' ranks, so a
+   reorder is one row update, never a full-list reindex — same pattern as
+   Trello/Notion). Drives both the in-app drag-to-reorder UI and the
+   synced feed's item order from #2 — one field, two features. → §3.
+4. **[one-click] Remembered default player.** `platformLinks()` always
+   renders all 5 icons — the user re-scans and re-clicks every single time.
+   Add a `preferred_player` to `prefs`, and make the primary card/detail
+   action one big "▶ Listen" button that opens that player's link directly
+   (deep link if available, else next-best, else search); demote the icon
+   row to a secondary "more options" affordance. The in-app complement to
+   #2 — this is for opening one episode right now, #2 is for never coming
+   back to WaveFM to fetch the next one. → §3.
+5. **[one-click] Resolve real Spotify show URLs.** Confirmed in code: the
+   `spotify` field in `PlatformLinks` is declared but **never populated** —
+   every Spotify icon is a title-search, same class of friction as the
+   YouTube Music complaint. Spotify's Web API `Search` endpoint works with
+   app-only Client-Credentials auth (free, no user login), so we can store
+   the real show page the same way `pca.st` already does for Pocket Casts.
+   → §2/§6.
+6. **[one-click] Fix the YouTube Music dead-end specifically.** YT Music has
+   no add-by-RSS and no reliable show-search resolution — confirmed the
+   named pain point, and structurally out of reach of #2 above. Two
+   mitigations: (a) reuse the YouTube Data API key already wired for buzz
+   to find the show's real YouTube channel/uploads and link straight to
+   actual audio/video instead of a search that often comes up empty; (b)
+   collapse "copy RSS" + "open YouTube Music" into one combined tap instead
+   of two separate icons. → §2/§6.
+7. **[discover] Ingest Listen Notes' "related podcasts" edges.** Listen
+   Notes is currently used only for a popularity number (`listenScore`).
+   Its actual `recommended_podcasts`/related-shows data is real
+   listener-behavior similarity — a qualitatively better signal than mention
+   counts — and it's on the same free-tier key already in use. → §1/§2.
+8. **[discover-CN] Mine 知乎 (Zhihu) recommendation threads.** The CN signal
+   set (Douban, Xiaoyuzhou, PTT, LIHKG, Dcard) is all ratings/forum-chatter —
+   none of it is curated "please recommend a podcast" discussion the way
+   Reddit is for English. Zhihu's recommendation-thread genre is the closest
+   CN equivalent and is the single biggest gap in niche-matching data. Same
+   RSSHub harvest shape as the existing Douban pipeline. → §2, `community-mining.md`.
+9. **[discover-EN] Add Podchaser.** Free-tier API with critic reviews and
+   user-curated genre lists ("best philosophy podcasts") — actual curatorial
+   text, not just counts. Strengthens niche-cluster "why" copy for English
+   shows. → §2.
+10. **[discover-CN] Add Bilibili discussion signal.** Official public search
+    API, no key, same shape as `youtube.ts` (near-zero new code). Covers a
+    large volume of CN audio/video-podcast content and comment discussion
+    that lives on Bilibili rather than 小宇宙. → §2.
+11. **[organise] Auto-organise the Library into taste clusters.** Beyond
+    manual tags, group saved shows using the recommendation engine's own
+    cluster/"why" (an auto shelf like "Psychological case studies") so the
+    library self-organises as it grows instead of degrading into one flat
+    pile once it's easier to save things (per #4–6). → §1/§3.
+12. **[organise] Auto-track listen progress from the preview player.**
+    `saved_episodes.status`/`position_sec` exist but only the manual "Done?"
+    toggle writes them. Matters more once listening is frictionless — an
+    unused progress field means a bigger library can't show what's actually
+    in progress. → §3.
+13. **[organise] Real "new episodes" inbox** — and note this should probably
+    *merge into the same Inbox from #1* rather than being a separate
+    mechanism: a new episode of an already-saved show and a freshly-saved
+    Discovery episode are the same kind of "here's something new, decide
+    what to do with it" event, so one triage surface should handle both
+    instead of shipping two half-solutions. Replaces the best-effort
+    20-show badge. → §3.
+14. **[protect discovery] Source health-check dashboard.** Douban,
+    Xiaoyuzhou, PTT, LIHKG, Dcard, Apple-reviews are all scrapers; adding
+    Zhihu/Bilibili/Podchaser (#8–10) grows that fragile surface further. A
+    weekly "did every rung return a number" check protects the investment
+    above from silently degrading unnoticed. → §2.
+15. **[protect discovery] Confirm/unblock Reddit on Vercel's IPs.**
+    Maintenance on an *existing* pillar-1 source, not a new capability —
+    ranked last, but a real risk: if it's silently 403ing in prod, English
+    discussion mining is already thinner than it looks. → §2.
+
+### Inspiration references
+
+Not podcast-specific, and hedged honestly on "award-winning" — I only kept
+apps with a confirmed award or a very strong, verifiable design reputation
+rather than guessing:
+
+- **Things 3** (multiple confirmed Apple Design Awards) — the best reference
+  for #1/#3 above: bucketed lists (Today / Upcoming / Anytime / Someday),
+  trivially-easy drag reorder, keyboard-first quick capture. Closest
+  non-podcast analogue to an Inbox/Queue split.
+- **Spotify Discover Weekly** (2016 Webby Award, Best Streaming Audio) —
+  the reference for the discovery pillar: blends collaborative filtering +
+  content-based (text/NLP) + audio models, i.e. multiple heterogeneous
+  signals combined into one ranked list — structurally the same idea as
+  `scoreCandidate`'s cosine + rating + buzz blend, just at Spotify's scale.
+  Worth studying the weekly-digest *framing* (a bounded, dated batch you're
+  meant to work through) as an alternative to an endless feed.
+- **Flighty** (Apple Design Award winner) — not content-related at all
+  (flight tracking), but the reference for making a personal *data*
+  collection feel crafted and alive rather than a bare list — relevant to
+  how the Queue/Library should feel once it's not just a plain table.
+  <br>Confirmed only by press coverage, not formally verified against an
+  awards list, but consistently cited as best-in-class:
+- **Raindrop.io** — collect/tag/organise-anything-from-the-web reference;
+  closest analogue to "Library" as a general collection tool rather than a
+  podcast-specific queue.
+- **Castro**, **Letterboxd**, **The StoryGraph** — carried over from the
+  earlier discussion (Inbox/Queue triage; taste-driven discovery + curated
+  lists; mood/pace-vector recommendations) — still relevant, not re-argued
+  here.
 
 ---
 
@@ -100,6 +242,19 @@ Last updated: 2026-07-13.
 - [x] **P2 — Make 小宇宙 refresh-first.** Done 2026-07-17. `xiaoyuzhouBuzz`
   now refreshes up front when no access token is present, so a valid
   refresh token alone is enough.
+- [x] **P2 — Apple Podcasts ratings rung.** Done 2026-08-02.
+  `ratings/apple.ts` averages the free public customer-reviews JSON feed's
+  recent star ratings (1–5 → 0–10), walking a US → TW → CN → HK storefront
+  ladder so both English and Chinese shows resolve where they're actually
+  reviewed. Needs the numeric iTunes id; non-iTunes shows skip cleanly.
+  Added as a third rung alongside Douban/Xiaoyuzhou in `provider.ts`, wired
+  into `prefs.rating_sources` and `RatingsCacheRow`.
+- [x] **P3 — Pocket Casts trending signal.** Done 2026-08-02.
+  `buzz/pocketcasts.ts` reads Pocket Casts' public Discover
+  popular/trending lists (no key) and maps entries to iTunes ids — one
+  cached fetch (12h) serves the whole request pool. Feeds `popularityParts`
+  in `recommend/buzz.ts` and a "Trending on Pocket Casts" why-string;
+  wired into both `top-picks` and `charts/global` routes.
 - [ ] **P2 — Token refresh doesn't persist.** The refreshed 小宇宙 access
   token is cached in module memory, so it's lost on each serverless cold
   start (re-refresh every time). Consider stashing the latest access token
@@ -127,6 +282,38 @@ Last updated: 2026-07-13.
   a Range-capable CDN plays the random offset and a no-Range CDN plays a
   clean 0:00–0:30 clip labelled "30s preview from the start". Verified in
   headless Chromium against both a Range-serving and a no-Range fixture.
+- [ ] **P1 — Inbox/Queue split for the Library.** Castro-style triage:
+  Discovery saves (and new episodes of saved shows — see the merged item
+  below) land in an untouched **Inbox**; one gesture ("top of queue" /
+  "bottom of queue" / archive) commits each into a small, ordered **Queue**.
+  Schema: `saved_episodes` gets a `bucket` column
+  (`inbox | queue | archived`, default `inbox`) alongside the new
+  `queue_rank` below. This is the actual fix for "unmanageable as it grows"
+  — see the ranked-priorities note above for the full rationale.
+- [ ] **P1 — Resequence saved episodes.** No ordering field exists today
+  (`status`/`position_sec` are playback state, not queue position). Add
+  `saved_episodes.queue_rank` (float8, nullable — only Queue items are
+  ranked). Reordering = update one row's rank to the average of its new
+  neighbors (fractional-rank pattern, same as Trello/Notion) — never a
+  full-list reindex. Drag-and-drop in the Library UI; ties directly into
+  the feed-sync item below.
+- [ ] **P1 — Personal "Listen Later" RSS feed, synced to any podcast app.**
+  New route `app/api/feed/listen-later/[token]/route.ts`: build an RSS
+  document from the signed-in user's Queue, one `<item>` per saved episode
+  with its real `audio_url` as the `<enclosure>` (no rehosting — same
+  legal shape as the existing OPML export, just dynamic), ordered by
+  `queue_rank` via synthetic descending `pubDate` spacing so
+  newest-episode-first players show it in Queue order. `token` is an
+  opaque per-user value (new `prefs.feed_token`, regenerable from Settings
+  if it ever leaks) — no auth header needed since the URL itself is the
+  credential, matching how every "private podcast feed" tool works.
+  Confirmed working via manual "Add by URL" in Apple Podcasts, Overcast,
+  Pocket Casts, AntennaPod, Castro, Downcast. Direct prior art: Listen
+  Notes ships the identical mechanic as its "Listen Later" feature.
+  **Won't reach Spotify or YouTube Music** — neither supports listener-
+  added arbitrary RSS at all (matches the existing `links.ts` caveat) — and
+  any player only picks up changes on its own poll cadence, not instantly;
+  say so in the UI rather than promising live sync.
 - [ ] **P2 — Auto-track listen progress from previews.** `saved_episodes`
   has `status` + `position_sec`, but only the manual "Done?" toggle writes
   them. Wire the preview player to mark an episode `in_progress` and record
@@ -136,10 +323,13 @@ Last updated: 2026-07-13.
   with the user's token to reconcile finished/queued state; (b) support
   the open **gpodder.net** sync standard for players like AntennaPod.
   Both are meaningful features — scope separately.
-- [ ] **P3 — "New episode" badge is best-effort.** It compares each saved
-  show's latest `lastEpisodeAt` (capped at 20 shows, RSS-enriched) against
-  `savedAt`. No unread count, no per-episode list. A proper "new episodes"
-  inbox (fetch recent items per saved feed) would be the real feature.
+- [ ] **P2 — "New episode" badge is best-effort → merge into the Inbox
+  above.** It compares each saved show's latest `lastEpisodeAt` (capped at
+  20 shows, RSS-enriched) against `savedAt` — no unread count, no
+  per-episode list. Rather than building a separate "new episodes inbox,"
+  route new episodes of saved shows into the *same* Inbox bucket as fresh
+  Discovery saves — both are "here's something new, decide what to do with
+  it," and one triage surface handling both avoids two half-solutions.
 
 ## 4. UX & accessibility
 
@@ -220,6 +410,12 @@ sharing, snapshot capture, native apps. See GitHub issues #8–#15.
 
 ## Changelog of shipped refinements
 
+- 2026-08-02 — Apple Podcasts ratings rung (US→TW→CN→HK storefront ladder,
+  averaged recent review stars) and a Pocket Casts trending/popular signal
+  (iTunes-id-mapped, feeds `popularityParts` + a "Trending on Pocket Casts"
+  why-string). Both fully tested (34 new tests), typecheck + lint clean.
+  Not yet committed as of this entry — see git status before assuming this
+  shipped to `main`.
 - 2026-07-17 — Live signal audit (see §2): **credentials confirmed valid**
   — Listen Notes key and 小宇宙 refresh token both return 200 against their
   live APIs (earlier 401s were a `[SENSITIVE]`-masking test artifact, now
