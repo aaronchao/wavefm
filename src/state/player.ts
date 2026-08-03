@@ -94,6 +94,25 @@ export const player = {
   fail(meta?: PreviewMeta) {
     set({ status: "error", ...(meta ? { meta } : {}), audioUrl: null });
   },
+  /**
+   * Fill in meta fields that arrive after playback already started (e.g. an
+   * episode-only preview looking up its parent show's feedUrl/platformLinks
+   * once, in the background) without restarting the clip. Only fills fields
+   * that are still unset, so it never clobbers a more specific value.
+   */
+  patchMeta(patch: Partial<PreviewMeta>) {
+    if (!state.meta) return;
+    const meta = { ...state.meta };
+    let changed = false;
+    for (const key of Object.keys(patch) as (keyof PreviewMeta)[]) {
+      if (meta[key] === undefined && patch[key] !== undefined) {
+        // Safe: `key` ranges over patch's own keys, so the value type matches.
+        (meta as Record<keyof PreviewMeta, unknown>)[key] = patch[key];
+        changed = true;
+      }
+    }
+    if (changed) set({ meta });
+  },
   dismiss() {
     set({ ...initial, token: state.token + 1 });
   },

@@ -1,7 +1,7 @@
 "use client";
 
 import { clipStart, middleFraction, pickIndex } from "@/src/core/preview";
-import { getPreviewEpisodes, getRankedEpisodes } from "@/src/data/catalog/client";
+import { getPreviewEpisodes, getRankedEpisodes, getShow } from "@/src/data/catalog/client";
 import type {
   CatalogEpisode,
   CatalogShow,
@@ -111,6 +111,17 @@ export function previewEpisode(episode: CatalogEpisode) {
     showId: episode.showId,
     episodeId: episode.id,
   };
+  // CatalogEpisode carries no feedUrl/platformLinks of its own (only its
+  // parent show does) — without this, every episode-triggered preview's
+  // Play bar fell back to a dead YouTube Music search instead of the real
+  // add-by-RSS deep link (src/core/links.ts). Fire-and-forget: never blocks
+  // playback, and patchMeta only fills fields still unset by the time it
+  // resolves.
+  if (episode.showId) {
+    void getShow(episode.showId).then((show) => {
+      if (show) player.patchMeta({ feedUrl: show.feedUrl, platformLinks: show.platformLinks });
+    });
+  }
   if (episode.audioUrl) {
     player.play(meta, episode.audioUrl, clipStart(episode.durationSec, Math.random()));
     return;
