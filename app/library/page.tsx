@@ -2,9 +2,9 @@
 
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CatalogShow } from "@/src/data/catalog/types";
-import { getShow } from "@/src/data/catalog/client";
+import { getRankedEpisodes, getShow } from "@/src/data/catalog/client";
 import {
   addEpisodeTag,
   listEpisodeTags,
@@ -14,6 +14,7 @@ import {
 import {
   listSavedEpisodes,
   removeEpisode,
+  saveEpisode,
   setEpisodeBucket,
   updateEpisodeProgress,
   type SavedEpisode,
@@ -308,6 +309,45 @@ function ShowsColumn({
   const freshById = new Map(
     freshQ.filter((q) => q.data).map((q) => [q.data!.id, q.data!]),
   );
+
+  // A new episode of a saved show is the same kind of event as a fresh
+  // Discovery save (REFINEMENTS.md #13) — route it into the same Inbox
+  // for triage instead of a second, separate mechanism. `freshSignal` is a
+  // primitive (compared by value, not reference), so this only re-runs when
+  // the fetched dates actually change, not on every render.
+  const freshSignal = freshQ.map((q) => q.data?.lastEpisodeAt ?? "").join(",");
+  const autoInboxedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const { show, savedAt } of saved.slice(0, 20)) {
+      const latest = freshById.get(show.id)?.lastEpisodeAt ?? show.lastEpisodeAt;
+      if (!latest || Date.parse(latest) <= Date.parse(savedAt)) continue;
+      const key = `${show.id}:${latest}`;
+      if (autoInboxedRef.current.has(key)) continue;
+      autoInboxedRef.current.add(key);
+      void getRankedEpisodes(show.id).then((episodes) => {
+        const newOnes = episodes.filter(
+          (e) => e.publishedAt && Date.parse(e.publishedAt) > Date.parse(savedAt),
+        );
+        if (newOnes.length === 0) return;
+        void Promise.all(
+          newOnes.map((e) =>
+            saveEpisode({
+              id: e.id,
+              title: e.title,
+              showId: show.id,
+              showTitle: show.title,
+              coverUrl: show.coverUrl,
+              appleUrl: show.appleUrl,
+              audioUrl: e.audioUrl,
+              durationSec: e.durationSec,
+              categories: [],
+            }),
+          ),
+        ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- freshSignal is the intentional trigger; saved/queryClient are stable enough here
+  }, [freshSignal]);
 
   const remove = (id: string) =>
     void unsaveShow(id).then(() =>
