@@ -43,6 +43,9 @@ afterEach(() => {
   delete process.env.REDDIT_CLIENT_ID;
   delete process.env.REDDIT_SECRET;
   delete process.env.LISTEN_NOTES_MONTHLY_CAP;
+  delete process.env.PODCHASER_CLIENT_ID;
+  delete process.env.PODCHASER_CLIENT_SECRET;
+  delete process.env.PODCHASER_MONTHLY_CAP;
   vi.doUnmock("@/src/data/repos/usageCountersRepo");
 });
 
@@ -517,5 +520,112 @@ describe("pocketCastsTrendingRanks", () => {
     );
     __resetPocketCastsMemo();
     expect(await pocketCastsTrendingRanks()).toBeNull();
+  });
+});
+
+describe("podchaserDiscussion", () => {
+  it("is silently absent without credentials (no fetch)", async () => {
+    const spy = vi.fn();
+    mockFetch(() => {
+      spy();
+      return { body: {} };
+    });
+    const { podchaserDiscussion, __resetPodchaserTokenCache } = await import(
+      "@/src/data/buzz/podchaser"
+    );
+    __resetPodchaserTokenCache();
+    expect(await podchaserDiscussion("Dear Therapist")).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("aggregates rating + review/list count and returns evidence on a title match", async () => {
+    process.env.PODCHASER_CLIENT_ID = "id";
+    process.env.PODCHASER_CLIENT_SECRET = "secret";
+    mockFetch((url) =>
+      url.includes("/token")
+        ? { body: { access_token: "tok", expires_in: 3600 } }
+        : {
+            body: {
+              data: {
+                podcasts: {
+                  data: [
+                    {
+                      title: "Dear Therapist",
+                      webUrl: "https://www.podchaser.com/podcasts/dear-therapist",
+                      rating: 4.5,
+                      ratingCount: 10,
+                      reviews: { data: [{ text: "Fantastic show", rating: 5 }] },
+                      lists: { data: [{ title: "Best therapy podcasts" }] },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+    );
+    const { podchaserDiscussion, __resetPodchaserTokenCache } = await import(
+      "@/src/data/buzz/podchaser"
+    );
+    __resetPodchaserTokenCache();
+    const result = await podchaserDiscussion("Dear Therapist");
+    expect(result?.buzz).toEqual({ podchaserRating: 4.5, podchaserReviews: 12 });
+    expect(result?.evidence).toHaveLength(2);
+    expect(result?.evidence[0]).toEqual({
+      source: "Podchaser",
+      text: "Fantastic show",
+      url: "https://www.podchaser.com/podcasts/dear-therapist",
+    });
+  });
+
+  it("returns null when no result matches the title", async () => {
+    process.env.PODCHASER_CLIENT_ID = "id";
+    process.env.PODCHASER_CLIENT_SECRET = "secret";
+    mockFetch((url) =>
+      url.includes("/token")
+        ? { body: { access_token: "tok", expires_in: 3600 } }
+        : { body: { data: { podcasts: { data: [{ title: "A Totally Different Show" }] } } } },
+    );
+    const { podchaserDiscussion, __resetPodchaserTokenCache } = await import(
+      "@/src/data/buzz/podchaser"
+    );
+    __resetPodchaserTokenCache();
+    expect(await podchaserDiscussion("Dear Therapist")).toBeNull();
+  });
+
+  it("skips the call entirely once the monthly cap is reached", async () => {
+    process.env.PODCHASER_CLIENT_ID = "id";
+    process.env.PODCHASER_CLIENT_SECRET = "secret";
+    process.env.PODCHASER_MONTHLY_CAP = "1";
+    vi.doMock("@/src/data/repos/usageCountersRepo", () => ({
+      getMonthlyUsage: vi.fn().mockResolvedValue(1), // already at the cap of 1
+      incrementMonthlyUsage: vi.fn(),
+    }));
+    const spy = vi.fn();
+    mockFetch((url) => {
+      if (url.includes("/token")) return { body: { access_token: "tok", expires_in: 3600 } };
+      spy();
+      return { body: { data: { podcasts: { data: [] } } } };
+    });
+    const { podchaserDiscussion, __resetPodchaserTokenCache } = await import(
+      "@/src/data/buzz/podchaser"
+    );
+    __resetPodchaserTokenCache();
+    expect(await podchaserDiscussion("Dear Therapist")).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("never throws when the GraphQL response carries errors", async () => {
+    process.env.PODCHASER_CLIENT_ID = "id";
+    process.env.PODCHASER_CLIENT_SECRET = "secret";
+    mockFetch((url) =>
+      url.includes("/token")
+        ? { body: { access_token: "tok", expires_in: 3600 } }
+        : { body: { errors: [{ message: "field not found" }] } },
+    );
+    const { podchaserDiscussion, __resetPodchaserTokenCache } = await import(
+      "@/src/data/buzz/podchaser"
+    );
+    __resetPodchaserTokenCache();
+    expect(await podchaserDiscussion("Dear Therapist")).toBeNull();
   });
 });

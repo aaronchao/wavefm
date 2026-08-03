@@ -48,6 +48,13 @@ export type BuzzInput = {
   bilibiliVideos?: number;
   bilibiliViews?: number;
   bilibiliComments?: number;
+  /** Podchaser critic reviews + curated-genre-list appearances (env-gated,
+   *  EN-only): review/list count is discussion, average critic rating
+   *  (0–5 scale) is popularity, alongside Listen Score. GraphQL field
+   *  names behind this are unverified against Podchaser's live schema —
+   *  see `src/data/buzz/podchaser.ts`. */
+  podchaserReviews?: number;
+  podchaserRating?: number;
 };
 
 const XYZRANK_SIZE = 200;
@@ -88,6 +95,7 @@ function discussionParts(b: BuzzInput): number[] {
   if (b.comments != null) discussion.push(logScale(b.comments, 4)); // 小宇宙 comments
   if (b.youtubeComments != null) discussion.push(logScale(b.youtubeComments, 4)); // ~10k -> 1
   if (b.bilibiliComments != null) discussion.push(logScale(b.bilibiliComments, 4)); // ~10k -> 1
+  if (b.podchaserReviews != null) discussion.push(logScale(b.podchaserReviews, 2)); // ~100 -> 1
   return discussion;
 }
 
@@ -107,6 +115,9 @@ function popularityParts(b: BuzzInput): number[] {
   }
   if (b.youtubeViews != null) popularity.push(logScale(b.youtubeViews, 7)); // 10M -> 1
   if (b.bilibiliViews != null) popularity.push(logScale(b.bilibiliViews, 7)); // 10M -> 1
+  if (b.podchaserRating != null) {
+    popularity.push(Math.min(Math.max(b.podchaserRating, 0), 5) / 5);
+  }
   return popularity;
 }
 
@@ -144,6 +155,9 @@ export function buzzWhy(b: BuzzInput | undefined): string | null {
   }
   if ((b.hnStories ?? 0) >= 3) {
     return `Discussed on Hacker News (${b.hnStories} threads)`;
+  }
+  if ((b.podchaserReviews ?? 0) >= 2) {
+    return `Reviewed on Podchaser (${b.podchaserReviews} reviews/lists)`;
   }
   if ((b.v2exMentions ?? 0) >= 3) {
     return `Discussed on V2EX (${b.v2exMentions} threads)`;

@@ -18,6 +18,7 @@ import {
 import { hackerNewsDiscussion } from "@/src/data/buzz/hackernews";
 import { listenNotesBuzz } from "@/src/data/buzz/listennotes";
 import { pocketCastsTrendingRanks } from "@/src/data/buzz/pocketcasts";
+import { podchaserDiscussion } from "@/src/data/buzz/podchaser";
 import { redditDiscussion } from "@/src/data/buzz/reddit";
 import { v2exDiscussion } from "@/src/data/buzz/v2ex";
 import { mergeBuzz, xiaoyuzhouBuzz } from "@/src/data/buzz/xiaoyuzhou";
@@ -121,7 +122,7 @@ export async function GET(request: Request) {
       const pcId = itunesId(s.id);
       const pocketCasts =
         pcId && pcRanks?.has(pcId) ? { pocketCastsRank: pcRanks.get(pcId) } : null;
-      const [xyz, reddit, hn, v2ex, dcard, ptt, lihkg, douban, bilibili, xiaoyuzhou, listen, youtube] =
+      const [xyz, reddit, hn, v2ex, dcard, ptt, lihkg, douban, bilibili, xiaoyuzhou, listen, youtube, podchaser] =
         await Promise.all([
           xyzrankBuzz(s.title),
           redditDiscussion(s.title),
@@ -136,10 +137,14 @@ export async function GET(request: Request) {
           gentle ? listenNotesBuzz(s.title) : Promise.resolve(null),
           // YouTube is env-gated + quota-bounded — top few shows only
           gentle ? youtubeDiscussion(s.title) : Promise.resolve(null),
+          // Podchaser is env-gated + monthly-capped (its own kill-switch) and
+          // EN-only — same "top few shows only" bound as YouTube/Listen Notes.
+          gentle ? podchaserDiscussion(s.title) : Promise.resolve(null),
         ]);
       const evidence = [
         ...(reddit?.evidence ?? []),
         ...(hn?.evidence ?? []),
+        ...(podchaser?.evidence ?? []),
         ...(youtube?.evidence ?? []),
         ...(bilibili?.evidence ?? []),
         ...(douban?.evidence ?? []),
@@ -161,6 +166,7 @@ export async function GET(request: Request) {
         buzz: mergeBuzz(
           xyz,
           listen,
+          podchaser?.buzz,
           youtube?.buzz,
           bilibili?.buzz,
           xiaoyuzhou,
