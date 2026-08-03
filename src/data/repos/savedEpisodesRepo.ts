@@ -1,3 +1,4 @@
+import { matchGpodderActions } from "@/src/core/sync/gpodderMatch";
 import type { CatalogEpisode } from "@/src/data/catalog/types";
 import { getSupabase } from "@/src/data/supabase/client";
 
@@ -298,4 +299,38 @@ export async function migrateLocalEpisodes(): Promise<void> {
     if (error) return; // table missing — keep local copies
   }
   writeLocal([]);
+}
+
+/**
+ * One-shot manual pull sync from gpodder.net (REFINEMENTS.md #3, "External
+ * player progress sync") — reconciles play position from an external
+ * client (AntennaPod, gpodder desktop, ...) back into the Library. The
+ * password is used only for this one request to our own proxy route and
+ * is never persisted anywhere. Returns the number of episodes updated;
+ * never throws — any failure (bad credentials, network, no matches)
+ * resolves to 0.
+ */
+export async function syncFromGpodder(username: string, password: string): Promise<number> {
+  try {
+    const res = await fetch("/api/sync/gpodder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) return 0;
+    const json = (await res.json()) as {
+      actions?: { audioUrl: string; positionSec: number; totalSec?: number }[];
+    };
+    const actions = json.actions ?? [];
+    if (actions.length === 0) return 0;
+
+    const episodes = await listSavedEpisodes();
+    const updates = matchGpodderActions(actions, episodes);
+    for (const u of updates) {
+      await updateEpisodeProgress(u.episodeId, { status: u.status, positionSec: u.positionSec });
+    }
+    return updates.length;
+  } catch {
+    return 0;
+  }
 }
