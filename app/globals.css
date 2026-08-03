@@ -145,3 +145,45 @@ body {
     animation: none;
   }
 }
+
+/* Magnetic snap — a brief accent-colored ring flash on whichever card just
+   got displaced by the dragged one settling into its slot (paired with a
+   haptic tick in EpisodesColumn's handleDragOver), so reordering reads as
+   "clicking" into discrete positions rather than a plain silent reflow.
+   Applied to the same INNER element as .jiggle, never the sortable root. */
+@keyframes wavr-snap-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent);
+  }
+  35% {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.snap-pulse {
+  animation: wavr-snap-pulse 260ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .snap-pulse {
+    animation: none;
+  }
+}
+
+/* Liquid Glass — the one shared translucency recipe (border, fill, blur),
+   reused everywhere a surface floats over content: Discover's glass rows,
+   FloatingSearch, and the bottom Play bar. Previously this exact class
+   string was hand-copied into 6 different components; shadow/padding/
+   radius are left to each call site since those genuinely differ (a
+   floating search sheet's shadow-2xl vs. a compact row's shadow-md). */
+.glass-panel {
+  border: 1px solid rgb(255 255 255 / 0.3);
+  background-color: rgb(255 255 255 / 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+:root[data-theme="dark"] .glass-panel {
+  border-color: rgb(255 255 255 / 0.1);
+  background-color: rgb(0 0 0 / 0.3);
+}

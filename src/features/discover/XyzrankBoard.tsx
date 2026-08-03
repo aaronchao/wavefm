@@ -188,7 +188,7 @@ function useShowSavedToggle(show: XyzrankShowItem) {
 function XyzrankShowRow({ show }: { show: XyzrankShowItem }) {
   const { saved, toggle } = useShowSavedToggle(show);
   return (
-    <li className="flex items-start gap-2.5 rounded-card border border-white/30 bg-white/30 p-2.5 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-black/30">
+    <li className="glass-panel flex items-start gap-2.5 rounded-card p-2.5 shadow-md">
       <CoverPlay
         src={show.coverUrl}
         size={48}
@@ -283,7 +283,7 @@ function XyzrankEpisodeRow({ ep }: { ep: XyzrankEpisodeItem }) {
   }
 
   return (
-    <li className="flex items-start gap-2.5 rounded-card border border-white/30 bg-white/30 p-2.5 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-black/30">
+    <li className="glass-panel flex items-start gap-2.5 rounded-card p-2.5 shadow-md">
       <CoverPlay
         src={ep.coverUrl}
         size={48}

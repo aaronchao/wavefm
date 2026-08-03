@@ -29,9 +29,7 @@ export function ShowRowCompact({ show, glass = false }: { show: SimilarShow; gla
   return (
     <li
       className={`flex items-start gap-2.5 rounded-card p-2.5 ${
-        glass
-          ? "border border-white/30 bg-white/30 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-black/30"
-          : "border border-surface-border bg-background shadow-sm"
+        glass ? "glass-panel shadow-md" : "border border-surface-border bg-background shadow-sm"
       }`}
     >
       <CoverPlay

@@ -187,6 +187,9 @@ export function PreviewPlayer() {
             // height (`.pb-safe`) — on a notched/home-indicator device this
             // bar sat too low, visually overlapping the tab bar's safe-area
             // padding. Stack above the actual rendered height instead.
+            // Kept as its own explicit recipe rather than `.glass-panel`
+            // (globals.css) — this bar wants a border on its TOP edge only,
+            // where `.glass-panel` is a full-perimeter border.
             className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-[45] border-t border-white/30 bg-white/30 backdrop-blur-md dark:border-white/10 dark:bg-black/30"
           >
             <div className="mx-auto flex max-w-2xl flex-col gap-2 p-3 sm:px-8">

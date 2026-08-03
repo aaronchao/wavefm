@@ -91,7 +91,7 @@ export function FloatingSearch() {
         {showResults && (
           // Liquid-glass search popup: translucent + blurred, subtle border.
           // overscroll-contain + its own scroll keeps the page beneath still.
-          <div className="mb-2 max-h-[60vh] overflow-y-auto overscroll-contain rounded-[2px] border border-white/30 bg-white/30 p-3 shadow-2xl backdrop-blur-md dark:border-white/10 dark:bg-black/30">
+          <div className="glass-panel mb-2 max-h-[60vh] overflow-y-auto overscroll-contain rounded-[2px] p-3 shadow-2xl">
             {isFetching && shows.length === 0 && episodes.length === 0 && (
               <p className="px-1 py-3 text-sm text-zinc-400">Searching…</p>
             )}
@@ -141,7 +141,7 @@ export function FloatingSearch() {
 
         {/* Liquid-glass search bar: translucent + blurred, subtle border.
             Thicker vertical padding gives it real tap-target presence. */}
-        <div className="flex items-center gap-2 rounded-[2px] border border-white/30 bg-white/30 px-4 py-3.5 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-black/30">
+        <div className="glass-panel flex items-center gap-2 rounded-[2px] px-4 py-3.5 shadow-xl">
           <SearchIcon className="h-4 w-4 shrink-0 text-foreground" />
           <input
             value={input}

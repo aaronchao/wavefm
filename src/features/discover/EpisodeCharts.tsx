@@ -107,7 +107,7 @@ function EpisodeRow({ ep }: { ep: ChartEpisodeItem }) {
   }
 
   return (
-    <li className="flex items-start gap-2.5 rounded-card border border-white/30 bg-white/30 p-2.5 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-black/30">
+    <li className="glass-panel flex items-start gap-2.5 rounded-card p-2.5 shadow-md">
       {/* Matches the "More Ranks For You" episode row: cover + play triangle */}
       <CoverPlay
         src={ep.coverUrl}

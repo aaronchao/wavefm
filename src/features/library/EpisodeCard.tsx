@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { addEpisodeTag, removeEpisodeTag } from "@/src/data/repos/episodeTagsRepo";
 import { updateEpisodeProgress, type SavedEpisode } from "@/src/data/repos/savedEpisodesRepo";
 import { CoverPlay } from "@/src/features/player/CoverPlay";
@@ -41,6 +42,7 @@ export function EpisodeCard({
   onArchive,
   disabled = false,
   jiggle = false,
+  snapPulseKey,
 }: {
   episode: SavedEpisode;
   bucket: "inbox" | "queue";
@@ -57,6 +59,10 @@ export function EpisodeCard({
    *  homescreen "we're in reorder mode" wiggle. Never true for the card
    *  actually being dragged (that one lifts into the DragOverlay instead). */
   jiggle?: boolean;
+  /** Bumped by the parent every time this card is the one a dragged card
+   *  just snapped past/into — triggers a one-shot "magnetic click" ring
+   *  pulse. Any change in value (not the value itself) retriggers it. */
+  snapPulseKey?: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: episode.episodeId,
@@ -121,10 +127,21 @@ export function EpisodeCard({
       <PlayableCard
         onPlay={play}
         playLabel={`Preview ${episode.title}`}
+        style={jiggle ? ({ "--jiggle-delay": `${jiggleDelayMs(episode.episodeId)}ms` } as CSSProperties) : undefined}
         className={`h-36 cursor-pointer overflow-hidden !rounded-[2px] ${finished ? "opacity-60" : ""} ${
-          jiggle ? `jiggle [animation-delay:${jiggleDelayMs(episode.episodeId)}ms]` : ""
+          jiggle ? "jiggle" : ""
         }`}
       >
+        {/* Remounting on every snapPulseKey change is what replays the CSS
+            keyframe — a boolean flag toggled via setState+setTimeout would
+            fight React's render cycle for the same one-shot effect. */}
+        {snapPulseKey !== undefined && (
+          <span
+            key={snapPulseKey}
+            aria-hidden
+            className="snap-pulse pointer-events-none absolute inset-0 rounded-[2px]"
+          />
+        )}
         <button
           type="button"
           {...attributes}

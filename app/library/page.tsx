@@ -49,7 +49,7 @@ import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewShow } from "@/src/features/player/preview";
 import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
-import { CoverTile, NothingToggle, PlayableCard } from "@/src/ui";
+import { CoverTile, haptic, NothingToggle, PlayableCard } from "@/src/ui";
 
 /**
  * Library: the collection system, a single 2-column grid — Shows beside
@@ -582,6 +582,14 @@ function EpisodesColumn({
   const [localInboxIds, setLocalInboxIds] = useState<string[]>(() => inbox.map((e) => e.episodeId));
   const [localQueueIds, setLocalQueueIds] = useState<string[]>(() => queue.map((e) => e.episodeId));
   const draggingRef = useRef(false);
+  // Magnetic snap: a per-id counter bumped each time a reorder actually
+  // moves that card's slot, paired with a haptic tick — cards should feel
+  // like they click into discrete positions, not silently reflow.
+  const [snapPulses, setSnapPulses] = useState<Record<string, number>>({});
+  function snapTo(id: string) {
+    haptic("tick");
+    setSnapPulses((p) => ({ ...p, [id]: (p[id] ?? 0) + 1 }));
+  }
   const inboxSignal = inbox.map((e) => e.episodeId).join(",");
   const queueSignal = queue.map((e) => e.episodeId).join(",");
   useEffect(() => {
@@ -651,6 +659,7 @@ function EpisodesColumn({
         const oldIndex = ids.indexOf(draggedId);
         const newIndex = ids.indexOf(overId);
         if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return ids;
+        snapTo(overId);
         return arrayMove(ids, oldIndex, newIndex);
       });
       return;
@@ -660,6 +669,7 @@ function EpisodesColumn({
     setLocalInboxIds((ids) => ids.filter((id) => id !== draggedId));
     setLocalQueueIds((ids) => {
       if (ids.includes(draggedId)) return ids;
+      snapTo(overId);
       const overIndex = ids.indexOf(overId);
       const next = [...ids];
       next.splice(overIndex === -1 ? next.length : overIndex, 0, draggedId);
@@ -733,6 +743,7 @@ function EpisodesColumn({
                         onArchive={() => archive(e.episodeId)}
                         disabled={filtered}
                         jiggle={activeId !== null && activeId !== e.episodeId}
+                        snapPulseKey={snapPulses[e.episodeId]}
                       />
                     ))}
                   </AnimatePresence>
@@ -767,6 +778,7 @@ function EpisodesColumn({
                       onArchive={() => archive(e.episodeId)}
                       disabled={filtered}
                       jiggle={activeId !== null && activeId !== e.episodeId}
+                      snapPulseKey={snapPulses[e.episodeId]}
                     />
                   ))}
                 </AnimatePresence>

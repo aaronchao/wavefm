@@ -16,16 +16,18 @@ export function PlayableCard({
   onPlay,
   playLabel,
   className = "",
+  style,
   children,
 }: {
   onPlay: () => void;
   playLabel: string;
   className?: string;
+  style?: React.CSSProperties;
   children: ReactNode;
 }) {
   return (
     <SettleIn>
-      <Card className={`relative flex items-center gap-3 ${className}`}>
+      <Card className={`relative flex items-center gap-3 ${className}`} style={style}>
         <button
           type="button"
           aria-label={playLabel}
