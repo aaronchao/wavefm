@@ -2,7 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { itunesId, pickPreferredLink, platformLinks, type PlatformId } from "@/src/core/links";
+import {
+  itunesId,
+  pickPreferredLink,
+  platformLinks,
+  youtubeMusicAddByRssUrl,
+  type PlatformId,
+} from "@/src/core/links";
 import { getSpotifyLink, getYoutubeLink } from "@/src/data/catalog/client";
 import { getPrefs } from "@/src/data/repos/prefsRepo";
 import type { PlatformLinks } from "@/src/data/catalog/types";
@@ -21,12 +27,18 @@ import type { PlatformLinks } from "@/src/data/catalog/types";
  * to its brand colour. A generic RSS icon always sits alongside (never
  * conditionally hidden, matching every other platform icon's presence):
  * clicking it copies the raw feed URL to the clipboard for apps with no web
- * add-by-URL flow at all (Apple, Spotify, 小宇宙); grayscale + disabled
- * without a feed URL. YouTube Music is the one exception — see
- * src/core/links.ts — it gets a real (if Google-undocumented) add-by-RSS
- * deep link instead of a search when no channel was resolved, with the
- * clipboard copy kept as a safety net. Links stop propagation so they work
- * inside a full-card play button.
+ * add-by-URL flow at all; grayscale + disabled without a feed URL.
+ *
+ * "Listen"/the icon's own click ALWAYS means listen (search-and-tap-play at
+ * worst) — it never silently turns into a subscribe/add action, even for
+ * YouTube Music. An earlier version made the YouTube Music icon open its
+ * real add-by-RSS deep link whenever no channel was resolved, which reads
+ * as "search," gets tapped expecting to listen, and instead opens a
+ * subscribe-confirmation dialog with nothing playable — reported unusable.
+ * That deep link (`youtubeMusicAddByRssUrl`) is now only ever offered as a
+ * separate, explicitly-labeled "Add via RSS" control (below, and in the
+ * Library's bulk-add panel) for someone who deliberately wants to subscribe.
+ * Links stop propagation so they work inside a full-card play button.
  */
 export function OpenInLinks({
   title,
@@ -98,7 +110,6 @@ export function OpenInLinks({
       ...stored,
     },
     itunesId(showId),
-    feedUrl,
   );
   const box = size === "md" ? "h-9 w-9" : "h-7 w-7";
   const glyph = size === "md" ? "h-5 w-5" : "h-4 w-4";
@@ -109,14 +120,6 @@ export function OpenInLinks({
   const prefsQ = useQuery({ queryKey: ["prefs", "player"], queryFn: getPrefs });
   const primary = pickPreferredLink(links, prefsQ.data?.preferred_player);
   const PrimaryIcon = primary ? PLATFORM_ICONS[primary.id] : null;
-  // When no real YouTube channel was resolved, platformLinks() already
-  // pointed this at YouTube Music's real (if undocumented) add-by-RSS deep
-  // link instead of a plain search — see src/core/links.ts. The RSS URL is
-  // still copied to the clipboard alongside it as a safety net in case that
-  // undocumented parameter ever stops working.
-  const primaryNeedsRssCopy = Boolean(
-    primary?.id === "youtubeMusic" && primary.isSearch && feedUrl,
-  );
 
   return (
     <div className={className}>
@@ -127,20 +130,14 @@ export function OpenInLinks({
           rel="noopener noreferrer"
           onClick={(e) => {
             e.stopPropagation();
-            if (primaryNeedsRssCopy) void navigator.clipboard.writeText(feedUrl!).catch(() => {});
             onOpen?.();
           }}
-          aria-label={
-            primaryNeedsRssCopy
-              ? `Add this podcast to YouTube Music via RSS`
-              : `Listen on ${primary.label}${primary.isSearch ? " (search)" : ""}`
-          }
-          title={primaryNeedsRssCopy ? "Also copies the RSS feed URL, in case that doesn't work" : undefined}
+          aria-label={`Listen on ${primary.label}${primary.isSearch ? " (search)" : ""}`}
           style={{ backgroundColor: PLATFORM_COLORS[primary.id] }}
           className="mb-1.5 inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-transform hover:shadow-md active:scale-95"
         >
           <PrimaryIcon className="h-4 w-4" />
-          {primaryNeedsRssCopy ? "Add to YouTube Music" : `Listen on ${primary.label}`}
+          {`Listen on ${primary.label}`}
         </a>
       )}
       <OpenInLinksRow
@@ -196,36 +193,44 @@ function OpenInLinksRow({
             </span>
           );
         }
-        // When no real channel was resolved (REFINEMENTS.md #6), this URL is
-        // YouTube Music's real add-by-RSS deep link rather than a plain
-        // search — copy the feed URL to the clipboard too, as a safety net
-        // in case that undocumented parameter ever stops working.
-        const combinedRssCopy = l.id === "youtubeMusic" && l.isSearch && feedUrl;
-        const openInLabel = combinedRssCopy
-          ? `Add this podcast to ${l.label} via RSS`
-          : `Open in ${l.label}${l.isSearch ? " (search)" : ""}`;
+        const openInLabel = `Open in ${l.label}${l.isSearch ? " (search)" : ""}`;
         return (
-          <a
-            key={l.id}
-            href={l.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (combinedRssCopy) void navigator.clipboard.writeText(feedUrl).catch(() => {});
-              onOpen?.();
-            }}
-            aria-label={openInLabel}
-            title={combinedRssCopy ? `${openInLabel} (also copies the RSS feed URL, in case that doesn't work)` : openInLabel}
-            style={branded ? { color: PLATFORM_COLORS[l.id] } : undefined}
-            className={`flex ${box} shrink-0 items-center justify-center rounded-full transition-colors ${
-              branded
-                ? "bg-surface hover:opacity-80"
-                : "bg-surface text-zinc-400 grayscale hover:text-zinc-600 dark:hover:text-zinc-200"
-            }`}
-          >
-            <Icon className={glyph} />
-          </a>
+          <span key={l.id} className="inline-flex shrink-0 items-center">
+            <a
+              href={l.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpen?.();
+              }}
+              aria-label={openInLabel}
+              title={openInLabel}
+              style={branded ? { color: PLATFORM_COLORS[l.id] } : undefined}
+              className={`flex ${box} shrink-0 items-center justify-center rounded-full transition-colors ${
+                branded
+                  ? "bg-surface hover:opacity-80"
+                  : "bg-surface text-zinc-400 grayscale hover:text-zinc-600 dark:hover:text-zinc-200"
+              }`}
+            >
+              <Icon className={glyph} />
+            </a>
+            {/* Distinct, explicit opt-in — never the icon's own click target
+                (see module doc: "Listen" must never silently mean "subscribe"). */}
+            {l.id === "youtubeMusic" && l.isSearch && feedUrl && (
+              <a
+                href={youtubeMusicAddByRssUrl(feedUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Add this podcast to YouTube Music via RSS (separate from listening)`}
+                title="Add to YouTube Music via RSS — subscribes the whole show, doesn't play anything"
+                className="ml-0.5 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-semibold text-zinc-400 transition-colors hover:text-foreground"
+              >
+                +RSS
+              </a>
+            )}
+          </span>
         );
       })}
       {/* Always present — matches the global icon design system (a platform
