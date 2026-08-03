@@ -1,0 +1,83 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`recommend (golden snapshot) > matches the pinned ranked output for the fixture set 1`] = `
+[
+  {
+    "id": "saved:周小辣",
+    "items": [
+      {
+        "score": 0.340813,
+        "showId": "c-sono",
+      },
+    ],
+    "label": "周小辣",
+    "why": "Because you saved 周小辣",
+  },
+  {
+    "id": "saved:Dear Therapist",
+    "items": [
+      {
+        "score": 0.306202,
+        "showId": "c-psychseattle",
+      },
+    ],
+    "label": "Dear Therapist",
+    "why": "Because you saved Dear Therapist",
+  },
+  {
+    "id": "psych-cases",
+    "items": [
+      {
+        "score": 0.182808,
+        "showId": "c-coaching",
+      },
+    ],
+    "label": "psychological case studies",
+    "why": "More psychological case studies",
+  },
+  {
+    "id": "books",
+    "items": [
+      {
+        "score": 0.167248,
+        "showId": "c-books",
+      },
+    ],
+    "label": "book discussions",
+    "why": "More book discussions",
+  },
+  {
+    "id": "news-politics",
+    "items": [
+      {
+        "score": 0.138,
+        "showId": "c-highlyrated",
+      },
+    ],
+    "label": "news & politics",
+    "why": "More news & politics",
+  },
+  {
+    "id": "gay-travel",
+    "items": [
+      {
+        "score": 0,
+        "showId": "c-gaytravel",
+      },
+    ],
+    "label": "gay travel stories",
+    "why": "More gay travel stories",
+  },
+  {
+    "id": "music-culture",
+    "items": [
+      {
+        "score": -0.012377,
+        "showId": "c-zane",
+      },
+    ],
+    "label": "music culture",
+    "why": "More music culture",
+  },
+]
+`;

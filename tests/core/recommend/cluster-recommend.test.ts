@@ -179,3 +179,41 @@ describe("recommend (full pipeline)", () => {
     expect(psych.score).toBeCloseTo(0.30620210641999546, 12);
   });
 });
+
+/**
+ * Golden fixtures (REFINEMENTS.md #27): the pinned score above catches
+ * drift in ONE value on ONE show; this snapshots the WHOLE ranked output
+ * (every cluster, every item, every why-string, in order) against the
+ * same fixed engagement + candidate set, so any weight/scoring change
+ * shows up as a reviewable diff instead of requiring a human to have
+ * already guessed which field to check. Scores are rounded — floating-
+ * point representation noise shouldn't fail this, meaningful drift should.
+ * Run `vitest run -u` to intentionally update the snapshot after a real
+ * tuning change; review the diff before committing it.
+ */
+describe("recommend (golden snapshot)", () => {
+  it("matches the pinned ranked output for the fixture set", () => {
+    const input = {
+      candidates,
+      engagements,
+      engagedShows: savedShows,
+      interests: ["book discussions"],
+      ratings: { "c-highlyrated": { source: "douban", rating: 9.2 } },
+      impressions: { "c-zane": 3 },
+      now: NOW,
+      caps: { perCluster: 4, maxClusters: 8 },
+    };
+    // recommend() already runs diversify() internally with these caps —
+    // no need to re-apply it here.
+    const projected = recommend(input).map((c) => ({
+      id: c.id,
+      label: c.label,
+      why: c.why,
+      items: c.items.map((i) => ({
+        showId: i.show.id,
+        score: Math.round(i.score * 1e6) / 1e6,
+      })),
+    }));
+    expect(projected).toMatchSnapshot();
+  });
+});
