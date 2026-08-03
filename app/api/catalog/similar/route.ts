@@ -6,6 +6,7 @@ import {
   shouldLanguageFilter,
   type SimilarItemInput,
 } from "@/src/core/recommend";
+import { listenNotesRelatedTitles } from "@/src/data/buzz/listennotes";
 import { xyzrankBuzz } from "@/src/data/buzz/xyzrank";
 import { lookupShowEnriched } from "@/src/data/catalog/lookup";
 import {
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
   const languageLocked = shouldLanguageFilter(seedLang);
   const storefront = seedLang === "zh" ? "cn" : seedLang === "ja" ? "jp" : seedLang === "ko" ? "kr" : undefined;
 
-  const [byTopic, byCategory, byPi, byStorefront, episodeResults, chartRanks, trendRanks] =
+  const [byTopic, byCategory, byPi, byStorefront, episodeResults, chartRanks, trendRanks, relatedTitles] =
     await Promise.all([
       itunesSearch(topicQuery),
       categoryQuery ? itunesSearch(categoryQuery) : Promise.resolve(null),
@@ -59,7 +60,20 @@ export async function GET(request: Request) {
       itunesEpisodeSearch(topicQuery),
       itunesTopChartRanks(),
       piTrendingRanks(),
+      listenNotesRelatedTitles(seed.title),
     ]);
+
+  // Listen Notes' own listener-behavior "related podcasts" (REFINEMENTS.md
+  // #7) — resolved through the normal iTunes search path so each pick is
+  // an ordinary candidate (capped at 3: each is its own iTunes search, and
+  // this route is one show-detail view, not a bulk list, so a small,
+  // bounded fan-out is fine).
+  const byRelated = (
+    await Promise.all((relatedTitles ?? []).slice(0, 3).map((t) => itunesSearch(t)))
+  )
+    // one best-match show per related title, not iTunes's whole result page
+    .map((results) => results?.[0])
+    .filter((s): s is CatalogShow => s != null && s.id !== seed.id);
 
   const degraded =
     byTopic === null && byCategory === null && byPi === null &&
@@ -72,6 +86,7 @@ export async function GET(request: Request) {
     ...(byStorefront ?? []),
     ...(byCategory ?? []),
     ...(byPi ?? []),
+    ...byRelated,
   ]) {
     if (!showById.has(s.id)) showById.set(s.id, s);
   }

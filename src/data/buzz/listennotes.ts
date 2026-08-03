@@ -29,31 +29,71 @@ function apiKey(): string | null {
 }
 
 type LnResult = {
+  id?: string;
   title_original?: string;
   listen_score?: number | null;
 };
 
 const normalize = normalizeForMatch;
 
+async function findListenNotesId(title: string, key: string): Promise<LnResult | null> {
+  const url =
+    `${BASE}/search?type=podcast&only_in=title&page_size=5` +
+    `&q=${encodeURIComponent(title)}`;
+  const res = await fetch(url, {
+    headers: { "X-ListenAPI-Key": key },
+    next: { revalidate: REVALIDATE_SECONDS },
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as { results?: LnResult[] };
+  const results = json.results ?? [];
+  return (
+    results.find((r) => normalize(r.title_original ?? "") === normalize(title)) ??
+    results[0] ??
+    null
+  );
+}
+
 export async function listenNotesBuzz(title: string): Promise<BuzzInput | null> {
   const key = apiKey();
   if (!key) return null; // not enabled/configured — skip, never an error
   try {
-    const url =
-      `${BASE}/search?type=podcast&only_in=title&page_size=5` +
-      `&q=${encodeURIComponent(title)}`;
-    const res = await fetch(url, {
+    const hit = await findListenNotesId(title, key);
+    if (hit?.listen_score == null) return null;
+    return { listenScore: hit.listen_score };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Titles of podcasts Listen Notes' own "listeners of X also listen to"
+ * relation recommends for `title` (REFINEMENTS.md #7) — real listener-
+ * behavior similarity, a qualitatively different signal than the mention-
+ * count buzz above. Returned as plain titles (not show objects): the
+ * caller resolves each through the normal iTunes search path, so a
+ * related pick becomes an ordinary candidate with no new id scheme, deep
+ * links, or routing to support. Costs one extra Listen Notes call beyond
+ * the search above (`GET /podcasts/{id}/recommendations`) — called only
+ * from the show-detail "similar" route (one view, not the whole pool), so
+ * it stays within the same tiny free-tier budget the search call already
+ * respects.
+ */
+export async function listenNotesRelatedTitles(title: string): Promise<string[] | null> {
+  const key = apiKey();
+  if (!key) return null;
+  try {
+    const hit = await findListenNotesId(title, key);
+    if (!hit?.id) return null;
+    const res = await fetch(`${BASE}/podcasts/${hit.id}/recommendations?safe_mode=0`, {
       headers: { "X-ListenAPI-Key": key },
       next: { revalidate: REVALIDATE_SECONDS },
     });
     if (!res.ok) return null;
-    const json = (await res.json()) as { results?: LnResult[] };
-    const results = json.results ?? [];
-    const hit =
-      results.find((r) => normalize(r.title_original ?? "") === normalize(title)) ??
-      results[0];
-    if (hit?.listen_score == null) return null;
-    return { listenScore: hit.listen_score };
+    const json = (await res.json()) as { recommendations?: { title_original?: string }[] };
+    return (json.recommendations ?? [])
+      .map((r) => r.title_original)
+      .filter((t): t is string => Boolean(t));
   } catch {
     return null;
   }

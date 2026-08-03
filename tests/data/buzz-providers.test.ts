@@ -71,6 +71,48 @@ describe("listenNotesBuzz", () => {
   });
 });
 
+describe("listenNotesRelatedTitles", () => {
+  it("is silently absent without a key (no fetch)", async () => {
+    const spy = vi.fn();
+    mockFetch(() => {
+      spy();
+      return { body: {} };
+    });
+    const { listenNotesRelatedTitles } = await import("@/src/data/buzz/listennotes");
+    expect(await listenNotesRelatedTitles("Dear Therapist")).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("returns related titles from the recommendations endpoint", async () => {
+    process.env.LISTEN_NOTES_API_KEY = "k";
+    mockFetch((url) =>
+      url.includes("/recommendations")
+        ? { body: { recommendations: [{ title_original: "Show A" }, { title_original: "Show B" }] } }
+        : { body: { results: [{ id: "ln1", title_original: "Dear Therapist", listen_score: 72 }] } },
+    );
+    const { listenNotesRelatedTitles } = await import("@/src/data/buzz/listennotes");
+    expect(await listenNotesRelatedTitles("Dear Therapist")).toEqual(["Show A", "Show B"]);
+  });
+
+  it("returns null when the search finds no matching podcast id", async () => {
+    process.env.LISTEN_NOTES_API_KEY = "k";
+    mockFetch(() => ({ body: { results: [] } }));
+    const { listenNotesRelatedTitles } = await import("@/src/data/buzz/listennotes");
+    expect(await listenNotesRelatedTitles("Dear Therapist")).toBeNull();
+  });
+
+  it("returns null when the recommendations call fails (never throws)", async () => {
+    process.env.LISTEN_NOTES_API_KEY = "k";
+    mockFetch((url) =>
+      url.includes("/recommendations")
+        ? { status: 500, body: {} }
+        : { body: { results: [{ id: "ln1", title_original: "Dear Therapist" }] } },
+    );
+    const { listenNotesRelatedTitles } = await import("@/src/data/buzz/listennotes");
+    expect(await listenNotesRelatedTitles("Dear Therapist")).toBeNull();
+  });
+});
+
 describe("xyzrankBuzz", () => {
   it("parses rank + 小宇宙 stats for a listed show", async () => {
     mockFetch(() => ({
