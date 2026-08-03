@@ -40,12 +40,29 @@ type Matched = {
   videoId: string;
   /** Absent for the (rare) search result missing snippet.channelId. */
   channelId?: string;
+  channelTitle?: string;
   title: string;
   views: number;
   comments: number;
 };
 
 const normalize = normalizeForMatch;
+
+/**
+ * A video's own title matching the show name proves nothing about the
+ * CHANNEL it's on — content-farm/aggregator channels keyword-stuff
+ * unrelated videos with trending podcast titles for search traffic (a
+ * real, observed failure: a video titled with "不止读书"'s episode name
+ * sat on a channel literally called "Xishiduo food video"). Only the
+ * channel's own name relating to the show is real evidence this is
+ * actually that show's channel.
+ */
+function channelLooksLikeShow(m: Matched, showTitle: string): boolean {
+  if (!m.channelTitle) return false;
+  const channel = normalize(m.channelTitle);
+  const show = normalize(showTitle);
+  return channel.length > 0 && show.length > 0 && (channel.includes(show) || show.includes(channel));
+}
 
 async function fetchMatched(title: string): Promise<Matched[] | null> {
   const key = apiKey();
@@ -61,6 +78,7 @@ async function fetchMatched(title: string): Promise<Matched[] | null> {
       .map((it) => ({
         videoId: it.id?.videoId,
         channelId: it.snippet?.channelId,
+        channelTitle: it.snippet?.channelTitle,
         title: it.snippet?.title ?? "",
       }))
       .filter((v): v is typeof v & { videoId: string } => Boolean(v.videoId));
@@ -86,6 +104,7 @@ async function fetchMatched(title: string): Promise<Matched[] | null> {
     return found.map((v) => ({
       videoId: v.videoId,
       channelId: v.channelId,
+      channelTitle: v.channelTitle,
       title: v.title,
       views: statsById.get(v.videoId)?.views ?? 0,
       comments: statsById.get(v.videoId)?.comments ?? 0,
@@ -124,19 +143,20 @@ export async function youtubeBuzz(title: string): Promise<BuzzInput | null> {
  * it opens youtube.com, not music.youtube.com — never claims a presence
  * on the Music app that isn't verifiable from this API.
  *
- * REQUIRES a normalized-title match (same check youtubeDiscussion uses for
- * evidence) before ever resolving a channel — this used to blindly trust
- * whatever video ranked #1 for `"<title>" podcast`, which for a niche or
- * short title frequently isn't actually the show at all, sending the user
- * to a completely unrelated channel. Better to return null (falls back to
- * the add-by-RSS deep link/search) than confidently link the wrong show.
+ * REQUIRES the matched video's own CHANNEL name to relate to the show —
+ * not just its title — before ever resolving a channel. This used to
+ * blindly trust any video whose TITLE mentioned the show, which a content-
+ * farm/aggregator channel can produce for a totally unrelated channel just
+ * by keyword-stuffing a trending podcast's name (a real, reported failure:
+ * see channelLooksLikeShow's doc). Better to return null (falls back to
+ * search) than confidently link the wrong channel.
  */
 export async function youtubeChannelUrl(title: string): Promise<string | null> {
   const matched = await fetchMatched(title);
   if (!matched || matched.length === 0) return null;
   const relevant = matched.filter(
     (m): m is Matched & { channelId: string } =>
-      Boolean(m.channelId) && normalize(m.title).includes(normalize(title)),
+      Boolean(m.channelId) && channelLooksLikeShow(m, title),
   );
   if (relevant.length === 0) return null;
   const best = relevant.sort((a, b) => b.views - a.views)[0];
@@ -161,7 +181,12 @@ export async function youtubeEpisodeUrl(
 ): Promise<string | null> {
   const matched = await fetchMatched(episodeTitle);
   if (matched && matched.length > 0) {
-    const relevant = matched.filter((m) => normalize(m.title).includes(normalize(episodeTitle)));
+    // Both checks matter: the title alone doesn't prove it's really this
+    // show's video — see channelLooksLikeShow's doc for why a keyword-
+    // stuffed unrelated channel can otherwise slip through.
+    const relevant = matched.filter(
+      (m) => normalize(m.title).includes(normalize(episodeTitle)) && channelLooksLikeShow(m, showTitle),
+    );
     if (relevant.length > 0) {
       const best = relevant.sort((a, b) => b.views - a.views)[0];
       return `https://www.youtube.com/watch?v=${best.videoId}`;

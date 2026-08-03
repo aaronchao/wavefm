@@ -521,10 +521,14 @@ describe("youtubeChannelUrl", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("returns the top match's channel URL", async () => {
+  it("returns the top match's channel URL when the channel itself is the show", async () => {
     process.env.YOUTUBE_API_KEY = "k";
     mockFetch(() => ({
-      body: { items: [{ id: { videoId: "a" }, snippet: { title: "Show X ep 1", channelId: "UC123" } }] },
+      body: {
+        items: [
+          { id: { videoId: "a" }, snippet: { title: "Show X ep 1", channelId: "UC123", channelTitle: "Show X" } },
+        ],
+      },
     }));
     const { youtubeChannelUrl } = await import("@/src/data/buzz/youtube");
     expect(await youtubeChannelUrl("Show X")).toBe("https://www.youtube.com/channel/UC123");
@@ -556,14 +560,42 @@ describe("youtubeChannelUrl", () => {
     const { youtubeChannelUrl } = await import("@/src/data/buzz/youtube");
     expect(await youtubeChannelUrl("周小辣")).toBeNull();
   });
-});
 
-describe("youtubeEpisodeUrl", () => {
-  it("links the matched video's own watch URL, not the channel", async () => {
+  it("never links a content-farm channel that just keyword-stuffed the show's name into a video title (regression)", async () => {
+    // Real reported failure: a video titled with 不止读书's episode name
+    // sat on a channel literally called "Xishiduo food video" — the video
+    // title matched, but the channel had nothing to do with the show.
     process.env.YOUTUBE_API_KEY = "k";
     mockFetch(() => ({
       body: {
-        items: [{ id: { videoId: "ep42" }, snippet: { title: "EP12 深度解析", channelId: "UC123" } }],
+        items: [
+          {
+            id: { videoId: "a" },
+            snippet: {
+              title: "不止读书 257 《流俗地》被高估了吗？",
+              channelId: "UCqgjpQT5cZRepGLdXkUcQNQ",
+              channelTitle: "Xishiduo food video",
+            },
+          },
+        ],
+      },
+    }));
+    const { youtubeChannelUrl } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeChannelUrl("不止读书")).toBeNull();
+  });
+});
+
+describe("youtubeEpisodeUrl", () => {
+  it("links the matched video's own watch URL, not the channel, when the channel is really the show's", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch(() => ({
+      body: {
+        items: [
+          {
+            id: { videoId: "ep42" },
+            snippet: { title: "EP12 深度解析", channelId: "UC123", channelTitle: "Show X" },
+          },
+        ],
       },
     }));
     const { youtubeEpisodeUrl } = await import("@/src/data/buzz/youtube");
@@ -572,16 +604,32 @@ describe("youtubeEpisodeUrl", () => {
     );
   });
 
-  it("falls back to the show's channel when no video matches the episode", async () => {
+  it("falls back to the show's channel when the matched video's channel isn't really the show (regression)", async () => {
+    // Same content-farm failure as youtubeChannelUrl's regression test, but
+    // for the episode-specific search: a video titled with the episode's
+    // own name still isn't good enough if its channel is unrelated.
     process.env.YOUTUBE_API_KEY = "k";
     mockFetch((url) => {
       const q = new URL(url).searchParams.get("q") ?? "";
-      // The episode query finds nothing relevant; the fallback channel
-      // query (by show title) finds a real match.
       if (q.includes("Unmatched Episode")) {
-        return { body: { items: [{ id: { videoId: "z" }, snippet: { title: "Unrelated", channelId: "UC0" } }] } };
+        return {
+          body: {
+            items: [
+              {
+                id: { videoId: "z" },
+                snippet: { title: "Unmatched Episode reupload", channelId: "UC0", channelTitle: "Random Clips Channel" },
+              },
+            ],
+          },
+        };
       }
-      return { body: { items: [{ id: { videoId: "a" }, snippet: { title: "Show X ep 1", channelId: "UC123" } }] } };
+      return {
+        body: {
+          items: [
+            { id: { videoId: "a" }, snippet: { title: "Show X ep 1", channelId: "UC123", channelTitle: "Show X" } },
+          ],
+        },
+      };
     });
     const { youtubeEpisodeUrl } = await import("@/src/data/buzz/youtube");
     expect(await youtubeEpisodeUrl("Unmatched Episode", "Show X")).toBe(
