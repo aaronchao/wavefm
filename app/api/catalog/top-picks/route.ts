@@ -8,6 +8,7 @@ import {
   topPicks,
   type SimilarItemInput,
 } from "@/src/core/recommend";
+import { bilibiliDiscussion } from "@/src/data/buzz/bilibili";
 import { dcardDiscussion } from "@/src/data/buzz/dcard";
 import {
   doubanGroupDiscussion,
@@ -120,7 +121,7 @@ export async function GET(request: Request) {
       const pcId = itunesId(s.id);
       const pocketCasts =
         pcId && pcRanks?.has(pcId) ? { pocketCastsRank: pcRanks.get(pcId) } : null;
-      const [xyz, reddit, hn, v2ex, dcard, ptt, lihkg, douban, xiaoyuzhou, listen, youtube] =
+      const [xyz, reddit, hn, v2ex, dcard, ptt, lihkg, douban, bilibili, xiaoyuzhou, listen, youtube] =
         await Promise.all([
           xyzrankBuzz(s.title),
           redditDiscussion(s.title),
@@ -130,6 +131,7 @@ export async function GET(request: Request) {
           pttDiscussion(s.title),
           lihkgDiscussion(s.title),
           doubanGroupDiscussion(s.title),
+          bilibiliDiscussion(s.title),
           gentle ? xiaoyuzhouBuzz(s.title) : Promise.resolve(null),
           gentle ? listenNotesBuzz(s.title) : Promise.resolve(null),
           // YouTube is env-gated + quota-bounded — top few shows only
@@ -139,6 +141,7 @@ export async function GET(request: Request) {
         ...(reddit?.evidence ?? []),
         ...(hn?.evidence ?? []),
         ...(youtube?.evidence ?? []),
+        ...(bilibili?.evidence ?? []),
         ...(douban?.evidence ?? []),
         ...(dcard?.evidence ?? []),
         ...(ptt?.evidence ?? []),
@@ -159,6 +162,7 @@ export async function GET(request: Request) {
           xyz,
           listen,
           youtube?.buzz,
+          bilibili?.buzz,
           xiaoyuzhou,
           pocketCasts,
           douban?.buzz,

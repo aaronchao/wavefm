@@ -270,6 +270,85 @@ describe("youtubeBuzz", () => {
   });
 });
 
+describe("bilibiliBuzz", () => {
+  it("sums views and comments+danmaku across title-matched videos only", async () => {
+    mockFetch(() => ({
+      body: {
+        code: 0,
+        data: {
+          result: [
+            {
+              bvid: "BV1a",
+              title: '<em class="keyword">Show X</em> 完整版',
+              play: 1000,
+              review: 30,
+              video_review: 10,
+            },
+            {
+              // loosely-related: doesn't mention the show at all
+              bvid: "BV1b",
+              title: "今天吃什么好呢",
+              play: 999999,
+              review: 999,
+              video_review: 999,
+            },
+          ],
+        },
+      },
+    }));
+    const { bilibiliBuzz } = await import("@/src/data/buzz/bilibili");
+    expect(await bilibiliBuzz("Show X")).toEqual({
+      bilibiliVideos: 1,
+      bilibiliViews: 1000,
+      bilibiliComments: 40,
+    });
+  });
+
+  it("returns zero-videos (not null) when nothing matches", async () => {
+    mockFetch(() => ({
+      body: {
+        code: 0,
+        data: { result: [{ bvid: "BV1c", title: "不相关的视频", play: 500, review: 5 }] },
+      },
+    }));
+    const { bilibiliBuzz } = await import("@/src/data/buzz/bilibili");
+    expect(await bilibiliBuzz("Show X")).toEqual({ bilibiliVideos: 0 });
+  });
+
+  it("surfaces the top matched video as evidence, sorted by views", async () => {
+    mockFetch(() => ({
+      body: {
+        code: 0,
+        data: {
+          result: [
+            { bvid: "BV1low", title: "Show X clip low", play: 10, review: 1 },
+            { bvid: "BV1high", title: "Show X clip high", play: 5000, review: 2 },
+          ],
+        },
+      },
+    }));
+    const { bilibiliDiscussion } = await import("@/src/data/buzz/bilibili");
+    const res = await bilibiliDiscussion("Show X");
+    expect(res?.evidence[0]).toEqual({
+      source: "Bilibili",
+      text: "Show X clip high",
+      url: "https://www.bilibili.com/video/BV1high/",
+    });
+  });
+
+  it("returns null when the request fails (never throws)", async () => {
+    mockFetch(() => ({ status: 500, body: {} }));
+    const { bilibiliBuzz } = await import("@/src/data/buzz/bilibili");
+    expect(await bilibiliBuzz("Show X")).toBeNull();
+  });
+
+  it("returns null on a risk-control response (non-zero code)", async () => {
+    mockFetch(() => ({ body: { code: -352, message: "风控" } }));
+    const { bilibiliBuzz } = await import("@/src/data/buzz/bilibili");
+    expect(await bilibiliBuzz("Show X")).toBeNull();
+  });
+});
+
 describe("pocketCastsTrendingRanks", () => {
   it("maps iTunes id -> best 1-based rank across popular + trending", async () => {
     mockFetch((url) => {

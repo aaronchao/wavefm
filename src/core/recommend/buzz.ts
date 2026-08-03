@@ -42,6 +42,12 @@ export type BuzzInput = {
   youtubeVideos?: number;
   youtubeViews?: number;
   youtubeComments?: number;
+  /** Bilibili presence for the show (public search, no key needed): matched
+   *  videos, their summed views (popularity) and comments+danmaku
+   *  (discussion). */
+  bilibiliVideos?: number;
+  bilibiliViews?: number;
+  bilibiliComments?: number;
 };
 
 const XYZRANK_SIZE = 200;
@@ -81,6 +87,7 @@ function discussionParts(b: BuzzInput): number[] {
   if (b.doubanMentions != null) discussion.push(logScale(b.doubanMentions, 1.5));
   if (b.comments != null) discussion.push(logScale(b.comments, 4)); // 小宇宙 comments
   if (b.youtubeComments != null) discussion.push(logScale(b.youtubeComments, 4)); // ~10k -> 1
+  if (b.bilibiliComments != null) discussion.push(logScale(b.bilibiliComments, 4)); // ~10k -> 1
   return discussion;
 }
 
@@ -99,6 +106,7 @@ function popularityParts(b: BuzzInput): number[] {
     popularity.push(Math.min(Math.max(b.listenScore, 0), 100) / 100);
   }
   if (b.youtubeViews != null) popularity.push(logScale(b.youtubeViews, 7)); // 10M -> 1
+  if (b.bilibiliViews != null) popularity.push(logScale(b.bilibiliViews, 7)); // 10M -> 1
   return popularity;
 }
 
@@ -152,6 +160,9 @@ export function buzzWhy(b: BuzzInput | undefined): string | null {
   if ((b.lihkgMentions ?? 0) >= 3) {
     return `熱議 on LIHKG (${b.lihkgMentions} threads)`;
   }
+  if ((b.bilibiliVideos ?? 0) >= 3) {
+    return `Discussed on Bilibili (${b.bilibiliVideos} videos)`;
+  }
   if ((b.comments ?? 0) >= 500) {
     return `Lively comments on 小宇宙`;
   }
@@ -167,6 +178,10 @@ export function buzzWhy(b: BuzzInput | undefined): string | null {
   if ((b.youtubeViews ?? 0) >= 100_000) {
     const k = Math.floor((b.youtubeViews ?? 0) / 1000);
     return `${k}k+ views on YouTube`;
+  }
+  if ((b.bilibiliViews ?? 0) >= 100_000) {
+    const k = Math.floor((b.bilibiliViews ?? 0) / 1000);
+    return `${k}k+ views on Bilibili`;
   }
   if ((b.subscribers ?? 0) >= 10_000) {
     const k = Math.floor((b.subscribers ?? 0) / 1000);

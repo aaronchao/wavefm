@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { itunesId } from "@/src/core/links";
 import { topPicks, type SimilarItemInput } from "@/src/core/recommend";
+import { bilibiliBuzz } from "@/src/data/buzz/bilibili";
 import { hackerNewsBuzz } from "@/src/data/buzz/hackernews";
 import { listenNotesBuzz } from "@/src/data/buzz/listennotes";
 import { pocketCastsTrendingRanks } from "@/src/data/buzz/pocketcasts";
@@ -67,13 +68,17 @@ export async function GET(request: Request) {
       const pcId = itunesId(p.item.id);
       const pocketCasts =
         pcId && pcRanks?.has(pcId) ? { pocketCastsRank: pcRanks.get(pcId) } : null;
-      const [reddit, hn, listen, youtube] = await Promise.all([
+      const [reddit, hn, bilibili, listen, youtube] = await Promise.all([
         redditBuzz(p.item.title),
         hackerNewsBuzz(p.item.title),
+        bilibiliBuzz(p.item.title),
         bounded ? listenNotesBuzz(p.item.title) : Promise.resolve(null),
         bounded ? youtubeBuzz(p.item.title) : Promise.resolve(null),
       ]);
-      return { ...p.item, buzz: mergeBuzz(p.item.buzz, listen, youtube, pocketCasts, reddit, hn) };
+      return {
+        ...p.item,
+        buzz: mergeBuzz(p.item.buzz, listen, youtube, bilibili, pocketCasts, reddit, hn),
+      };
     }),
   );
   const finalists = topPicks({ saved: [], candidates: enriched, limit });
