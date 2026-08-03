@@ -149,34 +149,33 @@ export default function LibraryPage() {
 
       <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
 
-      {/* On mobile (single column) Episodes lead — the saved-shows list is
-          long, so the queue you actually reach for comes first; desktop keeps
-          Shows on the left via order overrides. */}
-      <div className="grid items-start gap-8 md:grid-cols-2">
-        <section className="order-2 md:order-1">
-          <ColumnHeading count={visibleSaved.length}>Shows</ColumnHeading>
-          <ShowsColumn
-            saved={visibleSaved}
-            tagMap={showTagMap}
-            loading={savedQ.isLoading}
-            filtered={Boolean(tag)}
-            onTagsChanged={invalidateTags}
-          />
-        </section>
-        <section className="order-1 md:order-2">
-          <ColumnHeading count={visibleEpisodes.length}>Episodes</ColumnHeading>
-          <EpisodesColumn
-            inbox={inboxEpisodes}
-            queue={queueEpisodes}
-            archived={archivedEpisodes}
-            tagMap={episodeTagMap}
-            loading={episodesQ.isLoading}
-            filtered={Boolean(tag)}
-            onTagsChanged={invalidateTags}
-            showFeedById={showFeedById}
-          />
-        </section>
-      </div>
+      {/* Episodes lead — Inbox and Queue side by side (the working area,
+          triage in one glance) with Archived tucked below; Shows (the long
+          reference list) sits in its own section underneath. */}
+      <section>
+        <ColumnHeading count={visibleEpisodes.length}>Episodes</ColumnHeading>
+        <EpisodesColumn
+          inbox={inboxEpisodes}
+          queue={queueEpisodes}
+          archived={archivedEpisodes}
+          tagMap={episodeTagMap}
+          loading={episodesQ.isLoading}
+          filtered={Boolean(tag)}
+          onTagsChanged={invalidateTags}
+          showFeedById={showFeedById}
+        />
+      </section>
+
+      <section className="mt-10">
+        <ColumnHeading count={visibleSaved.length}>Shows</ColumnHeading>
+        <ShowsColumn
+          saved={visibleSaved}
+          tagMap={showTagMap}
+          loading={savedQ.isLoading}
+          filtered={Boolean(tag)}
+          onTagsChanged={invalidateTags}
+        />
+      </section>
 
       <FloatingSearch />
     </main>
@@ -588,53 +587,55 @@ function EpisodesColumn({
 
   return (
     <div className="flex flex-col gap-6">
-      {inbox.length > 0 && (
+      <div className="grid items-start gap-6 md:grid-cols-2">
         <div>
           <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
             Inbox <span className="text-zinc-400">— new, not yet sorted</span>
           </h3>
-          <ul className="flex flex-col gap-3">
-            {inbox.map((e) => (
-              <InboxRow
-                key={e.episodeId}
-                episode={e}
-                onTopOfQueue={() => moveToQueue(e.episodeId, "top")}
-                onBottomOfQueue={() => moveToQueue(e.episodeId, "bottom")}
-                onArchive={() => archive(e.episodeId)}
-              />
-            ))}
-          </ul>
+          {inbox.length === 0 ? (
+            <p className="text-sm text-zinc-500">{"Nothing new — you're caught up."}</p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {inbox.map((e) => (
+                <InboxRow
+                  key={e.episodeId}
+                  episode={e}
+                  onTopOfQueue={() => moveToQueue(e.episodeId, "top")}
+                  onBottomOfQueue={() => moveToQueue(e.episodeId, "bottom")}
+                  onArchive={() => archive(e.episodeId)}
+                />
+              ))}
+            </ul>
+          )}
         </div>
-      )}
 
-      <div>
-        {inbox.length > 0 && (
+        <div>
           <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
             Queue
           </h3>
-        )}
-        {queue.length === 0 ? (
-          <p className="text-sm text-zinc-500">
-            {filtered ? "No queued episodes with this tag." : "Triage something from your Inbox above."}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {queue.map((e, i) => (
-              <EpisodeRow
-                key={e.episodeId}
-                episode={e}
-                tags={tagMap[e.episodeId] ?? []}
-                feedUrl={e.showId ? showFeedById.get(e.showId) : undefined}
-                onChanged={refresh}
-                onTagsChanged={onTagsChanged}
-                onMoveUp={!filtered && i > 0 ? () => move(e.episodeId, "up") : undefined}
-                onMoveDown={
-                  !filtered && i < queue.length - 1 ? () => move(e.episodeId, "down") : undefined
-                }
-              />
-            ))}
-          </ul>
-        )}
+          {queue.length === 0 ? (
+            <p className="text-sm text-zinc-500">
+              {filtered ? "No queued episodes with this tag." : "Triage something from your Inbox."}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {queue.map((e, i) => (
+                <EpisodeRow
+                  key={e.episodeId}
+                  episode={e}
+                  tags={tagMap[e.episodeId] ?? []}
+                  feedUrl={e.showId ? showFeedById.get(e.showId) : undefined}
+                  onChanged={refresh}
+                  onTagsChanged={onTagsChanged}
+                  onMoveUp={!filtered && i > 0 ? () => move(e.episodeId, "up") : undefined}
+                  onMoveDown={
+                    !filtered && i < queue.length - 1 ? () => move(e.episodeId, "down") : undefined
+                  }
+                />
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {archived.length > 0 && (

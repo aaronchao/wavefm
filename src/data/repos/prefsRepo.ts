@@ -8,12 +8,11 @@ import type { PrefsRow } from "@/src/data/supabase/types";
 
 const LOCAL_KEY = "wavr.prefs.v1";
 
-export type Prefs = Pick<PrefsRow, "interests" | "rating_sources" | "preferred_player">;
+export type Prefs = Pick<PrefsRow, "interests" | "rating_sources">;
 
 export const DEFAULT_PREFS: Prefs = {
   interests: [],
   rating_sources: { apple: true, douban: true, xiaoyuzhou: true },
-  preferred_player: null,
 };
 
 function readLocal(): Prefs {
@@ -47,26 +46,10 @@ export async function getPrefs(): Promise<Prefs> {
   if (!sb || !userId) return readLocal();
   const { data } = await sb
     .from("prefs")
-    .select("interests, rating_sources, preferred_player")
+    .select("interests, rating_sources")
     .eq("user_id", userId)
     .maybeSingle();
   return (data as Prefs | null) ?? DEFAULT_PREFS;
-}
-
-export async function setPreferredPlayer(
-  preferred_player: Prefs["preferred_player"],
-): Promise<void> {
-  const sb = getSupabase();
-  const userId = await currentUserId();
-  if (!sb || !userId) {
-    writeLocal({ ...readLocal(), preferred_player });
-    return;
-  }
-  await sb.from("prefs").upsert({
-    user_id: userId,
-    preferred_player,
-    updated_at: new Date().toISOString(),
-  });
 }
 
 /**

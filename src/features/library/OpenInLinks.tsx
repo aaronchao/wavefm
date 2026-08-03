@@ -2,21 +2,15 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  itunesId,
-  pickPreferredLink,
-  platformLinks,
-  youtubeMusicAddByRssUrl,
-  type PlatformId,
-} from "@/src/core/links";
+import { itunesId, platformLinks, type PlatformId } from "@/src/core/links";
 import { getSpotifyLink, getYoutubeLink } from "@/src/data/catalog/client";
-import { getPrefs } from "@/src/data/repos/prefsRepo";
 import type { PlatformLinks } from "@/src/data/catalog/types";
 
 /**
- * "Open in" deep-links as mini app icons — listen to a saved show/episode
- * wherever you actually listen. Icon logic (applied globally — Library,
- * Discovery, the floating Play bar):
+ * "Open in" deep-links as a consolidated row of six icons — Apple, Spotify,
+ * YouTube Music, Pocket Casts, 小宇宙, and a generic RSS-copy (radar glyph)
+ * — listen to a saved show/episode wherever you actually listen. Icon logic
+ * (applied globally — Library, Discovery, the floating Play bar):
  *   • A stored deep-link → the icon renders in the player's BRAND colour and
  *     opens that URL.
  *   • Only a title-search fallback → the icon renders GRAYSCALE (still opens
@@ -24,21 +18,17 @@ import type { PlatformLinks } from "@/src/data/catalog/types";
  *   • No link at all → GRAYSCALE + disabled.
  * Reads `show.platformLinks.{spotify,youtubeMusic,xiaoyuzhou}` — audited to
  * match the payload's actual key names so a real stored URL always resolves
- * to its brand colour. A generic RSS icon always sits alongside (never
+ * to its brand colour. The RSS icon always sits alongside (never
  * conditionally hidden, matching every other platform icon's presence):
  * clicking it copies the raw feed URL to the clipboard for apps with no web
  * add-by-URL flow at all; grayscale + disabled without a feed URL.
  *
- * "Listen"/the icon's own click ALWAYS means listen (search-and-tap-play at
- * worst) — it never silently turns into a subscribe/add action, even for
- * YouTube Music. An earlier version made the YouTube Music icon open its
- * real add-by-RSS deep link whenever no channel was resolved, which reads
- * as "search," gets tapped expecting to listen, and instead opens a
- * subscribe-confirmation dialog with nothing playable — reported unusable.
- * That deep link (`youtubeMusicAddByRssUrl`) is now only ever offered as a
- * separate, explicitly-labeled "Add via RSS" control (below, and in the
- * Library's bulk-add panel) for someone who deliberately wants to subscribe.
- * Links stop propagation so they work inside a full-card play button.
+ * No separate "primary Listen on X" button and no per-platform special
+ * casing (an earlier version had both a remembered-default-player button
+ * and a YouTube-Music-only add-by-RSS badge) — reported as taking up too
+ * much space for unclear benefit, so this is deliberately just the six
+ * icons, uniformly. Links stop propagation so they work inside a full-card
+ * play button.
  */
 export function OpenInLinks({
   title,
@@ -126,32 +116,8 @@ export function OpenInLinks({
   const box = size === "md" ? "h-9 w-9" : "h-7 w-7";
   const glyph = size === "md" ? "h-5 w-5" : "h-4 w-4";
 
-  // Remembered default player (REFINEMENTS.md #4) — one big primary action
-  // instead of making the user re-scan every icon every time. Shared cache
-  // key across every card on the page, so this is one fetch, not one per card.
-  const prefsQ = useQuery({ queryKey: ["prefs", "player"], queryFn: getPrefs });
-  const primary = pickPreferredLink(links, prefsQ.data?.preferred_player);
-  const PrimaryIcon = primary ? PLATFORM_ICONS[primary.id] : null;
-
   return (
     <div className={className}>
-      {primary && PrimaryIcon && (
-        <a
-          href={primary.url!}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen?.();
-          }}
-          aria-label={`Listen on ${primary.label}${primary.isSearch ? " (search)" : ""}`}
-          style={{ backgroundColor: PLATFORM_COLORS[primary.id] }}
-          className="mb-1.5 inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-transform hover:shadow-md active:scale-95"
-        >
-          <PrimaryIcon className="h-4 w-4" />
-          {`Listen on ${primary.label}`}
-        </a>
-      )}
       <OpenInLinksRow
         links={links}
         feedUrl={feedUrl}
@@ -207,42 +173,26 @@ function OpenInLinksRow({
         }
         const openInLabel = `Open in ${l.label}${l.isSearch ? " (search)" : ""}`;
         return (
-          <span key={l.id} className="inline-flex shrink-0 items-center">
-            <a
-              href={l.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpen?.();
-              }}
-              aria-label={openInLabel}
-              title={openInLabel}
-              style={branded ? { color: PLATFORM_COLORS[l.id] } : undefined}
-              className={`flex ${box} shrink-0 items-center justify-center rounded-full transition-colors ${
-                branded
-                  ? "bg-surface hover:opacity-80"
-                  : "bg-surface text-zinc-400 grayscale hover:text-zinc-600 dark:hover:text-zinc-200"
-              }`}
-            >
-              <Icon className={glyph} />
-            </a>
-            {/* Distinct, explicit opt-in — never the icon's own click target
-                (see module doc: "Listen" must never silently mean "subscribe"). */}
-            {l.id === "youtubeMusic" && l.isSearch && feedUrl && (
-              <a
-                href={youtubeMusicAddByRssUrl(feedUrl)}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                aria-label={`Add this podcast to YouTube Music via RSS (separate from listening)`}
-                title="Add to YouTube Music via RSS — subscribes the whole show, doesn't play anything"
-                className="ml-0.5 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-semibold text-zinc-400 transition-colors hover:text-foreground"
-              >
-                +RSS
-              </a>
-            )}
-          </span>
+          <a
+            key={l.id}
+            href={l.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen?.();
+            }}
+            aria-label={openInLabel}
+            title={openInLabel}
+            style={branded ? { color: PLATFORM_COLORS[l.id] } : undefined}
+            className={`flex ${box} shrink-0 items-center justify-center rounded-full transition-colors ${
+              branded
+                ? "bg-surface hover:opacity-80"
+                : "bg-surface text-zinc-400 grayscale hover:text-zinc-600 dark:hover:text-zinc-200"
+            }`}
+          >
+            <Icon className={glyph} />
+          </a>
         );
       })}
       {/* Always present — matches the global icon design system (a platform
@@ -283,7 +233,7 @@ function RssCopyIcon({
         title="RSS feed — unavailable"
         className={`flex ${box} shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-surface text-zinc-400 opacity-40`}
       >
-        <RssIcon className={glyph} />
+        <RadarIcon className={glyph} />
       </span>
     );
   }
@@ -303,7 +253,7 @@ function RssCopyIcon({
           <path d="M5 12.5l4.5 4.5L19 7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : (
-        <RssIcon className={glyph} />
+        <RadarIcon className={glyph} />
       )}
     </button>
   );
@@ -391,12 +341,15 @@ function XiaoyuzhouIcon({ className }: IconProps) {
   );
 }
 
-function RssIcon({ className }: IconProps) {
+/** A radar screen (rings + centre dot + sweep line) — the "copy this feed
+ *  elsewhere" glyph, preferred over the classic broadcast-wave RSS mark. */
+function RadarIcon({ className }: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
-      <circle cx="6.2" cy="17.8" r="1.8" />
-      <path d="M4 10.2a9.8 9.8 0 019.8 9.8h2.6A12.4 12.4 0 004 7.6z" />
-      <path d="M4 4.2a15.8 15.8 0 0115.8 15.8h2.6A18.4 18.4 0 004 1.6z" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5.5" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none" />
+      <path d="M12 12L17.5 6.5" strokeLinecap="round" />
     </svg>
   );
 }

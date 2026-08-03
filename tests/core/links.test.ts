@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  itunesId,
-  pickPreferredLink,
-  platformLinks,
-  youtubeMusicAddByRssUrl,
-} from "@/src/core/links";
+import { itunesId, platformLinks, youtubeMusicAddByRssUrl } from "@/src/core/links";
 
 describe("platformLinks", () => {
   it("uses stored URLs when known", () => {
@@ -84,45 +79,5 @@ describe("platformLinks", () => {
     expect(itunesId("pi-42")).toBeUndefined();
     expect(itunesId("rss-abc123")).toBeUndefined();
     expect(itunesId(undefined)).toBeUndefined();
-  });
-});
-
-describe("pickPreferredLink", () => {
-  it("uses the preferred player when it has a real link", () => {
-    const links = platformLinks("Show", { spotify: "https://open.spotify.com/show/abc" });
-    expect(pickPreferredLink(links, "spotify")?.url).toBe("https://open.spotify.com/show/abc");
-  });
-
-  it("honors the preferred player's search fallback over a different platform's real link", () => {
-    // Apple has a real link here, but the user explicitly chose Spotify —
-    // that choice should win even though Spotify only resolves to a search.
-    const links = platformLinks("Show", { apple: "https://podcasts.apple.com/us/podcast/id123" });
-    const picked = pickPreferredLink(links, "spotify")!;
-    expect(picked.id).toBe("spotify");
-    expect(picked.isSearch).toBe(true);
-  });
-
-  it("falls back to any other real link when the preferred player has no link at all", () => {
-    // Pocket Casts is the one platform that can resolve to a true null.
-    const links = platformLinks("Show", { apple: "https://podcasts.apple.com/us/podcast/id123" });
-    const picked = pickPreferredLink(links, "pocketCasts")!;
-    expect(picked.id).toBe("apple");
-    expect(picked.isSearch).toBe(false);
-  });
-
-  it("falls back to the preferred player's search link when nothing real exists at all", () => {
-    const links = platformLinks("Show");
-    const picked = pickPreferredLink(links, "spotify")!;
-    expect(picked.id).toBe("spotify");
-    expect(picked.isSearch).toBe(true);
-  });
-
-  it("returns null when there is no preference and nothing real exists", () => {
-    expect(pickPreferredLink(platformLinks("Show"), null)).toBeNull();
-  });
-
-  it("returns a real link even with no preference set", () => {
-    const links = platformLinks("Show", { apple: "https://podcasts.apple.com/us/podcast/id123" });
-    expect(pickPreferredLink(links, null)?.id).toBe("apple");
   });
 });

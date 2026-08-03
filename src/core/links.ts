@@ -45,29 +45,6 @@ export function itunesId(id: string | undefined): string | undefined {
   return id && /^\d+$/.test(id) ? id : undefined;
 }
 
-/**
- * The one-tap "▶ Listen" primary action (REFINEMENTS.md #4). Priority:
- * (1) the remembered preferred player's own link — real deep link, or its
- * search fallback if that's all it has, since honoring the user's actual
- * choice beats guessing a "better" platform for them; (2) any other real
- * link, only when the preferred player has no link at all (e.g. Pocket
- * Casts with no stored URL and no iTunes id); (3) null. The full icon row
- * (still rendered alongside) is the fallback for "just search" on anything
- * else. Apple's real link is present for nearly every catalog show, so an
- * earlier "any real link beats a search" rule effectively always won over
- * the remembered choice — defeating the point of remembering it.
- */
-export function pickPreferredLink(
-  links: PlatformLink[],
-  preferred: PlatformId | null | undefined,
-): PlatformLink | null {
-  if (preferred) {
-    const match = links.find((l) => l.id === preferred);
-    if (match?.url) return match;
-  }
-  return links.find((l) => Boolean(l.url) && !l.isSearch) ?? null;
-}
-
 /** Base64URL (RFC 4648 §5) of a URL — always ASCII, so `btoa` is safe. */
 function base64Url(value: string): string {
   const base64 =
