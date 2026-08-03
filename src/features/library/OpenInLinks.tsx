@@ -20,10 +20,13 @@ import type { PlatformLinks } from "@/src/data/catalog/types";
  * match the payload's actual key names so a real stored URL always resolves
  * to its brand colour. A generic RSS icon always sits alongside (never
  * conditionally hidden, matching every other platform icon's presence):
- * clicking it copies the raw feed URL to the clipboard for apps without a
- * web add-by-URL flow (e.g. YouTube Music); grayscale + disabled without a
- * feed URL. Links stop propagation so they work inside a full-card play
- * button.
+ * clicking it copies the raw feed URL to the clipboard for apps with no web
+ * add-by-URL flow at all (Apple, Spotify, 小宇宙); grayscale + disabled
+ * without a feed URL. YouTube Music is the one exception — see
+ * src/core/links.ts — it gets a real (if Google-undocumented) add-by-RSS
+ * deep link instead of a search when no channel was resolved, with the
+ * clipboard copy kept as a safety net. Links stop propagation so they work
+ * inside a full-card play button.
  */
 export function OpenInLinks({
   title,
@@ -83,6 +86,7 @@ export function OpenInLinks({
       ...stored,
     },
     itunesId(showId),
+    feedUrl,
   );
   const box = size === "md" ? "h-9 w-9" : "h-7 w-7";
   const glyph = size === "md" ? "h-5 w-5" : "h-4 w-4";
@@ -93,11 +97,11 @@ export function OpenInLinks({
   const prefsQ = useQuery({ queryKey: ["prefs", "player"], queryFn: getPrefs });
   const primary = pickPreferredLink(links, prefsQ.data?.preferred_player);
   const PrimaryIcon = primary ? PLATFORM_ICONS[primary.id] : null;
-  // Same YouTube-Music-can't-add-by-RSS assist as the icon row below,
-  // applied to the PRIMARY button too — this only fires when nothing real
-  // was found anywhere (pickPreferredLink already prefers a real channel or
-  // any other real platform link over a bare search), so it's the one
-  // case where the one-tap action genuinely can't be "just open the show".
+  // When no real YouTube channel was resolved, platformLinks() already
+  // pointed this at YouTube Music's real (if undocumented) add-by-RSS deep
+  // link instead of a plain search — see src/core/links.ts. The RSS URL is
+  // still copied to the clipboard alongside it as a safety net in case that
+  // undocumented parameter ever stops working.
   const primaryNeedsRssCopy = Boolean(
     primary?.id === "youtubeMusic" && primary.isSearch && feedUrl,
   );
@@ -116,15 +120,15 @@ export function OpenInLinks({
           }}
           aria-label={
             primaryNeedsRssCopy
-              ? `Open YouTube Music search and copy the RSS feed URL`
+              ? `Add this podcast to YouTube Music via RSS`
               : `Listen on ${primary.label}${primary.isSearch ? " (search)" : ""}`
           }
-          title={primaryNeedsRssCopy ? "Also copies the RSS feed URL to paste in" : undefined}
+          title={primaryNeedsRssCopy ? "Also copies the RSS feed URL, in case that doesn't work" : undefined}
           style={{ backgroundColor: PLATFORM_COLORS[primary.id] }}
           className="mb-1.5 inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-transform hover:shadow-md active:scale-95"
         >
           <PrimaryIcon className="h-4 w-4" />
-          {primaryNeedsRssCopy ? "Listen on YouTube Music (copies RSS)" : `Listen on ${primary.label}`}
+          {primaryNeedsRssCopy ? "Add to YouTube Music" : `Listen on ${primary.label}`}
         </a>
       )}
       <OpenInLinksRow
@@ -180,12 +184,13 @@ function OpenInLinksRow({
             </span>
           );
         }
-        // YouTube Music can't add-by-RSS at all (REFINEMENTS.md #6) — when
-        // this is still just a search (no real channel resolved), fold the
-        // RSS-copy step into the same tap instead of making it two icons.
+        // When no real channel was resolved (REFINEMENTS.md #6), this URL is
+        // YouTube Music's real add-by-RSS deep link rather than a plain
+        // search — copy the feed URL to the clipboard too, as a safety net
+        // in case that undocumented parameter ever stops working.
         const combinedRssCopy = l.id === "youtubeMusic" && l.isSearch && feedUrl;
         const openInLabel = combinedRssCopy
-          ? `Open ${l.label} search and copy the RSS feed URL`
+          ? `Add this podcast to ${l.label} via RSS`
           : `Open in ${l.label}${l.isSearch ? " (search)" : ""}`;
         return (
           <a
@@ -199,7 +204,7 @@ function OpenInLinksRow({
               onOpen?.();
             }}
             aria-label={openInLabel}
-            title={combinedRssCopy ? `${openInLabel} (also copies the RSS feed URL to paste in)` : openInLabel}
+            title={combinedRssCopy ? `${openInLabel} (also copies the RSS feed URL, in case that doesn't work)` : openInLabel}
             style={branded ? { color: PLATFORM_COLORS[l.id] } : undefined}
             className={`flex ${box} shrink-0 items-center justify-center rounded-full transition-colors ${
               branded

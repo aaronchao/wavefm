@@ -3,12 +3,18 @@
  * known, else the app's web search for the show name so the icon still works.
  * A missing link with no fallback renders dimmed, never an error. PURE module.
  *
- * RSS-import note: the four consumer apps we link to (Apple, Spotify, YouTube
- * Music, 小宇宙) expose no *public web* add-by-RSS URL — their RSS import is a
- * native/mobile app-scheme flow, which can't open reliably from a web tab. So
- * when a show isn't on an app we fall back to that app's web *search* (the
- * closest working equivalent); the show's raw feed is always portable via the
- * Library's OPML export for apps that do support add-by-URL.
+ * RSS-import note: Apple, Spotify, and 小宇宙 expose no *public web* add-by-RSS
+ * URL — their RSS import is a native/mobile app-scheme flow, which can't open
+ * reliably from a web tab, so those fall back to that app's web *search*. Only
+ * YouTube Music has a real (if Google-undocumented — confirmed via podnews.net,
+ * mirroring the old Google Podcasts subscribe-link scheme) direct add-by-RSS
+ * URL: `music.youtube.com/library/podcasts?addrssfeed=<base64url(feedUrl)>`.
+ * When a feed URL is available this is used instead of a search, so opening it
+ * genuinely adds the show rather than landing on an empty/irrelevant search —
+ * the RSS URL is still copied to the clipboard alongside it as a safety net in
+ * case the undocumented parameter ever stops working. The show's raw feed is
+ * always portable via the Library's OPML export for apps that do support
+ * add-by-URL.
  */
 
 export type PlatformId =
@@ -59,10 +65,19 @@ export function pickPreferredLink(
   return links.find((l) => Boolean(l.url) && !l.isSearch) ?? null;
 }
 
+/** Base64URL (RFC 4648 §5) of a URL — always ASCII, so `btoa` is safe. */
+function base64Url(value: string): string {
+  const base64 =
+    typeof btoa === "function" ? btoa(value) : Buffer.from(value, "utf-8").toString("base64");
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 export function platformLinks(
   title: string,
   stored: Partial<Record<PlatformId, string>> = {},
   itunes?: string,
+  /** The show's raw RSS feed — enables the real YouTube Music add-by-RSS deep link. */
+  feedUrl?: string,
 ): PlatformLink[] {
   const q = encodeURIComponent(title);
   const entry = (
@@ -90,11 +105,15 @@ export function platformLinks(
     // A resolved stored link is never verifiably on the Music app itself
     // (YouTube Music has no public show-search API) — it's a real YouTube
     // channel found via video search (REFINEMENTS.md #6), so it's labelled
-    // "YouTube", not "YouTube Music", whenever one is actually stored.
+    // "YouTube", not "YouTube Music", whenever one is actually stored. Absent
+    // that, a feed URL gets the real add-by-RSS deep link (see module doc)
+    // instead of a plain search that would land on empty/irrelevant results.
     entry(
       "youtubeMusic",
       stored.youtubeMusic ? "YouTube" : "YouTube Music",
-      `https://music.youtube.com/search?q=${q}`,
+      feedUrl
+        ? `https://music.youtube.com/library/podcasts?addrssfeed=${base64Url(feedUrl)}`
+        : `https://music.youtube.com/search?q=${q}`,
     ),
     pocketCasts(),
     entry("xiaoyuzhou", "小宇宙", `https://www.xiaoyuzhoufm.com/search/${q}`),

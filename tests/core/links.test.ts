@@ -33,6 +33,37 @@ describe("platformLinks", () => {
     expect(withoutReal.find((l) => l.id === "youtubeMusic")?.label).toBe("YouTube Music");
   });
 
+  it("uses the real YouTube Music add-by-RSS deep link when a feed URL is available and no channel was resolved", () => {
+    const yt = platformLinks(
+      "周小辣",
+      {},
+      undefined,
+      "https://example.com/feed.xml",
+    ).find((l) => l.id === "youtubeMusic")!;
+    expect(yt.url).toBe(
+      "https://music.youtube.com/library/podcasts?addrssfeed=aHR0cHM6Ly9leGFtcGxlLmNvbS9mZWVkLnhtbA",
+    );
+    expect(yt.isSearch).toBe(true);
+    expect(yt.label).toBe("YouTube Music");
+  });
+
+  it("prefers a resolved YouTube channel over the add-by-RSS deep link", () => {
+    const yt = platformLinks(
+      "Show",
+      { youtubeMusic: "https://www.youtube.com/channel/abc" },
+      undefined,
+      "https://example.com/feed.xml",
+    ).find((l) => l.id === "youtubeMusic")!;
+    expect(yt.url).toBe("https://www.youtube.com/channel/abc");
+    expect(yt.isSearch).toBe(false);
+  });
+
+  it("falls back to a plain YouTube Music search when there is no feed URL either", () => {
+    const yt = platformLinks("Show").find((l) => l.id === "youtubeMusic")!;
+    expect(yt.url).toBe("https://music.youtube.com/search?q=Show");
+    expect(yt.isSearch).toBe(true);
+  });
+
   it("always returns all platforms in stable order (Pocket Casts after YouTube Music)", () => {
     expect(platformLinks("x").map((l) => l.id)).toEqual([
       "apple",
