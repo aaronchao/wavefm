@@ -10,6 +10,7 @@ import {
   isEpisodeSaved,
   removeEpisode,
   saveEpisode,
+  updateEpisodeProgress,
 } from "@/src/data/repos/savedEpisodesRepo";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { player, usePlayerState, type PreviewMeta } from "@/src/state/player";
@@ -98,6 +99,34 @@ export function PreviewPlayer() {
       cancelled = true;
     };
   }, [effectiveEpisodeId]);
+
+  // Auto-track listen progress from what's actually played (REFINEMENTS.md
+  // #12), not just the manual "Done?" toggle. The clip anchors to the real
+  // media-element timeline (see useClipWindow's `origin` bookkeeping), so
+  // `audioRef.current.currentTime` already IS the true position in the
+  // full episode — no clip-relative math needed. Only meaningful for a
+  // saved episode; updateEpisodeProgress is a silent no-op otherwise.
+  const wasPlayingRef = useRef(false);
+  useEffect(() => {
+    if (saved && effectiveEpisodeId && s.status === "playing" && !wasPlayingRef.current) {
+      void updateEpisodeProgress(effectiveEpisodeId, { status: "in_progress" });
+    }
+    wasPlayingRef.current = s.status === "playing";
+  }, [s.status, saved, effectiveEpisodeId]);
+
+  useEffect(() => {
+    // The <audio> element is mounted once, unconditionally, for the app's
+    // lifetime — capturing the node (not re-reading audioRef.current) at
+    // cleanup time is just satisfying the lint rule, not a real ref-churn
+    // risk here.
+    const audio = audioRef.current;
+    return () => {
+      if (saved && effectiveEpisodeId && wasPlayingRef.current) {
+        const positionSec = Math.floor(audio?.currentTime ?? 0);
+        if (positionSec > 0) void updateEpisodeProgress(effectiveEpisodeId, { positionSec });
+      }
+    };
+  }, [s.status, saved, effectiveEpisodeId]);
 
   function toggleSave() {
     if (!effectiveEpisodeId || !s.meta) return;
