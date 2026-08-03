@@ -134,25 +134,42 @@ describe("listenNotesRelatedTitles", () => {
   });
 });
 
+// Fixtures mirror the live schema exactly (fetched and confirmed by hand
+// against https://xyzrank.com/api/* — not guessed): `{items:[...], total,
+// offset, limit}`, shows carry a `links` array (apple/xyz/rss), episodes
+// carry `podcastID` + the parent's `subscription` count, not their own links.
+const SAMPLE_LINKS = [
+  { name: "xyz", url: "https://www.xiaoyuzhoufm.com/podcast/abc" },
+  { name: "apple", url: "https://podcasts.apple.com/us/podcast/x/id1582119137" },
+  { name: "rss", url: "https://feed.xyzfm.space/abc" },
+];
+
 describe("xyzrankBuzz", () => {
   it("parses rank + 小宇宙 stats for a listed show", async () => {
     mockFetch(() => ({
-      body: [
-        { name: "声东击西", subscription: 120000, plays: 3000000, comments: 4200 },
-        { name: "别的", subscription: 10 },
-      ],
+      body: {
+        items: [
+          {
+            id: "a1",
+            name: "声东击西",
+            avgPlayCount: 3000000,
+            avgCommentCount: 4200,
+            links: SAMPLE_LINKS,
+          },
+          { id: "b2", name: "别的", links: SAMPLE_LINKS },
+        ],
+      },
     }));
     const { xyzrankBuzz } = await import("@/src/data/buzz/xyzrank");
     expect(await xyzrankBuzz("声东击西")).toEqual({
       xyzrankRank: 1,
-      subscribers: 120000,
       plays: 3000000,
       comments: 4200,
     });
   });
 
   it("returns null for an unlisted show", async () => {
-    mockFetch(() => ({ body: [{ name: "别的播客" }] }));
+    mockFetch(() => ({ body: { items: [{ id: "a1", name: "别的播客", links: SAMPLE_LINKS }] } }));
     const { xyzrankBuzz } = await import("@/src/data/buzz/xyzrank");
     expect(await xyzrankBuzz("Dear Therapist")).toBeNull();
   });
@@ -165,14 +182,48 @@ describe("xyzrankBuzz", () => {
 });
 
 describe("xyzrankNewPodcasts", () => {
-  it("hits /api/new-podcasts and parses the ranked list", async () => {
+  it("hits /api/new-podcasts and parses the ranked list, including real links", async () => {
     mockFetch((url) => {
       expect(url).toContain("/api/new-podcasts");
-      return { body: [{ name: "新播客", subscription: 500 }] };
+      return {
+        body: {
+          items: [
+            {
+              id: "a1",
+              name: "新播客",
+              logoURL: "https://example.com/cover.jpg",
+              authorsText: "某人",
+              primaryGenreName: "艺术",
+              trackCount: 12,
+              avgPlayCount: 500,
+              avgCommentCount: 8,
+              avgDuration: 60,
+              links: SAMPLE_LINKS,
+            },
+          ],
+        },
+      };
     });
     const { xyzrankNewPodcasts } = await import("@/src/data/buzz/xyzrank");
     expect(await xyzrankNewPodcasts()).toEqual([
-      { rank: 1, title: "新播客", subscribers: 500, plays: undefined, comments: undefined },
+      {
+        id: "a1",
+        rank: 1,
+        title: "新播客",
+        coverUrl: "https://example.com/cover.jpg",
+        author: "某人",
+        category: "艺术",
+        episodeCount: 12,
+        lastReleaseDaysAgo: undefined,
+        avgPlays: 500,
+        avgComments: 8,
+        avgDurationSec: 3600,
+        links: {
+          xiaoyuzhou: "https://www.xiaoyuzhoufm.com/podcast/abc",
+          apple: "https://podcasts.apple.com/us/podcast/x/id1582119137",
+          rss: "https://feed.xyzfm.space/abc",
+        },
+      },
     ]);
   });
 
@@ -188,7 +239,21 @@ describe("xyzrankNewEpisodes", () => {
     mockFetch((url) => {
       expect(url).toContain("/api/new-episodes");
       return {
-        body: [{ title: "新单集", podcastName: "某播客", plays: 100, url: "https://xyzrank.com/e/1" }],
+        body: {
+          items: [
+            {
+              title: "新单集",
+              podcastName: "某播客",
+              podcastID: "a1",
+              playCount: 100,
+              commentCount: 5,
+              subscription: 9000,
+              duration: 45,
+              link: "https://www.xiaoyuzhoufm.com/episode/1",
+              postTime: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        },
       };
     });
     const { xyzrankNewEpisodes } = await import("@/src/data/buzz/xyzrank");
@@ -197,9 +262,14 @@ describe("xyzrankNewEpisodes", () => {
         rank: 1,
         title: "新单集",
         showTitle: "某播客",
+        podcastId: "a1",
+        coverUrl: undefined,
         plays: 100,
-        comments: undefined,
-        url: "https://xyzrank.com/e/1",
+        comments: 5,
+        subscribers: 9000,
+        durationSec: 2700,
+        url: "https://www.xiaoyuzhoufm.com/episode/1",
+        publishedAt: "2026-01-01T00:00:00.000Z",
       },
     ]);
   });
@@ -208,6 +278,21 @@ describe("xyzrankNewEpisodes", () => {
     mockFetch(() => ({ status: 500, body: {} }));
     const { xyzrankNewEpisodes } = await import("@/src/data/buzz/xyzrank");
     expect(await xyzrankNewEpisodes()).toBeNull();
+  });
+});
+
+describe("xyzrankPodcastById", () => {
+  it("merges both podcast boards keyed by xyzrank's own show id", async () => {
+    mockFetch((url) => {
+      if (url.includes("new-podcasts")) {
+        return { body: { items: [{ id: "b2", name: "新播客", links: SAMPLE_LINKS }] } };
+      }
+      return { body: { items: [{ id: "a1", name: "热门播客", links: SAMPLE_LINKS }] } };
+    });
+    const { xyzrankPodcastById } = await import("@/src/data/buzz/xyzrank");
+    const byId = await xyzrankPodcastById();
+    expect(byId.get("a1")?.title).toBe("热门播客");
+    expect(byId.get("b2")?.title).toBe("新播客");
   });
 });
 

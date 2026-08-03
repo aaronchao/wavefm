@@ -108,12 +108,6 @@ export type TopPicksResponse = {
   degraded: boolean;
 };
 
-/** Response of /api/catalog/charts/chinese — 中文播客榜, ranked top to bottom. */
-export type ChineseChartsResponse = {
-  shows: SimilarShow[];
-  degraded: boolean;
-};
-
 /** Response of /api/catalog/charts/global — English/Global chart, ranked. */
 export type GlobalChartsResponse = {
   shows: SimilarShow[];
@@ -155,9 +149,35 @@ export type EpisodeChartsResponse = {
 /** xyzrank.com's four boards — see src/data/buzz/xyzrank.ts. */
 export type XyzrankTab = "podcasts" | "new-podcasts" | "episodes" | "new-episodes";
 
-/** One episode row on a xyzrank episode board, resolved enough to listen. */
+/**
+ * One show row on a xyzrank podcast board (热门播客/新晋播客). Metrics are
+ * kept as raw numbers (not a pre-formatted string) so the UI renders them
+ * as compact icon chips rather than a sentence. Links/cover come directly
+ * from xyzrank's own data (the show's creator submitted them), not a fuzzy
+ * iTunes-search guess — `id` is the real iTunes id whenever resolvable from
+ * the apple link, so Save/the show page/ranked episodes all work normally.
+ */
+export type XyzrankShowItem = {
+  id: string;
+  rank: number;
+  title: string;
+  author?: string;
+  category?: string;
+  coverUrl?: string;
+  feedUrl?: string;
+  appleUrl?: string;
+  xiaoyuzhouUrl?: string;
+  episodeCount?: number;
+  lastReleaseDaysAgo?: number;
+  avgPlays?: number;
+  avgComments?: number;
+  avgDurationSec?: number;
+};
+
+/** One episode row on a xyzrank episode board (热门单集/新晋单集). */
 export type XyzrankEpisodeItem = {
   id: string;
+  rank: number;
   title: string;
   showTitle?: string;
   /** Parent show's catalog id, when resolved — powers OpenInLinks/Pocket Casts. */
@@ -167,15 +187,20 @@ export type XyzrankEpisodeItem = {
   appleUrl?: string;
   coverUrl?: string;
   platformLinks?: PlatformLinks;
-  /** xyzrank/小宇宙's own episode page, when it provides one. */
+  /** xyzrank/小宇宙's own episode page. */
   url?: string;
-  why: string;
+  plays?: number;
+  comments?: number;
+  /** The parent show's subscriber count at ranking time. */
+  subscribers?: number;
+  durationSec?: number;
+  publishedAt?: string;
 };
 
 /** Response of /api/catalog/charts/xyzrank — one of xyzrank.com's four boards. */
 export type XyzrankBoardResponse = {
   tab: XyzrankTab;
-  shows: SimilarShow[];
+  shows: XyzrankShowItem[];
   episodes: XyzrankEpisodeItem[];
   degraded: boolean;
 };

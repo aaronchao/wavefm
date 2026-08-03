@@ -3,7 +3,6 @@ import type {
   CatalogSearchResponse,
   CatalogShow,
   CatalogShowResponse,
-  ChineseChartsResponse,
   CommunityRecsResponse,
   DiscoverTopicsResponse,
   DiscussedChartsResponse,
@@ -90,17 +89,6 @@ export async function getRankedEpisodes(id: string): Promise<RankedEpisodeItem[]
   }
 }
 
-export async function getChineseCharts(limit = 24): Promise<ChineseChartsResponse> {
-  try {
-    const res = await fetch(`/api/catalog/charts/chinese?limit=${limit}`);
-    if (!res.ok) return { shows: [], degraded: true };
-    const json = (await res.json()) as Partial<ChineseChartsResponse>;
-    return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
-  } catch {
-    return { shows: [], degraded: true };
-  }
-}
-
 export async function getDiscussedCharts(limit = 24): Promise<DiscussedChartsResponse> {
   try {
     const res = await fetch(`/api/catalog/charts/discussed?limit=${limit}`);
@@ -123,12 +111,10 @@ export async function getEpisodeCharts(limit = 20): Promise<EpisodeChartsRespons
   }
 }
 
-export async function getXyzrankBoard(
-  tab: XyzrankTab,
-  limit = 20,
-): Promise<XyzrankBoardResponse> {
+/** Always returns xyzrank's own full board for that tab (its own top 50). */
+export async function getXyzrankBoard(tab: XyzrankTab): Promise<XyzrankBoardResponse> {
   try {
-    const res = await fetch(`/api/catalog/charts/xyzrank?tab=${tab}&limit=${limit}`);
+    const res = await fetch(`/api/catalog/charts/xyzrank?tab=${tab}`);
     if (!res.ok) return { tab, shows: [], episodes: [], degraded: true };
     const json = (await res.json()) as Partial<XyzrankBoardResponse>;
     return {

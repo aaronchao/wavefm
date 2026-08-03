@@ -2,23 +2,22 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  getChineseCharts,
-  getDiscussedCharts,
-  getGlobalCharts,
-} from "@/src/data/catalog/client";
+import { getDiscussedCharts, getGlobalCharts } from "@/src/data/catalog/client";
 import { DegradedHint, MachineLabel, SettleIn } from "@/src/ui";
 import { ShowRowCompact } from "./ShowRowCompact";
 
-type Tab = "discussed" | "chinese" | "global";
+type Tab = "discussed" | "global";
 
 /**
  * Charts — the crowd's leaderboards, community-first. 社区热议 is the Chinese
- * discussion board (豆瓣 + V2EX + Dcard/PTT/LIHKG + 小宇宙); 小宇宙 is the
- * 中文播客榜 leaderboard; Hot Buzz is what's talked about in English (Reddit +
- * Listen Score) — the Apple chart comes last because you've already scrolled
- * it. Each row is a real show: playable, saveable, openable, with tappable
- * evidence. Hidden only when every board is unreachable.
+ * discussion board (豆瓣 + V2EX + Dcard/PTT/LIHKG + 小宇宙); Hot Buzz is what's
+ * talked about in English (Reddit + Listen Score) — the Apple chart comes
+ * last because you've already scrolled it. Each row is a real show:
+ * playable, saveable, openable, with tappable evidence. Hidden only when
+ * every board is unreachable. (小宇宙's own 中文播客榜 leaderboard used to
+ * have a tab here too — superseded by the dedicated XyzrankBoard section
+ * below, which shows its full boards with real per-show links instead of
+ * this one blended, iTunes-fuzzy-matched row.)
  */
 const DEFAULT_VISIBLE = 10;
 
@@ -30,11 +29,6 @@ export function Charts() {
     queryFn: () => getDiscussedCharts(24),
     staleTime: 6 * 60 * 60 * 1000,
   });
-  const zh = useQuery({
-    queryKey: ["catalog", "charts", "chinese"],
-    queryFn: () => getChineseCharts(24),
-    staleTime: 24 * 60 * 60 * 1000,
-  });
   const en = useQuery({
     queryKey: ["catalog", "charts", "global"],
     queryFn: () => getGlobalCharts(24),
@@ -43,21 +37,18 @@ export function Charts() {
 
   const counts: Record<Tab, number> = {
     discussed: discussed.data?.shows.length ?? 0,
-    chinese: zh.data?.shows.length ?? 0,
     global: en.data?.shows.length ?? 0,
   };
-  const queries: Record<Tab, typeof discussed> = { discussed, chinese: zh, global: en };
+  const queries: Record<Tab, typeof discussed> = { discussed, global: en };
 
   // auto-focus the first community board that has data (never open empty)
-  const autoTab: Tab =
-    counts.discussed > 0 ? "discussed" : counts.chinese > 0 ? "chinese" : "global";
+  const autoTab: Tab = counts.discussed > 0 ? "discussed" : "global";
   const tab: Tab = picked ?? autoTab;
   const active = queries[tab];
   const shows = active.data?.shows ?? [];
 
   const allSettledEmpty =
-    discussed.isSuccess && zh.isSuccess && en.isSuccess &&
-    counts.discussed === 0 && counts.chinese === 0 && counts.global === 0;
+    discussed.isSuccess && en.isSuccess && counts.discussed === 0 && counts.global === 0;
   if (allSettledEmpty) return null;
 
   return (
@@ -73,7 +64,6 @@ export function Charts() {
 
       <div className="mb-4 flex flex-wrap gap-2">
         <ChartTab label="社区热议" active={tab === "discussed"} onClick={() => setPicked("discussed")} />
-        <ChartTab label="小宇宙" active={tab === "chinese"} onClick={() => setPicked("chinese")} />
         <ChartTab label="Hot Buzz" active={tab === "global"} onClick={() => setPicked("global")} />
       </div>
 

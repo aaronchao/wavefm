@@ -51,6 +51,7 @@ export function OpenInLinks({
   label = "Open in",
   size = "sm",
   onOpen,
+  resolveMissing = true,
 }: {
   title: string;
   /**
@@ -77,6 +78,15 @@ export function OpenInLinks({
   size?: "sm" | "md";
   /** Fired when a link is opened (e.g. to record an 'open' engagement). */
   onOpen?: () => void;
+  /**
+   * Set false to skip the lazy Spotify/YouTube API lookups entirely and
+   * show only stored/search links — for a page rendering many rows at once
+   * (e.g. a 50-row chart board), where each row's own resolution would fire
+   * a real server-side API call and YouTube's quota is a hard 100/day
+   * budget (youtube.ts) — 50 concurrent lookups on one page load would burn
+   * half of it in a single visit. Everywhere else this defaults on.
+   */
+  resolveMissing?: boolean;
 }) {
   const lookupTitle = showTitle || title;
 
@@ -87,7 +97,7 @@ export function OpenInLinks({
   const spotifyQ = useQuery({
     queryKey: ["spotifyLink", lookupTitle],
     queryFn: () => getSpotifyLink(lookupTitle),
-    enabled: !stored?.spotify,
+    enabled: resolveMissing && !stored?.spotify,
     staleTime: Infinity,
   });
 
@@ -99,7 +109,7 @@ export function OpenInLinks({
   const youtubeQ = useQuery({
     queryKey: ["youtubeLink", lookupTitle, showTitle ? title : null],
     queryFn: () => getYoutubeLink(lookupTitle, showTitle ? title : undefined),
-    enabled: !stored?.youtubeMusic,
+    enabled: resolveMissing && !stored?.youtubeMusic,
     staleTime: Infinity,
   });
 

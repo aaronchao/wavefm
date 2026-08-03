@@ -6,14 +6,27 @@ import { normalizeForMatch } from "./match";
  * the same source xyzrank.com itself renders. One cached fetch per endpoint
  * serves every lookup; any failure returns null and the signal is skipped.
  * The site's own four boards, per its (now-archived) scraper's README —
- * github.com/eddiehe99/xyzrank — map straight onto its own tabs:
+ * github.com/eddiehe99/xyzrank — map straight onto its own tabs, each its
+ * own top-50-by-rank page (confirmed live: `{items, total, offset, limit}`,
+ * `total` far exceeds `items.length` — 50 is xyzrank's own board size, not
+ * an arbitrary cap we impose):
  *   /api/podcasts       — 热门播客 (popular podcasts)
  *   /api/new-podcasts   — 新晋播客 (emerging podcasts)
  *   /api/episodes       — 热门单集 (hot episodes)
  *   /api/new-episodes   — 新晋单集 (rising episodes)
+ *
+ * Schema confirmed by fetching all four live (not guessed): podcast entries
+ * carry `links` — apple/xyz(小宇宙)/rss URLs the show's own creator
+ * submitted — so a show resolves to a real Apple id, feed, and cover
+ * directly, with no fuzzy iTunes-search matching (and no risk of resolving
+ * the wrong show) needed at all. Episode entries carry no links of their
+ * own (only `podcastID`, joinable against the podcasts lists) but do carry
+ * a direct 小宇宙 episode URL and the parent show's own logo/subscriber
+ * count at ranking time.
  */
 
 const REVALIDATE_SECONDS = 24 * 60 * 60; // the ranking moves daily
+const BOARD_SIZE = 50; // xyzrank's own board size per tab — see module doc
 const BROWSER_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
@@ -29,7 +42,7 @@ const BROWSER_HEADERS = {
  */
 async function fetchXyzJson(path: string): Promise<unknown | null> {
   try {
-    const res = await fetch(`https://xyzrank.com${path}`, {
+    const res = await fetch(`https://xyzrank.com${path}?limit=${BOARD_SIZE}`, {
       next: { revalidate: REVALIDATE_SECONDS },
       headers: BROWSER_HEADERS,
     });
@@ -40,23 +53,8 @@ async function fetchXyzJson(path: string): Promise<unknown | null> {
   }
 }
 
-/** One ranked show on 中文播客榜, with its display title preserved. */
-export type XyzChartEntry = {
-  rank: number;
-  title: string;
-  subscribers?: number;
-  plays?: number;
-  comments?: number;
-};
-
-const normalizeTitle = normalizeForMatch;
-
-function asNumber(v: unknown): number | undefined {
-  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;
-}
-
-/** Defensive parse: find the first array of objects bearing a name/title. */
-function extractOrdered(json: unknown): XyzChartEntry[] {
+/** Find the first array of plausible entries — tolerates `{items:[...]}` or a bare array. */
+function findEntries(json: unknown): unknown[] {
   const arrays: unknown[][] = [];
   const walk = (node: unknown, depth: number) => {
     if (depth > 3 || !node) return;
@@ -69,37 +67,96 @@ function extractOrdered(json: unknown): XyzChartEntry[] {
     }
   };
   walk(json, 0);
+  return arrays.find((a) => a.length > 0) ?? [];
+}
 
-  for (const arr of arrays) {
-    const out: XyzChartEntry[] = [];
-    const seen = new Set<string>();
-    for (const raw of arr) {
-      if (!raw || typeof raw !== "object") continue;
-      const r = raw as Record<string, unknown>;
-      const title = r.name ?? r.title ?? r.podcastName;
-      if (typeof title !== "string" || !title.trim()) continue;
-      const key = normalizeTitle(title);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({
-        rank: out.length + 1,
-        title: title.trim(),
-        subscribers:
-          asNumber(r.subscription) ?? asNumber(r.subscriptions) ??
-          asNumber(r.subscriptionCount) ?? asNumber(r.followers),
-        plays: asNumber(r.plays) ?? asNumber(r.playCount) ?? asNumber(r.playedCount),
-        comments: asNumber(r.comments) ?? asNumber(r.commentCount),
-      });
-    }
-    if (out.length > 0) return out; // first plausible array is the ranking
+function asNumber(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;
+}
+
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" && v.trim() ? v.trim() : undefined;
+}
+
+const normalizeTitle = normalizeForMatch;
+
+/** A show's real links, as its own creator submitted them to xyzrank. */
+export type XyzLinks = {
+  apple?: string;
+  xiaoyuzhou?: string;
+  rss?: string;
+};
+
+function parseLinks(raw: unknown): XyzLinks {
+  const out: XyzLinks = {};
+  if (!Array.isArray(raw)) return out;
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    const url = asString(r.url);
+    if (!url) continue;
+    if (r.name === "apple") out.apple = url;
+    else if (r.name === "xyz") out.xiaoyuzhou = url;
+    else if (r.name === "rss") out.rss = url;
   }
-  return [];
+  return out;
+}
+
+/** One ranked show on a 中文播客榜 board (热门播客/新晋播客). */
+export type XyzChartEntry = {
+  /** xyzrank/小宇宙's own internal id — not an iTunes id. */
+  id: string;
+  rank: number;
+  title: string;
+  coverUrl?: string;
+  author?: string;
+  category?: string;
+  episodeCount?: number;
+  lastReleaseDaysAgo?: number;
+  avgPlays?: number;
+  avgComments?: number;
+  avgDurationSec?: number;
+  links: XyzLinks;
+};
+
+function parseChartEntry(raw: unknown, fallbackRank: number): XyzChartEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const title = asString(r.name);
+  const id = asString(r.id);
+  if (!title || !id) return null;
+  const avgDuration = asNumber(r.avgDuration);
+  return {
+    id,
+    rank: asNumber(r.rank) ?? fallbackRank,
+    title,
+    coverUrl: asString(r.logoURL),
+    author: asString(r.authorsText),
+    category: asString(r.primaryGenreName),
+    episodeCount: asNumber(r.trackCount),
+    lastReleaseDaysAgo: asNumber(r.lastReleaseDateDayCount),
+    avgPlays: asNumber(r.avgPlayCount),
+    avgComments: asNumber(r.avgCommentCount),
+    avgDurationSec: avgDuration != null ? avgDuration * 60 : undefined,
+    links: parseLinks(r.links),
+  };
+}
+
+function extractCharts(json: unknown): XyzChartEntry[] {
+  const out: XyzChartEntry[] = [];
+  let i = 0;
+  for (const raw of findEntries(json)) {
+    i++;
+    const e = parseChartEntry(raw, i);
+    if (e) out.push(e);
+  }
+  return out;
 }
 
 async function fetchChart(path: string): Promise<XyzChartEntry[] | null> {
   const json = await fetchXyzJson(path);
   if (json === null) return null;
-  const entries = extractOrdered(json);
+  const entries = extractCharts(json);
   return entries.length > 0 ? entries : null;
 }
 
@@ -112,7 +169,7 @@ async function chartIndex(): Promise<XyzChartEntry[] | null> {
   return chart;
 }
 
-/** The full 中文播客榜 leaderboard, ordered by rank (for Chinese discovery). */
+/** 热门播客 — the full 中文播客榜 leaderboard, ordered by rank. */
 export async function xyzrankChart(): Promise<XyzChartEntry[] | null> {
   return chartIndex();
 }
@@ -127,57 +184,67 @@ export async function xyzrankNewPodcasts(): Promise<XyzChartEntry[] | null> {
   return chart;
 }
 
-/** One hot episode on 中文播客榜's episode board. */
+/**
+ * Both podcast boards, keyed by xyzrank's own show id — lets an episode
+ * (which carries no links of its own, only `podcastID`) resolve its
+ * parent's real apple/rss/小宇宙 links and cover without any fuzzy
+ * title-matching, whenever that show also appears on either board.
+ */
+export async function xyzrankPodcastById(): Promise<Map<string, XyzChartEntry>> {
+  const [chart, fresh] = await Promise.all([xyzrankChart(), xyzrankNewPodcasts()]);
+  const byId = new Map<string, XyzChartEntry>();
+  for (const e of [...(chart ?? []), ...(fresh ?? [])]) byId.set(e.id, e);
+  return byId;
+}
+
+/** One ranked episode on a 中文播客榜 board (热门单集/新晋单集). */
 export type XyzEpisodeEntry = {
   rank: number;
   title: string;
   showTitle?: string;
+  /** Joins against XyzChartEntry.id on either podcast board — see xyzrankPodcastById. */
+  podcastId?: string;
+  coverUrl?: string;
+  /** The episode's own 小宇宙 page. */
+  url?: string;
   plays?: number;
   comments?: number;
-  url?: string;
+  /** The parent show's subscriber count at ranking time. */
+  subscribers?: number;
+  durationSec?: number;
+  publishedAt?: string;
 };
 
-function asString(v: unknown): string | undefined {
-  return typeof v === "string" && v.trim() ? v.trim() : undefined;
+function parseEpisodeEntry(raw: unknown, fallbackRank: number): XyzEpisodeEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const title = asString(r.title);
+  if (!title) return null;
+  const duration = asNumber(r.duration);
+  return {
+    rank: asNumber(r.rank) ?? fallbackRank,
+    title,
+    showTitle: asString(r.podcastName),
+    podcastId: asString(r.podcastID),
+    coverUrl: asString(r.logoURL),
+    url: asString(r.link),
+    plays: asNumber(r.playCount),
+    comments: asNumber(r.commentCount),
+    subscribers: asNumber(r.subscription),
+    durationSec: duration != null ? duration * 60 : undefined,
+    publishedAt: asString(r.postTime),
+  };
 }
 
-/** Defensive parse of the hot-episodes payload (schema not guaranteed). */
 function extractEpisodes(json: unknown): XyzEpisodeEntry[] {
-  const arrays: unknown[][] = [];
-  const walk = (node: unknown, depth: number) => {
-    if (depth > 3 || !node) return;
-    if (Array.isArray(node)) {
-      arrays.push(node);
-      return;
-    }
-    if (typeof node === "object") {
-      for (const v of Object.values(node as Record<string, unknown>)) walk(v, depth + 1);
-    }
-  };
-  walk(json, 0);
-
-  for (const arr of arrays) {
-    const out: XyzEpisodeEntry[] = [];
-    for (const raw of arr) {
-      if (!raw || typeof raw !== "object") continue;
-      const r = raw as Record<string, unknown>;
-      const title = asString(r.title) ?? asString(r.name) ?? asString(r.episodeName);
-      if (!title) continue;
-      const link = asString(r.link) ?? asString(r.url) ?? asString(r.episodeUrl);
-      out.push({
-        rank: out.length + 1,
-        title,
-        showTitle:
-          asString(r.podcastName) ?? asString(r.podcast_name) ??
-          asString(r.podcast) ?? asString(r.showTitle) ?? asString(r.show),
-        plays: asNumber(r.plays) ?? asNumber(r.playCount) ?? asNumber(r.play_count),
-        comments: asNumber(r.comments) ?? asNumber(r.commentCount) ?? asNumber(r.comment_count),
-        url: link?.startsWith("http") ? link : undefined,
-      });
-    }
-    if (out.length > 0) return out;
+  const out: XyzEpisodeEntry[] = [];
+  let i = 0;
+  for (const raw of findEntries(json)) {
+    i++;
+    const e = parseEpisodeEntry(raw, i);
+    if (e) out.push(e);
   }
-  return [];
+  return out;
 }
 
 async function fetchEpisodes(path: string): Promise<XyzEpisodeEntry[] | null> {
@@ -216,8 +283,7 @@ export async function xyzrankBuzz(title: string): Promise<BuzzInput | null> {
   if (!entry) return null;
   return {
     xyzrankRank: entry.rank,
-    subscribers: entry.subscribers,
-    plays: entry.plays,
-    comments: entry.comments,
+    plays: entry.avgPlays,
+    comments: entry.avgComments,
   };
 }
