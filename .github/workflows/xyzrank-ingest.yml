@@ -1,0 +1,36 @@
+name: Refresh xyzrank cache
+
+# xyzrank.com sits behind Cloudflare bot protection that blocks Vercel's
+# outbound IPs specifically — this runs on GitHub's runners instead (fresh,
+# disposable IPs each run) and writes the result to Supabase with the
+# service-role key, which the app then reads from instead of fetching live.
+# Best-effort: without secrets, or if xyzrank blocks GitHub's IP too, the
+# script logs and exits 0 rather than failing the workflow.
+
+on:
+  schedule:
+    - cron: "37 */6 * * *" # every 6 hours, offset from mine.yml's :17
+  workflow_dispatch: {} # manual "Run workflow" button
+
+concurrency:
+  group: xyzrank-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # supabase-js v2 requires Node >= 22 (needs a global WebSocket);
+          # Node 20 makes createClient throw "native WebSocket not found".
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Refresh xyzrank cache
+        run: npx -y tsx scripts/ingest-xyzrank.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

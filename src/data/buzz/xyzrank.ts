@@ -1,15 +1,14 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { readXyzrankCache } from "@/src/data/repos/xyzrankCacheRepo";
 import { normalizeForMatch } from "./match";
 
 /**
  * 中文播客榜 (xyzrank.com) — free JSON API built on 小宇宙 + Apple data,
- * the same source xyzrank.com itself renders. One cached fetch per endpoint
- * serves every lookup; any failure returns null and the signal is skipped.
- * The site's own four boards, per its (now-archived) scraper's README —
- * github.com/eddiehe99/xyzrank — map straight onto its own tabs, each its
- * own top-50-by-rank page (confirmed live: `{items, total, offset, limit}`,
- * `total` far exceeds `items.length` — 50 is xyzrank's own board size, not
- * an arbitrary cap we impose):
+ * the same source xyzrank.com itself renders. The site's own four boards,
+ * per its (now-archived) scraper's README — github.com/eddiehe99/xyzrank —
+ * map straight onto its own tabs, each its own top-50-by-rank page
+ * (confirmed live: `{items, total, offset, limit}`, `total` far exceeds
+ * `items.length` — 50 is xyzrank's own board size, not an arbitrary cap):
  *   /api/podcasts       — 热门播客 (popular podcasts)
  *   /api/new-podcasts   — 新晋播客 (emerging podcasts)
  *   /api/episodes       — 热门单集 (hot episodes)
@@ -23,6 +22,17 @@ import { normalizeForMatch } from "./match";
  * own (only `podcastID`, joinable against the podcasts lists) but do carry
  * a direct 小宇宙 episode URL and the parent show's own logo/subscriber
  * count at ranking time.
+ *
+ * VERCEL IS BLOCKED: xyzrank sits behind Cloudflare bot protection that
+ * blocks Vercel's outbound IPs specifically — confirmed by comparing an
+ * identical request from a residential IP (200) against one proxied
+ * through this app in production (blocked). Better headers don't fix this;
+ * Cloudflare fingerprints below the HTTP layer. So every board-fetching
+ * function here checks the `xyzrank_cache` table FIRST — populated by
+ * scripts/ingest-xyzrank.ts, a scheduled GitHub Actions job running from a
+ * non-Vercel IP — and only falls back to a live fetch (works in local dev,
+ * and costs nothing to keep trying in case the block ever lifts) when the
+ * cache is empty.
  */
 
 const REVALIDATE_SECONDS = 24 * 60 * 60; // the ranking moves daily
@@ -160,9 +170,18 @@ async function fetchChart(path: string): Promise<XyzChartEntry[] | null> {
   return entries.length > 0 ? entries : null;
 }
 
+/** Live-only fetch, bypassing the Supabase cache — used only by the
+ *  ingestion script (scripts/ingest-xyzrank.ts), which is what populates
+ *  that cache in the first place. */
+export async function xyzrankChartLive(): Promise<XyzChartEntry[] | null> {
+  return fetchChart("/api/podcasts");
+}
+
 let memo: Promise<XyzChartEntry[] | null> | null = null;
 
 async function chartIndex(): Promise<XyzChartEntry[] | null> {
+  const cached = await readXyzrankCache<XyzChartEntry[]>("podcasts");
+  if (cached) return cached;
   memo ??= fetchChart("/api/podcasts");
   const chart = await memo;
   if (!chart) memo = null; // retry next request rather than cache the failure
@@ -174,10 +193,17 @@ export async function xyzrankChart(): Promise<XyzChartEntry[] | null> {
   return chartIndex();
 }
 
+/** Live-only — see xyzrankChartLive's doc. */
+export async function xyzrankNewPodcastsLive(): Promise<XyzChartEntry[] | null> {
+  return fetchChart("/api/new-podcasts");
+}
+
 let memoNewPodcasts: Promise<XyzChartEntry[] | null> | null = null;
 
 /** 新晋播客 — emerging shows climbing the board, ordered by rank. */
 export async function xyzrankNewPodcasts(): Promise<XyzChartEntry[] | null> {
+  const cached = await readXyzrankCache<XyzChartEntry[]>("new-podcasts");
+  if (cached) return cached;
   memoNewPodcasts ??= fetchChart("/api/new-podcasts");
   const chart = await memoNewPodcasts;
   if (!chart) memoNewPodcasts = null;
@@ -254,20 +280,34 @@ async function fetchEpisodes(path: string): Promise<XyzEpisodeEntry[] | null> {
   return entries.length > 0 ? entries : null;
 }
 
+/** Live-only — see xyzrankChartLive's doc. */
+export async function xyzrankHotEpisodesLive(): Promise<XyzEpisodeEntry[] | null> {
+  return fetchEpisodes("/api/episodes");
+}
+
 let memoEpisodes: Promise<XyzEpisodeEntry[] | null> | null = null;
 
 /** 热门单集 — 中文播客榜's hot-episodes board (best-effort, cached daily). */
 export async function xyzrankHotEpisodes(): Promise<XyzEpisodeEntry[] | null> {
+  const cached = await readXyzrankCache<XyzEpisodeEntry[]>("episodes");
+  if (cached) return cached;
   memoEpisodes ??= fetchEpisodes("/api/episodes");
   const eps = await memoEpisodes;
   if (!eps) memoEpisodes = null; // retry next request rather than cache failure
   return eps;
 }
 
+/** Live-only — see xyzrankChartLive's doc. */
+export async function xyzrankNewEpisodesLive(): Promise<XyzEpisodeEntry[] | null> {
+  return fetchEpisodes("/api/new-episodes");
+}
+
 let memoNewEpisodes: Promise<XyzEpisodeEntry[] | null> | null = null;
 
 /** 新晋单集 — rising episodes, ordered by rank. */
 export async function xyzrankNewEpisodes(): Promise<XyzEpisodeEntry[] | null> {
+  const cached = await readXyzrankCache<XyzEpisodeEntry[]>("new-episodes");
+  if (cached) return cached;
   memoNewEpisodes ??= fetchEpisodes("/api/new-episodes");
   const eps = await memoNewEpisodes;
   if (!eps) memoNewEpisodes = null;
