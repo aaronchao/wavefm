@@ -27,3 +27,22 @@ export function rankBetween(before: number | null, after: number | null): number
   if (after == null) return before + GAP;
   return (before + after) / 2;
 }
+
+/**
+ * Rank for a one-step ▲/▼ move (swaps the item with its adjacent
+ * neighbor). `ranks` is the full ordered queue; `index` is the moving
+ * item's current position. Null at either edge — nothing to swap with.
+ */
+export function rankAfterAdjacentMove(
+  ranks: number[],
+  index: number,
+  direction: "up" | "down",
+): number | null {
+  if (direction === "up" && index <= 0) return null;
+  if (direction === "down" && index >= ranks.length - 1) return null;
+  const without = ranks.filter((_, i) => i !== index);
+  const insertPos = direction === "up" ? index - 1 : index + 1;
+  const before = insertPos > 0 ? without[insertPos - 1] : null;
+  const after = insertPos < without.length ? without[insertPos] : null;
+  return rankBetween(before, after);
+}

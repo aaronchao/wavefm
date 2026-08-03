@@ -14,10 +14,13 @@ import {
 import {
   listSavedEpisodes,
   removeEpisode,
+  setEpisodeBucket,
   updateEpisodeProgress,
   type SavedEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
+import { getFeedToken, regenerateFeedToken } from "@/src/data/repos/prefsRepo";
 import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
+import { rankAfterAdjacentMove, rankAtBottom, rankAtTop } from "@/src/core/queue/rank";
 import {
   addShowTag,
   allTagsFrom,
@@ -47,6 +50,7 @@ import { NothingToggle, PlayableCard } from "@/src/ui";
  */
 export default function LibraryPage() {
   const { session } = useSession();
+  const signedIn = Boolean(session);
   const scope = session?.user.id ?? "local";
   const queryClient = useQueryClient();
 
@@ -90,6 +94,25 @@ export default function LibraryPage() {
       )
     : episodes;
 
+  // Inbox/Queue triage (REFINEMENTS.md #1/#3) — reordering needs the TRUE
+  // queue order, so it's computed off the unfiltered list and only exposed
+  // when no tag filter is narrowing the view (a filtered subset can't say
+  // "swap with the next item" meaningfully).
+  const fullQueue = [...episodes]
+    .filter((e) => e.bucket === "queue")
+    .sort((a, b) => (a.queueRank ?? 0) - (b.queueRank ?? 0));
+  const inboxEpisodes = visibleEpisodes
+    .filter((e) => e.bucket === "inbox")
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const queueEpisodes = tag
+    ? visibleEpisodes
+        .filter((e) => e.bucket === "queue")
+        .sort((a, b) => (a.queueRank ?? 0) - (b.queueRank ?? 0))
+    : fullQueue;
+  const archivedEpisodes = visibleEpisodes
+    .filter((e) => e.bucket === "archived")
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
   async function renameTag(oldTag: string, newTag: string) {
     if (activeTag === oldTag) setActiveTag(newTag.trim() || null);
     await renameTagEverywhere(oldTag, newTag);
@@ -110,6 +133,8 @@ export default function LibraryPage() {
         Tag them right on their card to sort your Library.
       </p>
 
+      <FeedSyncPanel signedIn={signedIn} />
+
       <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
 
       {/* On mobile (single column) Episodes lead — the saved-shows list is
@@ -129,7 +154,9 @@ export default function LibraryPage() {
         <section className="order-1 md:order-2">
           <ColumnHeading count={visibleEpisodes.length}>Episodes</ColumnHeading>
           <EpisodesColumn
-            episodes={visibleEpisodes}
+            inbox={inboxEpisodes}
+            queue={queueEpisodes}
+            archived={archivedEpisodes}
             tagMap={episodeTagMap}
             loading={episodesQ.isLoading}
             filtered={Boolean(tag)}
@@ -396,25 +423,36 @@ function LibraryShowCard({
   );
 }
 
+/**
+ * Inbox/Queue triage (REFINEMENTS.md #1/#3): fresh saves land in an
+ * untouched Inbox; one gesture commits each into a small, deliberately-
+ * ordered Queue (or Archive). The Queue stays manageable precisely because
+ * nothing enters it without a decision — see the design note in
+ * REFINEMENTS.md §3 for the full rationale.
+ */
 function EpisodesColumn({
-  episodes,
+  inbox,
+  queue,
+  archived,
   tagMap,
   loading,
   filtered,
   onTagsChanged,
 }: {
-  episodes: SavedEpisode[];
+  inbox: SavedEpisode[];
+  queue: SavedEpisode[];
+  archived: SavedEpisode[];
   tagMap: EpisodeTagMap;
   loading: boolean;
   filtered: boolean;
   onTagsChanged: () => void;
 }) {
   const queryClient = useQueryClient();
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
+  const [showArchived, setShowArchived] = useState(false);
 
   if (loading) return <p className="text-zinc-500">Loading…</p>;
-  if (episodes.length === 0) {
+  if (inbox.length === 0 && queue.length === 0 && archived.length === 0) {
     return (
       <p className="text-zinc-500">
         {filtered
@@ -424,18 +462,253 @@ function EpisodesColumn({
     );
   }
 
+  const moveToQueue = (episodeId: string, position: "top" | "bottom") => {
+    const ranks = queue.map((e) => e.queueRank ?? 0);
+    const rank = position === "top" ? rankAtTop(ranks) : rankAtBottom(ranks);
+    void setEpisodeBucket(episodeId, "queue", rank).then(refresh);
+  };
+  const archive = (episodeId: string) =>
+    void setEpisodeBucket(episodeId, "archived").then(refresh);
+  const restore = (episodeId: string) =>
+    void setEpisodeBucket(episodeId, "queue", rankAtBottom(queue.map((e) => e.queueRank ?? 0))).then(
+      refresh,
+    );
+  const move = (episodeId: string, direction: "up" | "down") => {
+    const index = queue.findIndex((e) => e.episodeId === episodeId);
+    const rank = rankAfterAdjacentMove(queue.map((e) => e.queueRank ?? 0), index, direction);
+    if (rank == null) return; // already at that edge
+    void setEpisodeBucket(episodeId, "queue", rank).then(refresh);
+  };
+
   return (
-    <ul className="flex flex-col gap-3">
-      {episodes.map((e) => (
-        <EpisodeRow
-          key={e.episodeId}
-          episode={e}
-          tags={tagMap[e.episodeId] ?? []}
-          onChanged={refresh}
-          onTagsChanged={onTagsChanged}
-        />
-      ))}
-    </ul>
+    <div className="flex flex-col gap-6">
+      {inbox.length > 0 && (
+        <div>
+          <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+            Inbox <span className="text-zinc-400">— new, not yet sorted</span>
+          </h3>
+          <ul className="flex flex-col gap-3">
+            {inbox.map((e) => (
+              <InboxRow
+                key={e.episodeId}
+                episode={e}
+                onTopOfQueue={() => moveToQueue(e.episodeId, "top")}
+                onBottomOfQueue={() => moveToQueue(e.episodeId, "bottom")}
+                onArchive={() => archive(e.episodeId)}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div>
+        {inbox.length > 0 && (
+          <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+            Queue
+          </h3>
+        )}
+        {queue.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            {filtered ? "No queued episodes with this tag." : "Triage something from your Inbox above."}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {queue.map((e, i) => (
+              <EpisodeRow
+                key={e.episodeId}
+                episode={e}
+                tags={tagMap[e.episodeId] ?? []}
+                onChanged={refresh}
+                onTagsChanged={onTagsChanged}
+                onMoveUp={!filtered && i > 0 ? () => move(e.episodeId, "up") : undefined}
+                onMoveDown={
+                  !filtered && i < queue.length - 1 ? () => move(e.episodeId, "down") : undefined
+                }
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {archived.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowArchived((v) => !v)}
+            className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500 hover:text-foreground"
+          >
+            {showArchived ? "▾" : "▸"} Archived ({archived.length})
+          </button>
+          {showArchived && (
+            <ul className="flex flex-col gap-3">
+              {archived.map((e) => (
+                <ArchivedRow
+                  key={e.episodeId}
+                  episode={e}
+                  onRestore={() => restore(e.episodeId)}
+                  onRemove={() => void removeEpisode(e.episodeId).then(refresh)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A fresh, untriaged save — minimal by design (it's a holding area, not a working list). */
+function InboxRow({
+  episode,
+  onTopOfQueue,
+  onBottomOfQueue,
+  onArchive,
+}: {
+  episode: SavedEpisode;
+  onTopOfQueue: () => void;
+  onBottomOfQueue: () => void;
+  onArchive: () => void;
+}) {
+  const play = () =>
+    previewEpisode({
+      id: episode.episodeId,
+      title: episode.title,
+      showId: episode.showId,
+      showTitle: episode.showTitle,
+      coverUrl: episode.coverUrl,
+      appleUrl: episode.appleUrl,
+      audioUrl: episode.audioUrl,
+      durationSec: episode.durationSec,
+      categories: [],
+    });
+  return (
+    <li>
+      <PlayableCard onPlay={play} playLabel={`Preview ${episode.title}`} className="cursor-pointer !rounded-[2px]">
+        <CoverPlay src={episode.coverUrl} size={48} onPlay={play} label={`Play a snippet of ${episode.title}`} className="relative z-10 !rounded-[2px]" />
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-sm font-semibold leading-snug">{episode.title}</p>
+          {episode.showTitle && (
+            <p className="line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
+          )}
+        </div>
+        <div className="relative z-10 flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onTopOfQueue(); }}
+            aria-label={`Move ${episode.title} to top of queue`}
+            title="Top of queue"
+            className="nothing-toggle px-2 py-1 text-[11px]"
+          >
+            ↑ Top
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onBottomOfQueue(); }}
+            aria-label={`Move ${episode.title} to bottom of queue`}
+            title="Bottom of queue"
+            className="nothing-toggle px-2 py-1 text-[11px]"
+          >
+            ↓ Bottom
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onArchive(); }}
+            aria-label={`Archive ${episode.title}`}
+            title="Not interested — archive"
+            className="rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
+          >
+            ✕
+          </button>
+        </div>
+      </PlayableCard>
+    </li>
+  );
+}
+
+/** Archived — out of the way, restorable. Deliberately terse: title only. */
+function ArchivedRow({
+  episode,
+  onRestore,
+  onRemove,
+}: {
+  episode: SavedEpisode;
+  onRestore: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <li className="flex items-center gap-3 rounded-[2px] border border-surface-border px-3 py-2 opacity-70">
+      <p className="line-clamp-1 min-w-0 flex-1 text-sm">{episode.title}</p>
+      <button
+        type="button"
+        onClick={onRestore}
+        aria-label={`Restore ${episode.title} to queue`}
+        className="nothing-toggle shrink-0 px-2 py-1 text-[11px]"
+      >
+        Restore
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${episode.title}`}
+        className="shrink-0 rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
+      >
+        ✕
+      </button>
+    </li>
+  );
+}
+
+/**
+ * The sync mechanic itself (REFINEMENTS.md #2): a private per-user feed
+ * URL, add-by-URL once in any real podcast app, listen straight from
+ * there from then on. Signed-in only — syncing to an external app needs a
+ * stable server-side URL, same requirement as every other cross-device
+ * feature here.
+ */
+function FeedSyncPanel({ signedIn }: { signedIn: boolean }) {
+  const tokenQ = useQuery({
+    queryKey: ["feedToken"],
+    queryFn: getFeedToken,
+    enabled: signedIn,
+  });
+  const [copied, setCopied] = useState(false);
+  const queryClient = useQueryClient();
+
+  if (!signedIn || !tokenQ.data) return null;
+  const url = `${typeof window !== "undefined" ? window.location.origin : ""}/api/feed/listen-later/${tokenQ.data}`;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // clipboard blocked — the URL is still visible to select manually
+    }
+  }
+
+  async function regenerate() {
+    if (!window.confirm("Regenerating invalidates the old feed URL — you'll need to re-add it in your podcast app. Continue?")) return;
+    await regenerateFeedToken();
+    await queryClient.invalidateQueries({ queryKey: ["feedToken"] });
+  }
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[2px] border border-dashed border-surface-border px-3 py-2 text-xs text-zinc-500">
+      <span className="font-brand shrink-0 uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
+        Sync your Queue
+      </span>
+      <span className="min-w-0 flex-1 truncate">
+        Add this feed URL in Apple Podcasts, Overcast, Pocket Casts, or AntennaPod — listen there, come
+        back here to discover more.
+      </span>
+      <button type="button" onClick={copy} className="nothing-toggle shrink-0 px-2 py-1 text-[11px]">
+        {copied ? "Copied ✓" : "Copy URL"}
+      </button>
+      <button type="button" onClick={regenerate} className="shrink-0 text-zinc-400 underline hover:text-foreground">
+        Regenerate
+      </button>
+    </div>
   );
 }
 
@@ -444,11 +717,16 @@ function EpisodeRow({
   tags,
   onChanged,
   onTagsChanged,
+  onMoveUp,
+  onMoveDown,
 }: {
   episode: SavedEpisode;
   tags: string[];
   onChanged: () => void;
   onTagsChanged: () => void;
+  /** Undefined hides the button — used at queue edges and while tag-filtered. */
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const finished = episode.status === "finished";
 
@@ -532,6 +810,30 @@ function EpisodeRow({
             onRemove={(t) => void removeEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
           />
         </div>
+        {(onMoveUp || onMoveDown) && (
+          <div className="relative z-10 flex shrink-0 flex-col">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
+              disabled={!onMoveUp}
+              aria-label={`Move ${episode.title} up in queue`}
+              title="Move up"
+              className="px-1.5 text-zinc-400 hover:text-foreground disabled:opacity-20"
+            >
+              ▲
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
+              disabled={!onMoveDown}
+              aria-label={`Move ${episode.title} down in queue`}
+              title="Move down"
+              className="px-1.5 text-zinc-400 hover:text-foreground disabled:opacity-20"
+            >
+              ▼
+            </button>
+          </div>
+        )}
         <NothingToggle
           active={finished}
           onClick={(e) => {
