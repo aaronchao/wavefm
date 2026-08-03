@@ -29,6 +29,8 @@ export type BuzzInput = {
   hnComments?: number;
   /** 1-based rank on 中文播客榜 (xyzrank) popular podcasts. */
   xyzrankRank?: number;
+  /** 1-based position on Pocket Casts' popular/trending Discover lists. */
+  pocketCastsRank?: number;
   /** 小宇宙 stats, when available (xyzrank payloads or env-gated API). */
   subscribers?: number;
   plays?: number;
@@ -43,6 +45,7 @@ export type BuzzInput = {
 };
 
 const XYZRANK_SIZE = 200;
+const POCKETCASTS_SIZE = 100; // each Pocket Casts list is ~100 shows
 
 function logScale(n: number, digitsForFull: number): number {
   return Math.min(1, Math.log10(n + 1) / digitsForFull);
@@ -86,6 +89,9 @@ function popularityParts(b: BuzzInput): number[] {
   const popularity: number[] = [];
   if (b.xyzrankRank != null) {
     popularity.push(Math.max(0, 1 - (b.xyzrankRank - 1) / XYZRANK_SIZE));
+  }
+  if (b.pocketCastsRank != null) {
+    popularity.push(Math.max(0, 1 - (b.pocketCastsRank - 1) / POCKETCASTS_SIZE));
   }
   if (b.subscribers != null) popularity.push(logScale(b.subscribers, 6)); // 1M -> 1
   if (b.plays != null) popularity.push(logScale(b.plays, 7));
@@ -151,6 +157,9 @@ export function buzzWhy(b: BuzzInput | undefined): string | null {
   }
   if (b.xyzrankRank != null && b.xyzrankRank <= 50) {
     return `#${b.xyzrankRank} on 中文播客榜`;
+  }
+  if (b.pocketCastsRank != null && b.pocketCastsRank <= 50) {
+    return `Trending on Pocket Casts`;
   }
   if ((b.listenScore ?? 0) >= 60) {
     return `Popular podcast (Listen Score ${b.listenScore})`;

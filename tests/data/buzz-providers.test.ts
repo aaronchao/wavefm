@@ -269,3 +269,32 @@ describe("youtubeBuzz", () => {
     expect(await youtubeBuzz("Show X")).toBeNull();
   });
 });
+
+describe("pocketCastsTrendingRanks", () => {
+  it("maps iTunes id -> best 1-based rank across popular + trending", async () => {
+    mockFetch((url) => {
+      if (url.includes("popular")) {
+        return { body: { podcasts: [{ itunes: 111 }, { itunes: 222 }] } };
+      }
+      // 222 appears higher (rank 1) on trending — the better rank should win
+      return { body: { podcasts: [{ itunes: 222 }, { itunes: 333 }] } };
+    });
+    const { pocketCastsTrendingRanks, __resetPocketCastsMemo } = await import(
+      "@/src/data/buzz/pocketcasts"
+    );
+    __resetPocketCastsMemo();
+    const ranks = await pocketCastsTrendingRanks();
+    expect(ranks?.get("111")).toBe(1);
+    expect(ranks?.get("222")).toBe(1); // min(2 popular, 1 trending)
+    expect(ranks?.get("333")).toBe(2);
+  });
+
+  it("returns null when every list is unreachable", async () => {
+    mockFetch(() => ({ status: 503, body: {} }));
+    const { pocketCastsTrendingRanks, __resetPocketCastsMemo } = await import(
+      "@/src/data/buzz/pocketcasts"
+    );
+    __resetPocketCastsMemo();
+    expect(await pocketCastsTrendingRanks()).toBeNull();
+  });
+});

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { itunesId } from "@/src/core/links";
 import {
   detectLang,
   queryTermsForShow,
@@ -15,6 +16,7 @@ import {
 } from "@/src/data/buzz/forums";
 import { hackerNewsDiscussion } from "@/src/data/buzz/hackernews";
 import { listenNotesBuzz } from "@/src/data/buzz/listennotes";
+import { pocketCastsTrendingRanks } from "@/src/data/buzz/pocketcasts";
 import { redditDiscussion } from "@/src/data/buzz/reddit";
 import { v2exDiscussion } from "@/src/data/buzz/v2ex";
 import { mergeBuzz, xiaoyuzhouBuzz } from "@/src/data/buzz/xiaoyuzhou";
@@ -104,6 +106,9 @@ export async function GET(request: Request) {
   // counts AND the actual threads for readable evidence — and mark whichever
   // are currently charted so the ranker can penalise them
   const evidenceById = new Map<string, EvidenceItem[]>();
+  // Pocket Casts' trending/popular lists are one cheap cached fetch for the
+  // whole pool (a global list, not a per-title lookup).
+  const pcRanks = await pocketCastsTrendingRanks();
   // The rate-sensitive providers run ONLY for the top few shows, never the
   // whole pool: Xiaoyuzhou's account-authenticated app API (per-request calls
   // on a personal login got an account banned) and Listen Notes' tiny free
@@ -112,6 +117,9 @@ export async function GET(request: Request) {
   const candidates: SimilarItemInput[] = await Promise.all(
     finalPool.map(async (s, i) => {
       const gentle = i < RATE_SENSITIVE_CAP;
+      const pcId = itunesId(s.id);
+      const pocketCasts =
+        pcId && pcRanks?.has(pcId) ? { pocketCastsRank: pcRanks.get(pcId) } : null;
       const [xyz, reddit, hn, v2ex, dcard, ptt, lihkg, douban, xiaoyuzhou, listen, youtube] =
         await Promise.all([
           xyzrankBuzz(s.title),
@@ -152,6 +160,7 @@ export async function GET(request: Request) {
           listen,
           youtube?.buzz,
           xiaoyuzhou,
+          pocketCasts,
           douban?.buzz,
           dcard?.buzz,
           ptt?.buzz,

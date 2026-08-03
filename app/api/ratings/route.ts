@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
   let fetched: RatingResult[] = [];
   if (fresh.length > 0) {
-    fetched = await fetchRatings(title, fresh);
+    fetched = await fetchRatings(title, fresh, showId);
     void writeCache(showId, fetched);
   }
 

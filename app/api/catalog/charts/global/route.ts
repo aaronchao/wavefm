@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { itunesId } from "@/src/core/links";
 import { topPicks, type SimilarItemInput } from "@/src/core/recommend";
 import { hackerNewsBuzz } from "@/src/data/buzz/hackernews";
 import { listenNotesBuzz } from "@/src/data/buzz/listennotes";
+import { pocketCastsTrendingRanks } from "@/src/data/buzz/pocketcasts";
 import { redditBuzz } from "@/src/data/buzz/reddit";
 import { mergeBuzz } from "@/src/data/buzz/xiaoyuzhou";
 import { youtubeBuzz } from "@/src/data/buzz/youtube";
@@ -54,19 +56,24 @@ export async function GET(request: Request) {
   // only for the finalists that could make the board. Listen Notes is bounded
   // further to the top few — its free quota is tiny (see listennotes.ts).
   const shortlist = topPicks({ saved: [], candidates: baseCandidates, limit: Math.min(limit + 6, 40) });
+  // Pocket Casts trending is one cached fetch for the whole shortlist.
+  const pcRanks = await pocketCastsTrendingRanks();
   // Reddit + HN are free (all finalists); Listen Notes + YouTube are quota- or
   // key-bounded to the top few (see listennotes.ts / youtube.ts).
   const BOUNDED_CAP = 6;
   const enriched: SimilarItemInput[] = await Promise.all(
     shortlist.map(async (p, i) => {
       const bounded = i < BOUNDED_CAP;
+      const pcId = itunesId(p.item.id);
+      const pocketCasts =
+        pcId && pcRanks?.has(pcId) ? { pocketCastsRank: pcRanks.get(pcId) } : null;
       const [reddit, hn, listen, youtube] = await Promise.all([
         redditBuzz(p.item.title),
         hackerNewsBuzz(p.item.title),
         bounded ? listenNotesBuzz(p.item.title) : Promise.resolve(null),
         bounded ? youtubeBuzz(p.item.title) : Promise.resolve(null),
       ]);
-      return { ...p.item, buzz: mergeBuzz(p.item.buzz, listen, youtube, reddit, hn) };
+      return { ...p.item, buzz: mergeBuzz(p.item.buzz, listen, youtube, pocketCasts, reddit, hn) };
     }),
   );
   const finalists = topPicks({ saved: [], candidates: enriched, limit });
