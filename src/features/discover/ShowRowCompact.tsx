@@ -16,11 +16,24 @@ import { useSavedToggle } from "./useSavedToggle";
  * the title text is the separate door into the show. Kept deliberately
  * light — no inline episode expander — so two of these columns fit on one
  * screen.
+ *
+ * `glass`: opt-in "Liquid Glass" treatment (same translucent+blurred recipe
+ * as FloatingSearch's already-established look) — a Discover-only visual
+ * prototype, so this defaults off and is only passed `true` from Discover's
+ * own call sites (RankedRecs, Charts). The Show-detail page reuses this same
+ * component (SimilarContent, CommunityRecs) and deliberately keeps the
+ * plain card look until/unless the prototype is approved to spread further.
  */
-export function ShowRowCompact({ show }: { show: SimilarShow }) {
+export function ShowRowCompact({ show, glass = false }: { show: SimilarShow; glass?: boolean }) {
   const saved = useSavedToggle(show);
   return (
-    <li className="flex items-start gap-2.5 rounded-card border border-surface-border bg-background p-2.5 shadow-sm">
+    <li
+      className={`flex items-start gap-2.5 rounded-card p-2.5 ${
+        glass
+          ? "border border-white/30 bg-white/30 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-black/30"
+          : "border border-surface-border bg-background shadow-sm"
+      }`}
+    >
       <CoverPlay
         src={show.coverUrl}
         size={48}

@@ -80,7 +80,7 @@ export function RankedRecs({
           <ol className="flex flex-col gap-2.5">
             {visible.map((pick, i) => (
               <SettleIn key={pick.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-                <ShowRowCompact show={pick} />
+                <ShowRowCompact show={pick} glass />
               </SettleIn>
             ))}
           </ol>
@@ -191,7 +191,7 @@ function EpisodeColumnRow({ ep, show }: { ep: RankedEpisodeItem; show: SimilarSh
   }
 
   return (
-    <li className="flex items-start gap-2.5 rounded-card border border-surface-border bg-background p-2.5 shadow-sm">
+    <li className="flex items-start gap-2.5 rounded-card border border-white/30 bg-white/30 p-2.5 shadow-md backdrop-blur-md dark:border-white/10 dark:bg-black/30">
       <CoverPlay
         src={show.coverUrl}
         size={48}
