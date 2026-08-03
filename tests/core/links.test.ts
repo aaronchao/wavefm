@@ -76,10 +76,19 @@ describe("pickPreferredLink", () => {
     expect(pickPreferredLink(links, "spotify")?.url).toBe("https://open.spotify.com/show/abc");
   });
 
-  it("falls back to any other real link when the preferred player has none", () => {
-    // Apple always has a real trackViewUrl in this fixture; spotify is search-only.
+  it("honors the preferred player's search fallback over a different platform's real link", () => {
+    // Apple has a real link here, but the user explicitly chose Spotify —
+    // that choice should win even though Spotify only resolves to a search.
     const links = platformLinks("Show", { apple: "https://podcasts.apple.com/us/podcast/id123" });
     const picked = pickPreferredLink(links, "spotify")!;
+    expect(picked.id).toBe("spotify");
+    expect(picked.isSearch).toBe(true);
+  });
+
+  it("falls back to any other real link when the preferred player has no link at all", () => {
+    // Pocket Casts is the one platform that can resolve to a true null.
+    const links = platformLinks("Show", { apple: "https://podcasts.apple.com/us/podcast/id123" });
+    const picked = pickPreferredLink(links, "pocketCasts")!;
     expect(picked.id).toBe("apple");
     expect(picked.isSearch).toBe(false);
   });

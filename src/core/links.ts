@@ -38,28 +38,25 @@ export function itunesId(id: string | undefined): string | undefined {
 
 /**
  * The one-tap "▶ Listen" primary action (REFINEMENTS.md #4). Priority:
- * (1) the remembered preferred player, if it has a real (non-search) link;
- * (2) any other real link, next-best — a genuine deep link beats a search
- * even for the "wrong" platform; (3) the preferred player's link even if
- * it's search-only, as a last resort before giving up; (4) null. The full
- * icon row (still rendered alongside) is the fallback for "just search".
+ * (1) the remembered preferred player's own link — real deep link, or its
+ * search fallback if that's all it has, since honoring the user's actual
+ * choice beats guessing a "better" platform for them; (2) any other real
+ * link, only when the preferred player has no link at all (e.g. Pocket
+ * Casts with no stored URL and no iTunes id); (3) null. The full icon row
+ * (still rendered alongside) is the fallback for "just search" on anything
+ * else. Apple's real link is present for nearly every catalog show, so an
+ * earlier "any real link beats a search" rule effectively always won over
+ * the remembered choice — defeating the point of remembering it.
  */
 export function pickPreferredLink(
   links: PlatformLink[],
   preferred: PlatformId | null | undefined,
 ): PlatformLink | null {
-  const isReal = (l: PlatformLink) => Boolean(l.url) && !l.isSearch;
   if (preferred) {
     const match = links.find((l) => l.id === preferred);
-    if (match && isReal(match)) return match;
+    if (match?.url) return match;
   }
-  const nextBest = links.find(isReal);
-  if (nextBest) return nextBest;
-  if (preferred) {
-    const match = links.find((l) => l.id === preferred && l.url);
-    if (match) return match;
-  }
-  return null;
+  return links.find((l) => Boolean(l.url) && !l.isSearch) ?? null;
 }
 
 export function platformLinks(
