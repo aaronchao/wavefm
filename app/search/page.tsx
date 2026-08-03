@@ -49,7 +49,7 @@ function SearchInner() {
   const rankedShows = data ? sortSearchShows(data.shows, term) : [];
 
   return (
-    <main className="mx-auto w-full max-w-5xl p-4 pb-40 sm:p-8 sm:pb-40">
+    <main className="mx-auto w-full max-w-5xl p-4 pb-[calc(10rem+env(safe-area-inset-bottom))] sm:p-8 sm:pb-[calc(10rem+env(safe-area-inset-bottom))]">
       <h1 className="mb-4 text-2xl font-bold">Search</h1>
       {/* No autoFocus: on mobile, focusing an input on load pops the
           keyboard and the browser scrolls/zooms to it before the user has

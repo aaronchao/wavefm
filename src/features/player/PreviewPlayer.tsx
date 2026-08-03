@@ -182,7 +182,12 @@ export function PreviewPlayer() {
             // through, with a hairline border for edge definition. z-45 sits
             // above the tab bar (z-40) but strictly below the floating
             // Search bar (z-50) in the stack.
-            className="fixed inset-x-0 bottom-16 z-[45] border-t border-white/30 bg-white/30 backdrop-blur-md dark:border-white/10 dark:bg-black/30"
+            // §4 P3 mobile audit: bottom-16 alone assumed a 64px tab bar, but
+            // TabBar adds `env(safe-area-inset-bottom)` on top of its own
+            // height (`.pb-safe`) — on a notched/home-indicator device this
+            // bar sat too low, visually overlapping the tab bar's safe-area
+            // padding. Stack above the actual rendered height instead.
+            className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-[45] border-t border-white/30 bg-white/30 backdrop-blur-md dark:border-white/10 dark:bg-black/30"
           >
             <div className="mx-auto flex max-w-2xl flex-col gap-2 p-3 sm:px-8">
               <div className="flex items-center gap-3">

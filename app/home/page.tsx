@@ -11,7 +11,7 @@ export default function Home() {
   const { needsOnboarding, isLoading } = useRecommendations();
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 pb-40 sm:p-8 sm:pb-40">
+    <main className="mx-auto w-full max-w-2xl p-4 pb-[calc(10rem+env(safe-area-inset-bottom))] sm:p-8 sm:pb-[calc(10rem+env(safe-area-inset-bottom))]">
       <h1 className="mb-1 text-2xl font-bold">What next?</h1>
       <p className="mb-6 text-zinc-500">
         Shows worth your time, and why —{" "}

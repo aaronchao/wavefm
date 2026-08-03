@@ -16,6 +16,7 @@ import {
   removeEpisode,
   saveEpisode,
   setEpisodeBucket,
+  syncFromGpodder,
   updateEpisodeProgress,
   type SavedEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
@@ -122,7 +123,7 @@ export default function LibraryPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl p-4 pb-56 sm:p-8 sm:pb-56">
+    <main className="mx-auto w-full max-w-5xl p-4 pb-[calc(14rem+env(safe-area-inset-bottom))] sm:p-8 sm:pb-[calc(14rem+env(safe-area-inset-bottom))]">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-brand text-2xl font-bold">Library</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -136,6 +137,7 @@ export default function LibraryPage() {
       </p>
 
       <FeedSyncPanel signedIn={signedIn} />
+      <GpodderSyncPanel />
 
       <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
 
@@ -798,6 +800,70 @@ function FeedSyncPanel({ signedIn }: { signedIn: boolean }) {
       <button type="button" onClick={regenerate} className="shrink-0 text-zinc-400 underline hover:text-foreground">
         Regenerate
       </button>
+    </div>
+  );
+}
+
+/**
+ * One-shot manual pull sync from gpodder.net (REFINEMENTS.md #3): reconciles
+ * play position from an external client (AntennaPod, gpodder desktop, ...)
+ * back into the Library. Button-triggered only — no auto-run effect, and
+ * the password is never persisted (not even in this component's own state
+ * across a re-render beyond what's needed for the one request in flight).
+ */
+function GpodderSyncPanel() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<"idle" | "syncing" | "done" | "error">("idle");
+  const [count, setCount] = useState(0);
+  const queryClient = useQueryClient();
+
+  async function sync() {
+    setStatus("syncing");
+    const updated = await syncFromGpodder(username, password);
+    setPassword(""); // never keep it around longer than the one request needs
+    setCount(updated);
+    setStatus(updated > 0 ? "done" : "error");
+    if (updated > 0) await queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
+  }
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[2px] border border-dashed border-surface-border px-3 py-2 text-xs text-zinc-500">
+      <span className="font-brand shrink-0 uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
+        Sync from gpodder.net
+      </span>
+      <input
+        type="text"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder="username"
+        autoComplete="off"
+        className="w-28 rounded-[2px] border border-surface-border bg-background px-2 py-1 text-xs"
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="password"
+        autoComplete="off"
+        className="w-28 rounded-[2px] border border-surface-border bg-background px-2 py-1 text-xs"
+      />
+      <button
+        type="button"
+        onClick={() => void sync()}
+        disabled={!username || !password || status === "syncing"}
+        className="nothing-toggle shrink-0 px-2 py-1 text-[11px] disabled:opacity-40"
+      >
+        {status === "syncing" ? "Syncing…" : "Sync"}
+      </button>
+      {status === "done" && (
+        <span className="shrink-0 text-accent">
+          Synced {count} episode{count === 1 ? "" : "s"} ✓
+        </span>
+      )}
+      {status === "error" && (
+        <span className="shrink-0 text-zinc-400">No matching episodes found — check your login.</span>
+      )}
     </div>
   );
 }

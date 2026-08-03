@@ -23,7 +23,7 @@ export default function ShowPage() {
   });
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 pb-56 sm:p-8 sm:pb-56">
+    <main className="mx-auto w-full max-w-2xl p-4 pb-[calc(14rem+env(safe-area-inset-bottom))] sm:p-8 sm:pb-[calc(14rem+env(safe-area-inset-bottom))]">
       {isLoading && <p className="text-zinc-500">Loading…</p>}
       {!isLoading && !show && (
         <p className="text-zinc-500">
