@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { rankAfterAdjacentMove, rankAtBottom, rankAtTop, rankBetween } from "@/src/core/queue/rank";
+import {
+  rankAfterAdjacentMove,
+  rankAtBottom,
+  rankAtTop,
+  rankBetween,
+  rankForIndex,
+} from "@/src/core/queue/rank";
 
 describe("rankAtTop", () => {
   it("sorts before every existing rank", () => {
@@ -51,5 +57,22 @@ describe("rankAfterAdjacentMove", () => {
   });
   it("returns null moving down from the bottom", () => {
     expect(rankAfterAdjacentMove([0, 1, 2], 2, "down")).toBeNull();
+  });
+});
+
+describe("rankForIndex", () => {
+  it("drops at index 0 to sort before everything", () => {
+    expect(rankForIndex([2, 4, 6], 0)).toBeLessThan(2);
+  });
+  it("drops at the end to sort after everything", () => {
+    expect(rankForIndex([2, 4, 6], 3)).toBeGreaterThan(6);
+  });
+  it("drops in the middle, between its new neighbors", () => {
+    const rank = rankForIndex([2, 4, 6], 1);
+    expect(rank).toBeGreaterThan(2);
+    expect(rank).toBeLessThan(4);
+  });
+  it("handles an empty queue (dropping in from Inbox with nothing queued yet)", () => {
+    expect(rankForIndex([], 0)).toBe(0);
   });
 });

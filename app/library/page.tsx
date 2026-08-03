@@ -1,28 +1,34 @@
 "use client";
 
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { getRankedEpisodes, getShow } from "@/src/data/catalog/client";
-import {
-  addEpisodeTag,
-  listEpisodeTags,
-  removeEpisodeTag,
-  type EpisodeTagMap,
-} from "@/src/data/repos/episodeTagsRepo";
+import { listEpisodeTags, type EpisodeTagMap } from "@/src/data/repos/episodeTagsRepo";
 import {
   listSavedEpisodes,
   removeEpisode,
   saveEpisode,
   setEpisodeBucket,
   syncFromGpodder,
-  updateEpisodeProgress,
   type SavedEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
 import { getFeedToken, regenerateFeedToken } from "@/src/data/repos/prefsRepo";
 import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
-import { rankAfterAdjacentMove, rankAtBottom, rankAtTop } from "@/src/core/queue/rank";
+import { rankForIndex } from "@/src/core/queue/rank";
 import { clusterSavedShow } from "@/src/core/recommend";
 import {
   addShowTag,
@@ -33,15 +39,16 @@ import {
 } from "@/src/data/repos/showTagsRepo";
 import { renameTagEverywhere } from "@/src/data/repos/tagsRepo";
 import { BulkYoutubeMusicButton } from "@/src/features/library/BulkYoutubeMusicButton";
+import { EpisodeCard, GripIcon } from "@/src/features/library/EpisodeCard";
 import { ExportOpmlButton } from "@/src/features/library/ExportOpmlButton";
 import { ImportOpmlButton } from "@/src/features/library/ImportOpmlButton";
 import { InlineTagInput } from "@/src/features/library/InlineTagInput";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { CoverPlay } from "@/src/features/player/CoverPlay";
-import { previewEpisode, previewShow } from "@/src/features/player/preview";
+import { previewShow } from "@/src/features/player/preview";
 import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
-import { NothingToggle, PlayableCard } from "@/src/ui";
+import { CoverTile, NothingToggle, PlayableCard } from "@/src/ui";
 
 /**
  * Library: the collection system, a single 2-column grid — Shows beside
@@ -555,6 +562,11 @@ function EpisodesColumn({
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
   const [showArchived, setShowArchived] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // A short activation distance so a plain tap (to open the preview player)
+  // doesn't get eaten as an accidental drag start.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   if (loading) return <p className="text-zinc-500">Loading…</p>;
   if (inbox.length === 0 && queue.length === 0 && archived.length === 0) {
@@ -567,169 +579,185 @@ function EpisodesColumn({
     );
   }
 
-  const moveToQueue = (episodeId: string, position: "top" | "bottom") => {
-    const ranks = queue.map((e) => e.queueRank ?? 0);
-    const rank = position === "top" ? rankAtTop(ranks) : rankAtBottom(ranks);
-    void setEpisodeBucket(episodeId, "queue", rank).then(refresh);
-  };
   const archive = (episodeId: string) =>
     void setEpisodeBucket(episodeId, "archived").then(refresh);
   const restore = (episodeId: string) =>
-    void setEpisodeBucket(episodeId, "queue", rankAtBottom(queue.map((e) => e.queueRank ?? 0))).then(
-      refresh,
-    );
-  const move = (episodeId: string, direction: "up" | "down") => {
-    const index = queue.findIndex((e) => e.episodeId === episodeId);
-    const rank = rankAfterAdjacentMove(queue.map((e) => e.queueRank ?? 0), index, direction);
-    if (rank == null) return; // already at that edge
-    void setEpisodeBucket(episodeId, "queue", rank).then(refresh);
-  };
+    void setEpisodeBucket(
+      episodeId,
+      "queue",
+      rankForIndex(
+        queue.map((e) => e.queueRank ?? 0),
+        queue.length,
+      ),
+    ).then(refresh);
+
+  const activeEpisode = [...inbox, ...queue].find((e) => e.episodeId === activeId);
+
+  /**
+   * Drag from Inbox lands the card in the Queue at wherever it's dropped;
+   * drag within the Queue reorders it — both go through the same
+   * rankForIndex computation (REFINEMENTS.md #1/#3's fractional rank, now
+   * driven by a drop position instead of only a discrete ▲/▼ step or a
+   * fixed top/bottom). A tag filter can't safely reorder (the visible list
+   * is a subset — a drop position within it doesn't mean the same thing
+   * once the filter clears), so dragging is disabled per-card in that case
+   * (see EpisodeCard's `disabled` prop), and this is a no-op backstop.
+   */
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over || filtered) return;
+    const draggedId = String(active.id);
+    const overBucket = (over.data.current as { bucket?: "inbox" | "queue" } | undefined)?.bucket;
+    if (overBucket !== "queue") return; // only the Queue is a real drop target
+
+    const overId = String(over.id);
+    const queueIdsWithoutActive = queue.map((e) => e.episodeId).filter((id) => id !== draggedId);
+    const index = queueIdsWithoutActive.indexOf(overId);
+    const dropIndex = index === -1 ? queueIdsWithoutActive.length : index;
+    const ranksWithoutActive = queue
+      .filter((e) => e.episodeId !== draggedId)
+      .map((e) => e.queueRank ?? 0);
+    const rank = rankForIndex(ranksWithoutActive, dropIndex);
+    void setEpisodeBucket(draggedId, "queue", rank).then(refresh);
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid items-start gap-6 md:grid-cols-2">
-        <div>
-          <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-            Inbox <span className="text-zinc-400">— new, not yet sorted</span>
-          </h3>
-          {inbox.length === 0 ? (
-            <p className="text-sm text-zinc-500">{"Nothing new — you're caught up."}</p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {inbox.map((e) => (
-                <InboxRow
-                  key={e.episodeId}
-                  episode={e}
-                  onTopOfQueue={() => moveToQueue(e.episodeId, "top")}
-                  onBottomOfQueue={() => moveToQueue(e.episodeId, "bottom")}
-                  onArchive={() => archive(e.episodeId)}
-                />
-              ))}
-            </ul>
-          )}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={(e) => setActiveId(String(e.active.id))}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveId(null)}
+    >
+      <div className="flex flex-col gap-6">
+        <div className="grid items-start gap-6 md:grid-cols-2">
+          <div>
+            <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+              Inbox <span className="text-zinc-400">— new, not yet sorted</span>
+            </h3>
+            {inbox.length === 0 ? (
+              <p className="text-sm text-zinc-500">{"Nothing new — you're caught up."}</p>
+            ) : (
+              <SortableContext
+                items={inbox.map((e) => e.episodeId)}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="flex flex-col gap-3">
+                  <AnimatePresence initial={false}>
+                    {inbox.map((e) => (
+                      <EpisodeCard
+                        key={e.episodeId}
+                        episode={e}
+                        bucket="inbox"
+                        tags={tagMap[e.episodeId] ?? []}
+                        feedUrl={e.showId ? showFeedById.get(e.showId) : undefined}
+                        onChanged={refresh}
+                        onTagsChanged={onTagsChanged}
+                        onArchive={() => archive(e.episodeId)}
+                        disabled={filtered}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </ul>
+              </SortableContext>
+            )}
+          </div>
+
+          <div>
+            <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+              Queue
+            </h3>
+            <QueueDropZone>
+              {queue.length === 0 && (
+                <li className="list-none text-sm text-zinc-500">
+                  {filtered
+                    ? "No queued episodes with this tag."
+                    : "Drag something over from your Inbox."}
+                </li>
+              )}
+              <SortableContext
+                items={queue.map((e) => e.episodeId)}
+                strategy={verticalListSortingStrategy}
+              >
+                <AnimatePresence initial={false}>
+                  {queue.map((e) => (
+                    <EpisodeCard
+                      key={e.episodeId}
+                      episode={e}
+                      bucket="queue"
+                      tags={tagMap[e.episodeId] ?? []}
+                      feedUrl={e.showId ? showFeedById.get(e.showId) : undefined}
+                      onChanged={refresh}
+                      onTagsChanged={onTagsChanged}
+                      onArchive={() => archive(e.episodeId)}
+                      disabled={filtered}
+                    />
+                  ))}
+                </AnimatePresence>
+              </SortableContext>
+            </QueueDropZone>
+          </div>
         </div>
 
-        <div>
-          <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-            Queue
-          </h3>
-          {queue.length === 0 ? (
-            <p className="text-sm text-zinc-500">
-              {filtered ? "No queued episodes with this tag." : "Triage something from your Inbox."}
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {queue.map((e, i) => (
-                <EpisodeRow
-                  key={e.episodeId}
-                  episode={e}
-                  tags={tagMap[e.episodeId] ?? []}
-                  feedUrl={e.showId ? showFeedById.get(e.showId) : undefined}
-                  onChanged={refresh}
-                  onTagsChanged={onTagsChanged}
-                  onMoveUp={!filtered && i > 0 ? () => move(e.episodeId, "up") : undefined}
-                  onMoveDown={
-                    !filtered && i < queue.length - 1 ? () => move(e.episodeId, "down") : undefined
-                  }
-                />
-              ))}
-            </ul>
-          )}
-        </div>
+        {archived.length > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500 hover:text-foreground"
+            >
+              {showArchived ? "▾" : "▸"} Archived ({archived.length})
+            </button>
+            {showArchived && (
+              <ul className="flex flex-col gap-3">
+                {archived.map((e) => (
+                  <ArchivedRow
+                    key={e.episodeId}
+                    episode={e}
+                    onRestore={() => restore(e.episodeId)}
+                    onRemove={() => void removeEpisode(e.episodeId).then(refresh)}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
-      {archived.length > 0 && (
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowArchived((v) => !v)}
-            className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500 hover:text-foreground"
-          >
-            {showArchived ? "▾" : "▸"} Archived ({archived.length})
-          </button>
-          {showArchived && (
-            <ul className="flex flex-col gap-3">
-              {archived.map((e) => (
-                <ArchivedRow
-                  key={e.episodeId}
-                  episode={e}
-                  onRestore={() => restore(e.episodeId)}
-                  onRemove={() => void removeEpisode(e.episodeId).then(refresh)}
-                />
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
+      <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
+        {activeEpisode && <DragPreviewCard episode={activeEpisode} />}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
-/** A fresh, untriaged save — minimal by design (it's a holding area, not a working list). */
-function InboxRow({
-  episode,
-  onTopOfQueue,
-  onBottomOfQueue,
-  onArchive,
-}: {
-  episode: SavedEpisode;
-  onTopOfQueue: () => void;
-  onBottomOfQueue: () => void;
-  onArchive: () => void;
-}) {
-  const play = () =>
-    previewEpisode({
-      id: episode.episodeId,
-      title: episode.title,
-      showId: episode.showId,
-      showTitle: episode.showTitle,
-      coverUrl: episode.coverUrl,
-      appleUrl: episode.appleUrl,
-      audioUrl: episode.audioUrl,
-      durationSec: episode.durationSec,
-      categories: [],
-    });
+/** Registers the Queue list itself as a drop target — needed so an empty
+ *  queue, or the gap below its last card, still accepts a drop. */
+function QueueDropZone({ children }: { children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({ id: "queue-container", data: { bucket: "queue" } });
   return (
-    <li>
-      <PlayableCard onPlay={play} playLabel={`Preview ${episode.title}`} className="cursor-pointer !rounded-[2px]">
-        <CoverPlay src={episode.coverUrl} size={48} onPlay={play} label={`Play a snippet of ${episode.title}`} className="relative z-10 !rounded-[2px]" />
-        <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-sm font-semibold leading-snug">{episode.title}</p>
-          {episode.showTitle && (
-            <p className="line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
-          )}
-        </div>
-        <div className="relative z-10 flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onTopOfQueue(); }}
-            aria-label={`Move ${episode.title} to top of queue`}
-            title="Top of queue"
-            className="nothing-toggle px-2 py-1 text-[11px]"
-          >
-            ↑ Top
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onBottomOfQueue(); }}
-            aria-label={`Move ${episode.title} to bottom of queue`}
-            title="Bottom of queue"
-            className="nothing-toggle px-2 py-1 text-[11px]"
-          >
-            ↓ Bottom
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onArchive(); }}
-            aria-label={`Archive ${episode.title}`}
-            title="Not interested — archive"
-            className="rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
-          >
-            ✕
-          </button>
-        </div>
-      </PlayableCard>
-    </li>
+    <ul ref={setNodeRef} className="flex min-h-[3rem] flex-col gap-3">
+      {children}
+    </ul>
+  );
+}
+
+/** The floating "picked up" card that follows the pointer while dragging. */
+function DragPreviewCard({ episode }: { episode: SavedEpisode }) {
+  return (
+    <div className="flex w-full max-w-md rotate-1 items-center gap-3 rounded-[2px] border border-accent bg-background p-3 shadow-lg">
+      <span className="shrink-0 text-zinc-300">
+        <GripIcon className="h-4 w-4" />
+      </span>
+      <CoverTile src={episode.coverUrl} size={48} className="!rounded-[2px]" />
+      <div className="min-w-0 flex-1">
+        <p className="line-clamp-2 font-semibold leading-snug">{episode.title}</p>
+        {episode.showTitle && (
+          <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -884,156 +912,3 @@ function GpodderSyncPanel() {
   );
 }
 
-function EpisodeRow({
-  episode,
-  tags,
-  feedUrl,
-  onChanged,
-  onTagsChanged,
-  onMoveUp,
-  onMoveDown,
-}: {
-  episode: SavedEpisode;
-  tags: string[];
-  /** The parent show's feed URL, if known — enables the YouTube Music
-   *  copy-RSS assist (episodes have no feed of their own). */
-  feedUrl?: string;
-  onChanged: () => void;
-  onTagsChanged: () => void;
-  /** Undefined hides the button — used at queue edges and while tag-filtered. */
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-}) {
-  const finished = episode.status === "finished";
-
-  function toggleFinished() {
-    void updateEpisodeProgress(episode.episodeId, {
-      status: finished ? "queued" : "finished",
-    }).then(onChanged);
-  }
-
-  const resume =
-    episode.positionSec > 0 && !finished
-      ? `resume at ${Math.floor(episode.positionSec / 60)}:${String(episode.positionSec % 60).padStart(2, "0")}`
-      : null;
-
-  const play = () =>
-    previewEpisode({
-      id: episode.episodeId,
-      title: episode.title,
-      showId: episode.showId,
-      showTitle: episode.showTitle,
-      coverUrl: episode.coverUrl,
-      appleUrl: episode.appleUrl,
-      audioUrl: episode.audioUrl,
-      durationSec: episode.durationSec,
-      categories: [],
-    });
-
-  return (
-    <li>
-      <PlayableCard
-        onPlay={play}
-        playLabel={`Preview ${episode.title}`}
-        // Episode identity now matches Shows: sharp corners, square cover.
-        className={`cursor-pointer !rounded-[2px] ${finished ? "opacity-60" : ""}`}
-      >
-        <CoverPlay
-          src={episode.coverUrl}
-          size={56}
-          onPlay={play}
-          label={`Play a snippet of ${episode.title}`}
-          className="relative z-10 !rounded-[2px]"
-        />
-        <div className="min-w-0 flex-1">
-          {episode.showId ? (
-            <Link
-              href={`/show/${episode.showId}`}
-              className={`relative z-10 line-clamp-3 font-semibold leading-snug hover:text-accent hover:underline underline-offset-2 ${finished ? "line-through" : ""}`}
-            >
-              {episode.title}
-            </Link>
-          ) : (
-            <p className={`line-clamp-3 font-semibold leading-snug ${finished ? "line-through" : ""}`}>
-              {episode.title}
-            </p>
-          )}
-          {episode.showTitle &&
-            (episode.showId ? (
-              <Link
-                href={`/show/${episode.showId}`}
-                className="relative z-10 line-clamp-1 text-sm text-zinc-500 hover:text-accent hover:underline underline-offset-2 dark:text-zinc-400"
-              >
-                {episode.showTitle} →
-              </Link>
-            ) : (
-              <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
-            ))}
-          <p className="truncate text-xs text-zinc-400">
-            {finished ? "Finished" : episode.status === "in_progress" ? "In progress" : "Queued"}
-            {resume ? ` · ${resume}` : ""}
-            {episode.appleUrl ? "" : " · preview only"}
-          </p>
-          <OpenInLinks
-            title={episode.showTitle ? `${episode.showTitle} ${episode.title}` : episode.title}
-            showTitle={episode.showTitle}
-            appleUrl={episode.appleUrl}
-            feedUrl={feedUrl}
-            showId={episode.showId}
-            className="relative z-10 mt-1.5"
-          />
-          <InlineTagInput
-            tags={tags}
-            onAdd={(t) => void addEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
-            onRemove={(t) => void removeEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
-          />
-        </div>
-        {(onMoveUp || onMoveDown) && (
-          <div className="relative z-10 flex shrink-0 flex-col">
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
-              disabled={!onMoveUp}
-              aria-label={`Move ${episode.title} up in queue`}
-              title="Move up"
-              className="px-1.5 text-zinc-400 hover:text-foreground disabled:opacity-20"
-            >
-              ▲
-            </button>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
-              disabled={!onMoveDown}
-              aria-label={`Move ${episode.title} down in queue`}
-              title="Move down"
-              className="px-1.5 text-zinc-400 hover:text-foreground disabled:opacity-20"
-            >
-              ▼
-            </button>
-          </div>
-        )}
-        <NothingToggle
-          active={finished}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleFinished();
-          }}
-          className="relative z-10 shrink-0"
-        >
-          {finished ? "Finished ✓" : "Done?"}
-        </NothingToggle>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            void removeEpisode(episode.episodeId).then(onChanged);
-          }}
-          aria-label={`Remove ${episode.title}`}
-          className="relative z-10 shrink-0 rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
-        >
-          ✕
-        </button>
-      </PlayableCard>
-    </li>
-  );
-}

@@ -46,3 +46,16 @@ export function rankAfterAdjacentMove(
   const after = insertPos < without.length ? without[insertPos] : null;
   return rankBetween(before, after);
 }
+
+/**
+ * Rank for dropping at an arbitrary index (drag-and-drop, not just an
+ * adjacent swap) — `ranks` must already exclude the item being moved (it's
+ * either not in the queue yet, or was filtered out before computing where
+ * it landed). `index` 0 means "before everything," `ranks.length` means
+ * "after everything."
+ */
+export function rankForIndex(ranks: number[], index: number): number {
+  const before = index > 0 ? ranks[index - 1] : null;
+  const after = index < ranks.length ? ranks[index] : null;
+  return rankBetween(before, after);
+}
