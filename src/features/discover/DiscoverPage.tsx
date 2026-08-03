@@ -131,6 +131,7 @@ export function DiscoverPage() {
             topic={topic}
             topicApplied={picks.topicApplied}
             isLoading={picks.isLoading}
+            degraded={picks.degraded}
           />
         </>
       ) : (

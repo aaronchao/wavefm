@@ -80,6 +80,24 @@ export function Chip({
   );
 }
 
+/**
+ * Subtle, non-blocking notice for a thin-but-not-empty result (§5 P2):
+ * several routes already return `degraded: true` alongside real results
+ * when SOME providers failed and others still came through, but the UI
+ * only ever checked that flag next to an empty-results branch — so a
+ * partially-degraded feed looked like "this is all there is" instead of
+ * "some sources are unavailable right now". Render only when there's
+ * both degradation AND something to show alongside it; the full-failure
+ * empty-state message elsewhere still owns the zero-results case.
+ */
+export function DegradedHint({ className = "" }: { className?: string }) {
+  return (
+    <p className={`text-xs text-zinc-400 dark:text-zinc-500 ${className}`}>
+      Some sources are unavailable right now — results may be thinner than usual.
+    </p>
+  );
+}
+
 /** Dot-matrix "machine" micro-label — the Nothing-brand technical voice. */
 export function MachineLabel({
   children,

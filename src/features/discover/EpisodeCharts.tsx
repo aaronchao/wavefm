@@ -12,7 +12,7 @@ import {
 } from "@/src/data/repos/savedEpisodesRepo";
 import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode } from "@/src/features/player/preview";
-import { MachineLabel, NothingToggle, SettleIn } from "@/src/ui";
+import { DegradedHint, MachineLabel, NothingToggle, SettleIn } from "@/src/ui";
 import { ShowMoreButton } from "./Charts";
 
 /**
@@ -53,6 +53,7 @@ export function EpisodeCharts() {
         </div>
       ) : (
         <>
+          {q.data?.degraded && <DegradedHint className="mb-2" />}
           <ol className="flex flex-col gap-2">
             {(showAll ? eps : eps.slice(0, DEFAULT_VISIBLE)).map((ep, i) => (
               <SettleIn key={ep.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>

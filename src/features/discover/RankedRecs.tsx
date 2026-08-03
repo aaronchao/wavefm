@@ -12,7 +12,7 @@ import {
 } from "@/src/data/repos/savedEpisodesRepo";
 import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewRankedEpisode } from "@/src/features/player/preview";
-import { MachineLabel, NothingToggle, SettleIn } from "@/src/ui";
+import { DegradedHint, MachineLabel, NothingToggle, SettleIn } from "@/src/ui";
 import { ShowMoreButton } from "./Charts";
 import { ShowRowCompact } from "./ShowRowCompact";
 
@@ -40,6 +40,7 @@ export function RankedRecs({
   topic,
   topicApplied,
   isLoading,
+  degraded = false,
 }: {
   /** The full ranked list, #1 included — Today's Pick no longer has its own
    *  spotlight, so this is the only place the top pick appears. */
@@ -48,6 +49,8 @@ export function RankedRecs({
   topic: string | null;
   topicApplied: boolean;
   isLoading: boolean;
+  /** §5 P2: some providers failed but there are still picks to show. */
+  degraded?: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
   if (isLoading) return <SkeletonRows />;
@@ -70,6 +73,7 @@ export function RankedRecs({
         </h2>
         <MachineLabel>{count} shows</MachineLabel>
       </div>
+      {degraded && <DegradedHint className="mb-3" />}
       <div className="grid items-start gap-8 md:grid-cols-2">
         <section>
           <ColumnLabel>Shows</ColumnLabel>

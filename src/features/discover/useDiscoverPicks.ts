@@ -36,6 +36,8 @@ export type DiscoverPicks = {
   /** True when the topic chip actually narrowed the set (vs. fell back). */
   topicApplied: boolean;
   isLoading: boolean;
+  /** §5 P2: some providers failed but enough came through to still show picks. */
+  degraded: boolean;
 };
 
 /**
@@ -123,5 +125,6 @@ export function useDiscoverPicks({
     isLoading: hasSeeds
       ? picksQ.isLoading
       : discussedQ.isLoading || (searchQ.isLoading && all.length === 0),
+    degraded: Boolean(hasSeeds ? picksQ.data?.degraded : discussedQ.data?.degraded),
   };
 }

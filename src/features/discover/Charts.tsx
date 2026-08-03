@@ -7,7 +7,7 @@ import {
   getDiscussedCharts,
   getGlobalCharts,
 } from "@/src/data/catalog/client";
-import { MachineLabel, SettleIn } from "@/src/ui";
+import { DegradedHint, MachineLabel, SettleIn } from "@/src/ui";
 import { ShowRowCompact } from "./ShowRowCompact";
 
 type Tab = "discussed" | "chinese" | "global";
@@ -89,6 +89,7 @@ export function Charts() {
         </p>
       ) : (
         <>
+          {active.data?.degraded && <DegradedHint className="mb-2" />}
           <ol className="flex flex-col gap-2.5">
             {(showAll ? shows : shows.slice(0, DEFAULT_VISIBLE)).map((show, i) => (
               <SettleIn key={show.id} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
