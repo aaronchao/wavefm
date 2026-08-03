@@ -72,4 +72,23 @@ describe("buildListenLaterRss", () => {
     );
     expect(xml).not.toContain("itunes:image");
   });
+
+  it("also emits a plain RSS <image> block and per-item <media:thumbnail> — some clients' artwork resolution (Pocket Casts reported) needs both, not itunes:image alone", () => {
+    const xml = buildListenLaterRss(
+      [{ episodeId: "1", title: "Has Cover", audioUrl: "https://cdn/1.mp3", coverUrl: "https://cdn/cover.jpg" }],
+      meta,
+    );
+    expect(xml).toContain("xmlns:media=\"http://search.yahoo.com/mrss/\"");
+    expect(xml).toContain("<image>");
+    expect(xml).toContain("<url>https://cdn/cover.jpg</url>");
+    expect(xml).toContain('<media:thumbnail url="https://cdn/cover.jpg" />');
+  });
+
+  it("gives every item its own <description> — some parsers skip per-item artwork resolution on feeds too minimal to have one", () => {
+    const xml = buildListenLaterRss(
+      [{ episodeId: "1", title: "Ep One", audioUrl: "https://cdn/1.mp3" }],
+      meta,
+    );
+    expect(xml).toContain("<description>Ep One</description>");
+  });
 });

@@ -7,6 +7,17 @@
  * known, <itunes:image> — several clients (Pocket Casts included) reject
  * an add-by-URL feed missing these as "not a podcast" even though it's
  * valid RSS.
+ *
+ * Per-episode artwork (reported broken in Pocket Casts — every episode
+ * showed no cover at all, not even the show's own): the previous version
+ * only emitted <itunes:image> per item and relied on <itunes:image> alone
+ * at the channel level. That's spec-legal RSS, but several clients'
+ * artwork pipeline only kicks in once the feed also has the plain RSS 2.0
+ * <image> block (url/title/link) and each <item> has its own <description> —
+ * without those, some parsers treat the feed as too minimal to bother
+ * resolving per-item art and fall back to a blank placeholder instead of
+ * even the channel image. <media:thumbnail> is added per item too, since
+ * it's the other convention (Media RSS) podcast clients commonly check.
  */
 
 export type FeedEpisode = {
@@ -44,10 +55,11 @@ export function buildListenLaterRss(episodes: FeedEpisode[], meta: FeedMeta): st
       const duration =
         e.durationSec != null ? `\n      <itunes:duration>${e.durationSec}</itunes:duration>` : "";
       const image = e.coverUrl
-        ? `\n      <itunes:image href="${escapeXml(e.coverUrl)}" />`
+        ? `\n      <itunes:image href="${escapeXml(e.coverUrl)}" />\n      <media:thumbnail url="${escapeXml(e.coverUrl)}" />`
         : "";
       return `    <item>
       <title>${escapeXml(e.title)}</title>
+      <description>${escapeXml(e.title)}</description>
       <guid isPermaLink="false">${escapeXml(e.episodeId)}</guid>
       <enclosure url="${escapeXml(e.audioUrl)}" type="audio/mpeg" length="0" />
       <pubDate>${pubDate}</pubDate>${duration}${image}
@@ -58,13 +70,16 @@ export function buildListenLaterRss(episodes: FeedEpisode[], meta: FeedMeta): st
   // several clients (e.g. Pocket Casts) enforce similarly strict minimums
   // when validating an add-by-URL feed — there's no single canonical show
   // image for a personal cross-show queue, so the first playable episode's
-  // real cover art stands in rather than fabricating one.
+  // real cover art stands in rather than fabricating one. The plain RSS 2.0
+  // <image> block is added alongside itunes:image (not a substitute for
+  // it) — some clients' artwork resolution only engages once this
+  // "vanilla" tag is present too, itunes:image alone isn't always enough.
   const channelImage = playable.find((e) => e.coverUrl)?.coverUrl;
   const channelImageTag = channelImage
-    ? `\n    <itunes:image href="${escapeXml(channelImage)}" />`
+    ? `\n    <itunes:image href="${escapeXml(channelImage)}" />\n    <image>\n      <url>${escapeXml(channelImage)}</url>\n      <title>${escapeXml(meta.title)}</title>\n      <link>${escapeXml(meta.selfUrl)}</link>\n    </image>`
     : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom">
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
   <channel>
     <title>${escapeXml(meta.title)}</title>
     <description>${escapeXml(meta.description)}</description>
