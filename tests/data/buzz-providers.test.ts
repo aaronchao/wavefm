@@ -40,6 +40,8 @@ afterEach(() => {
   delete process.env.XIAOYUZHOU_ACCESS_TOKEN;
   delete process.env.XIAOYUZHOU_REFRESH_TOKEN;
   delete process.env.YOUTUBE_API_KEY;
+  delete process.env.REDDIT_CLIENT_ID;
+  delete process.env.REDDIT_SECRET;
 });
 
 describe("listenNotesBuzz", () => {
@@ -203,6 +205,49 @@ describe("redditBuzz", () => {
     mockFetch(() => ({ status: 403, body: {} }));
     const { redditBuzz } = await import("@/src/data/buzz/reddit");
     expect(await redditBuzz("Dear Therapist")).toBeNull();
+  });
+
+  it("uses application-only OAuth against oauth.reddit.com once credentials are set (REFINEMENTS.md #15)", async () => {
+    process.env.REDDIT_CLIENT_ID = "id";
+    process.env.REDDIT_SECRET = "secret";
+    const seen: string[] = [];
+    mockFetch((url) => {
+      seen.push(url);
+      if (url.includes("access_token")) return { body: { access_token: "tok" } };
+      return { body: { data: { children: [{ data: { score: 5, num_comments: 1 } }] } } };
+    });
+    const { redditBuzz } = await import("@/src/data/buzz/reddit");
+    expect(await redditBuzz("Dear Therapist")).toEqual({
+      redditPosts: 1,
+      redditScore: 5,
+      redditComments: 1,
+    });
+    expect(seen.some((u) => u.startsWith("https://oauth.reddit.com/"))).toBe(true);
+    expect(seen.some((u) => u.startsWith("https://www.reddit.com/search.json"))).toBe(false);
+  });
+
+  it("falls back to the anonymous endpoint when no OAuth credentials are set", async () => {
+    const seen: string[] = [];
+    mockFetch((url) => {
+      seen.push(url);
+      return { body: { data: { children: [] } } };
+    });
+    const { redditBuzz } = await import("@/src/data/buzz/reddit");
+    await redditBuzz("Dear Therapist");
+    expect(seen.some((u) => u.startsWith("https://www.reddit.com/search.json"))).toBe(true);
+    expect(seen.some((u) => u.includes("access_token"))).toBe(false);
+  });
+
+  it("falls back to anonymous when the OAuth token request itself fails", async () => {
+    process.env.REDDIT_CLIENT_ID = "id";
+    process.env.REDDIT_SECRET = "secret";
+    mockFetch((url) =>
+      url.includes("access_token")
+        ? { status: 500, body: {} }
+        : { body: { data: { children: [] } } },
+    );
+    const { redditBuzz } = await import("@/src/data/buzz/reddit");
+    expect(await redditBuzz("Dear Therapist")).toEqual({ redditPosts: 0 });
   });
 });
 
