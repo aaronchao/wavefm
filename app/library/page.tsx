@@ -69,6 +69,12 @@ export default function LibraryPage() {
   });
 
   const saved = savedQ.data ?? [];
+  // Episodes carry no feed URL of their own (it's their show's) — this is
+  // how a queue row's YouTube Music fallback gets the same copy-RSS assist
+  // a show card already has.
+  const showFeedById = new Map(
+    saved.filter((s) => s.show.feedUrl).map((s) => [s.show.id, s.show.feedUrl!]),
+  );
   const episodes = episodesQ.data ?? [];
   const showTagMap: ShowTagMap = showTagsQ.data ?? {};
   const episodeTagMap: EpisodeTagMap = episodeTagsQ.data ?? {};
@@ -165,6 +171,7 @@ export default function LibraryPage() {
             loading={episodesQ.isLoading}
             filtered={Boolean(tag)}
             onTagsChanged={invalidateTags}
+            showFeedById={showFeedById}
           />
         </section>
       </div>
@@ -530,6 +537,7 @@ function EpisodesColumn({
   loading,
   filtered,
   onTagsChanged,
+  showFeedById,
 }: {
   inbox: SavedEpisode[];
   queue: SavedEpisode[];
@@ -538,6 +546,10 @@ function EpisodesColumn({
   loading: boolean;
   filtered: boolean;
   onTagsChanged: () => void;
+  /** Parent show's RSS feed URL per showId — lets a queue row's YouTube
+   *  Music fallback offer the same copy-RSS assist a show card gets
+   *  (episodes have no feed of their own; it's their show's). */
+  showFeedById: Map<string, string>;
 }) {
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
@@ -610,6 +622,7 @@ function EpisodesColumn({
                 key={e.episodeId}
                 episode={e}
                 tags={tagMap[e.episodeId] ?? []}
+                feedUrl={e.showId ? showFeedById.get(e.showId) : undefined}
                 onChanged={refresh}
                 onTagsChanged={onTagsChanged}
                 onMoveUp={!filtered && i > 0 ? () => move(e.episodeId, "up") : undefined}
@@ -871,6 +884,7 @@ function GpodderSyncPanel() {
 function EpisodeRow({
   episode,
   tags,
+  feedUrl,
   onChanged,
   onTagsChanged,
   onMoveUp,
@@ -878,6 +892,9 @@ function EpisodeRow({
 }: {
   episode: SavedEpisode;
   tags: string[];
+  /** The parent show's feed URL, if known — enables the YouTube Music
+   *  copy-RSS assist (episodes have no feed of their own). */
+  feedUrl?: string;
   onChanged: () => void;
   onTagsChanged: () => void;
   /** Undefined hides the button — used at queue edges and while tag-filtered. */
@@ -957,6 +974,7 @@ function EpisodeRow({
           <OpenInLinks
             title={episode.showTitle ? `${episode.showTitle} ${episode.title}` : episode.title}
             appleUrl={episode.appleUrl}
+            feedUrl={feedUrl}
             showId={episode.showId}
             className="relative z-10 mt-1.5"
           />

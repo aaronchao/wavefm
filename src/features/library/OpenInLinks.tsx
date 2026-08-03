@@ -93,6 +93,14 @@ export function OpenInLinks({
   const prefsQ = useQuery({ queryKey: ["prefs", "player"], queryFn: getPrefs });
   const primary = pickPreferredLink(links, prefsQ.data?.preferred_player);
   const PrimaryIcon = primary ? PLATFORM_ICONS[primary.id] : null;
+  // Same YouTube-Music-can't-add-by-RSS assist as the icon row below,
+  // applied to the PRIMARY button too — this only fires when nothing real
+  // was found anywhere (pickPreferredLink already prefers a real channel or
+  // any other real platform link over a bare search), so it's the one
+  // case where the one-tap action genuinely can't be "just open the show".
+  const primaryNeedsRssCopy = Boolean(
+    primary?.id === "youtubeMusic" && primary.isSearch && feedUrl,
+  );
 
   return (
     <div className={className}>
@@ -103,14 +111,20 @@ export function OpenInLinks({
           rel="noopener noreferrer"
           onClick={(e) => {
             e.stopPropagation();
+            if (primaryNeedsRssCopy) void navigator.clipboard.writeText(feedUrl!).catch(() => {});
             onOpen?.();
           }}
-          aria-label={`Listen on ${primary.label}${primary.isSearch ? " (search)" : ""}`}
+          aria-label={
+            primaryNeedsRssCopy
+              ? `Open YouTube Music search and copy the RSS feed URL`
+              : `Listen on ${primary.label}${primary.isSearch ? " (search)" : ""}`
+          }
+          title={primaryNeedsRssCopy ? "Also copies the RSS feed URL to paste in" : undefined}
           style={{ backgroundColor: PLATFORM_COLORS[primary.id] }}
           className="mb-1.5 inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-transform hover:shadow-md active:scale-95"
         >
           <PrimaryIcon className="h-4 w-4" />
-          Listen on {primary.label}
+          {primaryNeedsRssCopy ? "Listen on YouTube Music (copies RSS)" : `Listen on ${primary.label}`}
         </a>
       )}
       <OpenInLinksRow
