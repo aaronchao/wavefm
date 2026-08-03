@@ -171,6 +171,18 @@ export async function getSpotifyLink(title: string): Promise<string | null> {
   }
 }
 
+/** Real YouTube channel URL for a title (REFINEMENTS.md #6), or null — never throws. */
+export async function getYoutubeLink(title: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/catalog/youtube-link?title=${encodeURIComponent(title)}`);
+    if (!res.ok) return null;
+    const json = (await res.json()) as { url?: string | null };
+    return json.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getSimilar(id: string): Promise<SimilarResponse> {
   try {
     const res = await fetch(`/api/catalog/similar?id=${encodeURIComponent(id)}`);

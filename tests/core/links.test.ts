@@ -26,6 +26,13 @@ describe("platformLinks", () => {
     expect(apple.isSearch).toBe(true);
   });
 
+  it("labels YouTube Music's icon 'YouTube' once a real channel is resolved (REFINEMENTS.md #6)", () => {
+    const withReal = platformLinks("Show", { youtubeMusic: "https://www.youtube.com/channel/abc" });
+    expect(withReal.find((l) => l.id === "youtubeMusic")?.label).toBe("YouTube");
+    const withoutReal = platformLinks("Show");
+    expect(withoutReal.find((l) => l.id === "youtubeMusic")?.label).toBe("YouTube Music");
+  });
+
   it("always returns all platforms in stable order (Pocket Casts after YouTube Music)", () => {
     expect(platformLinks("x").map((l) => l.id)).toEqual([
       "apple",

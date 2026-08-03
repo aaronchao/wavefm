@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { itunesId, pickPreferredLink, platformLinks, type PlatformId } from "@/src/core/links";
-import { getSpotifyLink } from "@/src/data/catalog/client";
+import { getSpotifyLink, getYoutubeLink } from "@/src/data/catalog/client";
 import { getPrefs } from "@/src/data/repos/prefsRepo";
 import type { PlatformLinks } from "@/src/data/catalog/types";
 
@@ -64,9 +64,24 @@ export function OpenInLinks({
     staleTime: Infinity,
   });
 
+  // Real YouTube channel link (REFINEMENTS.md #6) — standing in for YouTube
+  // Music's dead-end search (it has no add-by-RSS and no reliable show-
+  // search of its own). Same lazy/cached shape as the Spotify lookup above.
+  const youtubeQ = useQuery({
+    queryKey: ["youtubeLink", title],
+    queryFn: () => getYoutubeLink(title),
+    enabled: !stored?.youtubeMusic,
+    staleTime: Infinity,
+  });
+
   const links = platformLinks(
     title,
-    { apple: appleUrl, spotify: spotifyQ.data ?? undefined, ...stored },
+    {
+      apple: appleUrl,
+      spotify: spotifyQ.data ?? undefined,
+      youtubeMusic: youtubeQ.data ?? undefined,
+      ...stored,
+    },
     itunesId(showId),
   );
   const box = size === "md" ? "h-9 w-9" : "h-7 w-7";
@@ -151,6 +166,13 @@ function OpenInLinksRow({
             </span>
           );
         }
+        // YouTube Music can't add-by-RSS at all (REFINEMENTS.md #6) — when
+        // this is still just a search (no real channel resolved), fold the
+        // RSS-copy step into the same tap instead of making it two icons.
+        const combinedRssCopy = l.id === "youtubeMusic" && l.isSearch && feedUrl;
+        const openInLabel = combinedRssCopy
+          ? `Open ${l.label} search and copy the RSS feed URL`
+          : `Open in ${l.label}${l.isSearch ? " (search)" : ""}`;
         return (
           <a
             key={l.id}
@@ -159,10 +181,11 @@ function OpenInLinksRow({
             rel="noopener noreferrer"
             onClick={(e) => {
               e.stopPropagation();
+              if (combinedRssCopy) void navigator.clipboard.writeText(feedUrl).catch(() => {});
               onOpen?.();
             }}
-            aria-label={`Open in ${l.label}${l.isSearch ? " (search)" : ""}`}
-            title={`${l.label}${l.isSearch ? " (search)" : ""}`}
+            aria-label={openInLabel}
+            title={combinedRssCopy ? `${openInLabel} (also copies the RSS feed URL to paste in)` : openInLabel}
             style={branded ? { color: PLATFORM_COLORS[l.id] } : undefined}
             className={`flex ${box} shrink-0 items-center justify-center rounded-full transition-colors ${
               branded

@@ -28,7 +28,7 @@ function apiKey(): string | null {
 
 type SearchItem = {
   id?: { videoId?: string };
-  snippet?: { title?: string; channelTitle?: string };
+  snippet?: { title?: string; channelTitle?: string; channelId?: string };
 };
 type StatsItem = {
   id?: string;
@@ -102,6 +102,35 @@ export async function youtubeBuzz(title: string): Promise<BuzzInput | null> {
   if (matched === null) return null;
   if (matched.length === 0) return { youtubeVideos: 0 };
   return tally(matched);
+}
+
+/**
+ * A real, listenable YouTube link for a show that has no native presence
+ * on YouTube Music (REFINEMENTS.md #6) — the named pain point: YT Music
+ * has no add-by-RSS and no reliable show-search resolution, so its icon
+ * has always fallen back to a search that often comes up empty. This
+ * finds the best-matching video's own channel via the same search this
+ * file already does for buzz (no extra API call) and returns the
+ * channel page — actual content, not a search. Labelled "YouTube" rather
+ * than "YouTube Music" wherever it's used (see src/core/links.ts), since
+ * it opens youtube.com, not music.youtube.com — never claims a presence
+ * on the Music app that isn't verifiable from this API.
+ */
+export async function youtubeChannelUrl(title: string): Promise<string | null> {
+  const key = apiKey();
+  if (!key) return null;
+  try {
+    const url =
+      `${BASE}/search?part=snippet&type=video&maxResults=1` +
+      `&q=${encodeURIComponent(`${title} podcast`)}&key=${key}`;
+    const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { items?: SearchItem[] };
+    const channelId = json.items?.[0]?.snippet?.channelId;
+    return channelId ? `https://www.youtube.com/channel/${channelId}` : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Buzz + the top few videos (title + watch URL) as readable evidence. */

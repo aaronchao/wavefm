@@ -312,6 +312,42 @@ describe("youtubeBuzz", () => {
   });
 });
 
+describe("youtubeChannelUrl", () => {
+  it("is silently absent without a key (no fetch)", async () => {
+    const spy = vi.fn();
+    mockFetch(() => {
+      spy();
+      return { body: {} };
+    });
+    const { youtubeChannelUrl } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeChannelUrl("Show X")).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("returns the top match's channel URL", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch(() => ({
+      body: { items: [{ id: { videoId: "a" }, snippet: { title: "Show X ep 1", channelId: "UC123" } }] },
+    }));
+    const { youtubeChannelUrl } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeChannelUrl("Show X")).toBe("https://www.youtube.com/channel/UC123");
+  });
+
+  it("returns null when the search finds nothing", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch(() => ({ body: { items: [] } }));
+    const { youtubeChannelUrl } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeChannelUrl("Show X")).toBeNull();
+  });
+
+  it("returns null on an API error (never throws)", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch(() => ({ status: 403, body: {} }));
+    const { youtubeChannelUrl } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeChannelUrl("Show X")).toBeNull();
+  });
+});
+
 describe("bilibiliBuzz", () => {
   it("sums views and comments+danmaku across title-matched videos only", async () => {
     mockFetch(() => ({

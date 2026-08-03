@@ -90,7 +90,15 @@ export function platformLinks(
   return [
     entry("apple", "Apple Podcasts", `https://podcasts.apple.com/us/search?term=${q}`),
     entry("spotify", "Spotify", `https://open.spotify.com/search/${q}`),
-    entry("youtubeMusic", "YouTube Music", `https://music.youtube.com/search?q=${q}`),
+    // A resolved stored link is never verifiably on the Music app itself
+    // (YouTube Music has no public show-search API) — it's a real YouTube
+    // channel found via video search (REFINEMENTS.md #6), so it's labelled
+    // "YouTube", not "YouTube Music", whenever one is actually stored.
+    entry(
+      "youtubeMusic",
+      stored.youtubeMusic ? "YouTube" : "YouTube Music",
+      `https://music.youtube.com/search?q=${q}`,
+    ),
     pocketCasts(),
     entry("xiaoyuzhou", "小宇宙", `https://www.xiaoyuzhoufm.com/search/${q}`),
   ];
