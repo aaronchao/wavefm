@@ -973,6 +973,7 @@ function EpisodeRow({
           </p>
           <OpenInLinks
             title={episode.showTitle ? `${episode.showTitle} ${episode.title}` : episode.title}
+            showTitle={episode.showTitle}
             appleUrl={episode.appleUrl}
             feedUrl={feedUrl}
             showId={episode.showId}

@@ -38,6 +38,8 @@ type StatsItem = {
 
 type Matched = {
   videoId: string;
+  /** Absent for the (rare) search result missing snippet.channelId. */
+  channelId?: string;
   title: string;
   views: number;
   comments: number;
@@ -56,8 +58,12 @@ async function fetchMatched(title: string): Promise<Matched[] | null> {
     if (!searchRes.ok) return null;
     const searchJson = (await searchRes.json()) as { items?: SearchItem[] };
     const found = (searchJson.items ?? [])
-      .map((it) => ({ videoId: it.id?.videoId, title: it.snippet?.title ?? "" }))
-      .filter((v): v is { videoId: string; title: string } => Boolean(v.videoId));
+      .map((it) => ({
+        videoId: it.id?.videoId,
+        channelId: it.snippet?.channelId,
+        title: it.snippet?.title ?? "",
+      }))
+      .filter((v): v is typeof v & { videoId: string } => Boolean(v.videoId));
     if (found.length === 0) return [];
 
     // one batched stats call (1 quota unit) for real view/comment counts
@@ -79,6 +85,7 @@ async function fetchMatched(title: string): Promise<Matched[] | null> {
     );
     return found.map((v) => ({
       videoId: v.videoId,
+      channelId: v.channelId,
       title: v.title,
       views: statsById.get(v.videoId)?.views ?? 0,
       comments: statsById.get(v.videoId)?.comments ?? 0,
@@ -116,22 +123,24 @@ export async function youtubeBuzz(title: string): Promise<BuzzInput | null> {
  * than "YouTube Music" wherever it's used (see src/core/links.ts), since
  * it opens youtube.com, not music.youtube.com — never claims a presence
  * on the Music app that isn't verifiable from this API.
+ *
+ * REQUIRES a normalized-title match (same check youtubeDiscussion uses for
+ * evidence) before ever resolving a channel — this used to blindly trust
+ * whatever video ranked #1 for `"<title>" podcast`, which for a niche or
+ * short title frequently isn't actually the show at all, sending the user
+ * to a completely unrelated channel. Better to return null (falls back to
+ * the add-by-RSS deep link/search) than confidently link the wrong show.
  */
 export async function youtubeChannelUrl(title: string): Promise<string | null> {
-  const key = apiKey();
-  if (!key) return null;
-  try {
-    const url =
-      `${BASE}/search?part=snippet&type=video&maxResults=1` +
-      `&q=${encodeURIComponent(`${title} podcast`)}&key=${key}`;
-    const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { items?: SearchItem[] };
-    const channelId = json.items?.[0]?.snippet?.channelId;
-    return channelId ? `https://www.youtube.com/channel/${channelId}` : null;
-  } catch {
-    return null;
-  }
+  const matched = await fetchMatched(title);
+  if (!matched || matched.length === 0) return null;
+  const relevant = matched.filter(
+    (m): m is Matched & { channelId: string } =>
+      Boolean(m.channelId) && normalize(m.title).includes(normalize(title)),
+  );
+  if (relevant.length === 0) return null;
+  const best = relevant.sort((a, b) => b.views - a.views)[0];
+  return `https://www.youtube.com/channel/${best.channelId}`;
 }
 
 /** Buzz + the top few videos (title + watch URL) as readable evidence. */

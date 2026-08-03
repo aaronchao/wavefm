@@ -30,7 +30,7 @@ export async function GET(
 
   const { data: rows } = await sb
     .from("saved_episodes")
-    .select("episode_id, title, audio_url, duration_sec")
+    .select("episode_id, title, audio_url, duration_sec, cover_url")
     .eq("user_id", pref.user_id)
     .eq("bucket", "queue")
     .order("queue_rank", { ascending: true });
@@ -40,6 +40,7 @@ export async function GET(
     title: r.title as string,
     audioUrl: (r.audio_url as string | null) ?? undefined,
     durationSec: (r.duration_sec as number | null) ?? undefined,
+    coverUrl: (r.cover_url as string | null) ?? undefined,
   }));
 
   const xml = buildListenLaterRss(episodes, {

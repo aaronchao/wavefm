@@ -47,4 +47,29 @@ describe("buildListenLaterRss", () => {
     expect(xml).toContain("<title>My Queue</title>");
     expect(xml).toContain('rel="self"');
   });
+
+  it("always includes a <language> tag — required by strict validators (e.g. Pocket Casts)", () => {
+    expect(buildListenLaterRss([], meta)).toContain("<language>en-us</language>");
+  });
+
+  it("uses the first playable episode's cover as the channel image, and tags each item with its own", () => {
+    const xml = buildListenLaterRss(
+      [
+        { episodeId: "1", title: "No Cover", audioUrl: "https://cdn/1.mp3" },
+        { episodeId: "2", title: "Has Cover", audioUrl: "https://cdn/2.mp3", coverUrl: "https://cdn/cover.jpg" },
+      ],
+      meta,
+    );
+    expect(xml).toContain('<itunes:image href="https://cdn/cover.jpg" />');
+    // Channel-level image appears once, before any <item>.
+    expect(xml.indexOf('<itunes:image href="https://cdn/cover.jpg" />')).toBeLessThan(xml.indexOf("<item>"));
+  });
+
+  it("omits itunes:image entirely when no episode has a cover", () => {
+    const xml = buildListenLaterRss(
+      [{ episodeId: "1", title: "Ep", audioUrl: "https://cdn/1.mp3" }],
+      meta,
+    );
+    expect(xml).not.toContain("itunes:image");
+  });
 });

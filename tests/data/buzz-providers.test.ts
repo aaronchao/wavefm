@@ -411,6 +411,19 @@ describe("youtubeChannelUrl", () => {
     const { youtubeChannelUrl } = await import("@/src/data/buzz/youtube");
     expect(await youtubeChannelUrl("Show X")).toBeNull();
   });
+
+  it("never links an unrelated video's channel just because it ranked #1 (regression)", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch(() => ({
+      body: {
+        items: [
+          { id: { videoId: "a" }, snippet: { title: "Totally Unrelated Video", channelId: "UC999" } },
+        ],
+      },
+    }));
+    const { youtubeChannelUrl } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeChannelUrl("周小辣")).toBeNull();
+  });
 });
 
 describe("bilibiliBuzz", () => {

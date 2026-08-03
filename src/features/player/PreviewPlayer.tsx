@@ -264,6 +264,7 @@ export function PreviewPlayer() {
               ) : (
                 <OpenInLinks
                   title={s.meta.searchTitle}
+                  showTitle={s.meta.showTitle}
                   appleUrl={s.meta.appleUrl}
                   feedUrl={s.meta.feedUrl}
                   stored={s.meta.platformLinks}

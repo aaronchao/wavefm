@@ -30,6 +30,7 @@ import type { PlatformLinks } from "@/src/data/catalog/types";
  */
 export function OpenInLinks({
   title,
+  showTitle,
   appleUrl,
   feedUrl,
   stored,
@@ -40,6 +41,15 @@ export function OpenInLinks({
   onOpen,
 }: {
   title: string;
+  /**
+   * The parent show's own title, when `title` is an episode (or a show+
+   * episode combo string) — Spotify/YouTube channel resolution is a SHOW-
+   * level lookup, so it searches this instead of `title` when given. A
+   * specific episode title/subtitle almost never matches a channel's own
+   * video titles, so omitting this for episodes resolved nothing but
+   * search fallbacks. `title` still drives the display/search-URL text.
+   */
+  showTitle?: string;
   appleUrl?: string;
   /** Raw RSS feed URL — enables the copy-to-clipboard RSS icon. */
   feedUrl?: string;
@@ -56,13 +66,15 @@ export function OpenInLinks({
   /** Fired when a link is opened (e.g. to record an 'open' engagement). */
   onOpen?: () => void;
 }) {
+  const lookupTitle = showTitle || title;
+
   // Real Spotify show URL (REFINEMENTS.md #5) — lazy, cached by title; only
   // fetched when the payload didn't already supply one. Silently null when
   // SPOTIFY_CLIENT_ID/SECRET aren't configured or there's no match — the
   // icon just stays on its title-search fallback, same as always.
   const spotifyQ = useQuery({
-    queryKey: ["spotifyLink", title],
-    queryFn: () => getSpotifyLink(title),
+    queryKey: ["spotifyLink", lookupTitle],
+    queryFn: () => getSpotifyLink(lookupTitle),
     enabled: !stored?.spotify,
     staleTime: Infinity,
   });
@@ -71,8 +83,8 @@ export function OpenInLinks({
   // Music's dead-end search (it has no add-by-RSS and no reliable show-
   // search of its own). Same lazy/cached shape as the Spotify lookup above.
   const youtubeQ = useQuery({
-    queryKey: ["youtubeLink", title],
-    queryFn: () => getYoutubeLink(title),
+    queryKey: ["youtubeLink", lookupTitle],
+    queryFn: () => getYoutubeLink(lookupTitle),
     enabled: !stored?.youtubeMusic,
     staleTime: Infinity,
   });
