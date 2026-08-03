@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { middleFraction } from "@/src/core/preview";
 import { getRankedEpisodes } from "@/src/data/catalog/client";
+import { trackEvent } from "@/src/data/repos/analyticsRepo";
 import {
   isEpisodeSaved,
   removeEpisode,
@@ -108,11 +109,17 @@ export function PreviewPlayer() {
   // saved episode; updateEpisodeProgress is a silent no-op otherwise.
   const wasPlayingRef = useRef(false);
   useEffect(() => {
-    if (saved && effectiveEpisodeId && s.status === "playing" && !wasPlayingRef.current) {
-      void updateEpisodeProgress(effectiveEpisodeId, { status: "in_progress" });
+    if (s.status === "playing" && !wasPlayingRef.current) {
+      // Every preview play, saved or not — the other half of the preview→open
+      // funnel (REFINEMENTS.md #29); recordEngagement's "open" leg is the
+      // deliberate full-episode opens, this is "did they even try the clip".
+      if (s.meta?.showId) trackEvent("preview_played", s.meta.showId);
+      if (saved && effectiveEpisodeId) {
+        void updateEpisodeProgress(effectiveEpisodeId, { status: "in_progress" });
+      }
     }
     wasPlayingRef.current = s.status === "playing";
-  }, [s.status, saved, effectiveEpisodeId]);
+  }, [s.status, saved, effectiveEpisodeId, s.meta?.showId]);
 
   useEffect(() => {
     // The <audio> element is mounted once, unconditionally, for the app's

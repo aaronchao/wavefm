@@ -2,6 +2,7 @@ import { ENGAGEMENT_WEIGHTS, type EngagementType } from "@/src/core/engagement";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { getSupabase } from "@/src/data/supabase/client";
 import type { EngagementRow, ShowRow } from "@/src/data/supabase/types";
+import { trackEvent } from "./analyticsRepo";
 import { rowToCatalogShow, upsertShow } from "./showRepo";
 
 /**
@@ -53,6 +54,11 @@ export async function recordEngagement(
   show: CatalogShow,
   type: EngagementType,
 ): Promise<void> {
+  // Every save/like/open/block/impression across the whole app already
+  // flows through this one function — piggybacking analytics here
+  // (REFINEMENTS.md #29) covers the save/not-for-me/open funnel with zero
+  // new call sites.
+  trackEvent(type, show.id);
   const sb = getSupabase();
   const userId = await currentUserId();
   if (!sb || !userId) {
