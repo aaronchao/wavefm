@@ -24,6 +24,26 @@ const BOARDS: { board: string; fetch: () => Promise<unknown | null> }[] = [
   { board: "new-episodes", fetch: xyzrankNewEpisodesLive },
 ];
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Observed live (twice, reproducibly): /api/podcasts specifically fails
+ * every run while its three sibling endpoints succeed in the same run —
+ * not the broad Vercel-style block (GitHub's IP clearly reaches xyzrank
+ * fine), something narrower to that one endpoint or request slot. A short
+ * retry is cheap insurance against a transient cause without needing to
+ * pin down which; if it's a hard per-endpoint block, this just costs one
+ * extra request before falling back to leaving that board's cache stale.
+ */
+async function fetchWithRetry(fetch: () => Promise<unknown | null>): Promise<unknown | null> {
+  const first = await fetch();
+  if (first) return first;
+  await sleep(3000);
+  return fetch();
+}
+
 async function main() {
   const admin = getAdminSupabase();
   if (!admin) {
@@ -33,7 +53,7 @@ async function main() {
 
   let succeeded = 0;
   for (const { board, fetch } of BOARDS) {
-    const data = await fetch();
+    const data = await fetchWithRetry(fetch);
     if (!data) {
       console.error(`[ingest-xyzrank] ${board}: fetch failed (blocked or empty) — leaving cache untouched`);
       continue;
