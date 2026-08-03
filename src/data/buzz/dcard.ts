@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { sentimentOf } from "@/src/core/mining";
 import type { EvidenceItem } from "@/src/data/catalog/types";
 
 /**
@@ -65,6 +66,7 @@ export async function dcardDiscussion(
       url: p.forumAlias
         ? `https://www.dcard.tw/f/${p.forumAlias}/p/${p.id}`
         : `https://www.dcard.tw/p/${p.id}`,
+      sentiment: sentimentOf(p.title!),
     }));
   return { buzz: { dcardMentions: matched.length }, evidence };
 }

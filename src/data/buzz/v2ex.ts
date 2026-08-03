@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { sentimentOf } from "@/src/core/mining";
 import type { EvidenceItem } from "@/src/data/catalog/types";
 
 /**
@@ -59,6 +60,7 @@ export async function v2exDiscussion(
       source: "V2EX",
       text: h._source!.title!,
       url: `https://www.v2ex.com/t/${h._source!.id}`,
+      sentiment: sentimentOf(h._source!.title!),
     }));
   return { buzz: { v2exMentions: matched.length }, evidence };
 }

@@ -309,6 +309,7 @@ describe("hackerNewsBuzz", () => {
       source: "Hacker News",
       text: "high",
       url: "https://news.ycombinator.com/item?id=42",
+      sentiment: 0,
     });
   });
 
@@ -475,6 +476,7 @@ describe("bilibiliBuzz", () => {
       source: "Bilibili",
       text: "Show X clip high",
       url: "https://www.bilibili.com/video/BV1high/",
+      sentiment: 0,
     });
   });
 

@@ -86,6 +86,14 @@ export type EvidenceItem = {
   text: string;
   /** Link to the actual thread/comment, when available. */
   url?: string;
+  /**
+   * Lexicon sentiment of `text` in [-1, 1] (REFINEMENTS.md #20), via
+   * src/core/mining/sentiment.ts's bilingual cue-word scorer — the same
+   * one the community-mining pipeline uses. Undefined where a source
+   * hasn't been wired to score it yet; 0 means "scored, no cue words
+   * found" (neutral), not "not scored".
+   */
+  sentiment?: number;
 };
 
 export type SimilarShow = CatalogShow & {

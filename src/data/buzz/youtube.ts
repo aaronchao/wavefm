@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { sentimentOf } from "@/src/core/mining";
 import type { EvidenceItem } from "@/src/data/catalog/types";
 import { normalizeForMatch } from "./match";
 
@@ -149,6 +150,7 @@ export async function youtubeDiscussion(
       source: "YouTube",
       text: m.title,
       url: `https://www.youtube.com/watch?v=${m.videoId}`,
+      sentiment: sentimentOf(m.title),
     }));
   return { buzz: tally(matched), evidence };
 }

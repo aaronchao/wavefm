@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { sentimentOf } from "@/src/core/mining";
 import type { EvidenceItem } from "@/src/data/catalog/types";
 
 /**
@@ -54,6 +55,7 @@ export async function pttDiscussion(title: string): Promise<Discussion> {
       source: "PTT",
       text: r.text,
       url: `https://www.ptt.cc${r.href}`,
+      sentiment: sentimentOf(r.text),
     })),
   };
 }
@@ -79,6 +81,7 @@ export async function lihkgDiscussion(title: string): Promise<Discussion> {
         source: "LIHKG",
         text: i.title!,
         url: `https://lihkg.com/thread/${i.thread_id}`,
+        sentiment: sentimentOf(i.title!),
       })),
     };
   } catch {
@@ -110,6 +113,7 @@ export async function doubanGroupDiscussion(title: string): Promise<Discussion> 
       source: "豆瓣小组",
       text: r.text,
       url: r.url,
+      sentiment: sentimentOf(r.text),
     })),
   };
 }

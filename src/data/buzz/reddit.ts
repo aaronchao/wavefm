@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { sentimentOf } from "@/src/core/mining";
 import type { EvidenceItem } from "@/src/data/catalog/types";
 
 /**
@@ -107,6 +108,7 @@ export async function redditDiscussion(
       source: c.data!.subreddit ? `r/${c.data!.subreddit}` : "Reddit",
       text: c.data!.title!,
       url: `https://www.reddit.com${c.data!.permalink}`,
+      sentiment: sentimentOf(c.data!.title!),
     }));
   return {
     buzz: { redditPosts: children.length, redditScore: score, redditComments: comments },

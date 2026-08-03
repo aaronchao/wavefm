@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { sentimentOf } from "@/src/core/mining";
 import type { EvidenceItem } from "@/src/data/catalog/types";
 import { normalizeForMatch } from "./match";
 
@@ -131,6 +132,7 @@ export async function bilibiliDiscussion(
       source: "Bilibili",
       text: m.title,
       url: `https://www.bilibili.com/video/${m.bvid}/`,
+      sentiment: sentimentOf(m.title),
     }));
   return { buzz: tally(matched), evidence };
 }

@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { sentimentOf } from "@/src/core/mining";
 import type { EvidenceItem } from "@/src/data/catalog/types";
 
 /**
@@ -69,10 +70,14 @@ export async function hackerNewsDiscussion(
     .filter((h) => (h.title || h.story_title) && h.objectID)
     .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
     .slice(0, 2)
-    .map((h) => ({
-      source: "Hacker News",
-      text: (h.title || h.story_title)!,
-      url: `https://news.ycombinator.com/item?id=${h.objectID}`,
-    }));
+    .map((h) => {
+      const text = (h.title || h.story_title)!;
+      return {
+        source: "Hacker News",
+        text,
+        url: `https://news.ycombinator.com/item?id=${h.objectID}`,
+        sentiment: sentimentOf(text),
+      };
+    });
   return { buzz: tally(hits), evidence };
 }

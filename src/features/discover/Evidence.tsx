@@ -60,6 +60,15 @@ export function Evidence({
                 <span className="font-brand mr-1.5 uppercase tracking-wider text-zinc-400">
                   {e.source}
                 </span>
+                {e.sentiment != null && Math.abs(e.sentiment) > 0.15 && (
+                  <span
+                    aria-hidden
+                    title={e.sentiment > 0 ? "Positive tone" : "Negative tone"}
+                    className={`mr-1 ${e.sentiment > 0 ? "text-emerald-500" : "text-rose-500"}`}
+                  >
+                    {e.sentiment > 0 ? "▲" : "▼"}
+                  </span>
+                )}
                 {e.url ? (
                   <a
                     href={e.url}
