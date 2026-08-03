@@ -119,3 +119,29 @@ body {
   transform: none;
   box-shadow: none;
 }
+
+/* iOS-homescreen-style "reorder mode" wiggle — every card except the one
+   actively being dragged gets this while a drag is in progress. Applied to
+   an INNER element (never the sortable item's own root), since dnd-kit
+   already owns that root's `transform` for drag positioning — a CSS
+   animation targeting `transform` on the same node would just overwrite
+   the inline style dnd-kit sets, not compose with it. `--jiggle-delay` lets
+   each card start slightly out of phase, like real Springboard icons. */
+@keyframes wavr-jiggle {
+  0%,
+  100% {
+    transform: rotate(-1deg);
+  }
+  50% {
+    transform: rotate(1deg);
+  }
+}
+.jiggle {
+  animation: wavr-jiggle 0.2s ease-in-out infinite;
+  animation-delay: var(--jiggle-delay, 0s);
+}
+@media (prefers-reduced-motion: reduce) {
+  .jiggle {
+    animation: none;
+  }
+}

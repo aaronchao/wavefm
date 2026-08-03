@@ -44,14 +44,18 @@ export function InlineTagInput({
   const uniqueTags = [...new Set([...tags, ...added])];
 
   return (
+    // A single scrollable row rather than flex-wrap — many tags used to grow
+    // a card taller than its neighbors, which fights any "identical size"
+    // card grid; scrolling sideways keeps every card's height the same
+    // regardless of tag count, without hiding any tag.
     <div
-      className="relative z-10 mt-1.5 flex flex-wrap items-center gap-1"
+      className="relative z-10 mt-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto"
       onClick={(e) => e.stopPropagation()}
     >
       {uniqueTags.map((t) => (
         <span
           key={t}
-          className="font-brand inline-flex items-center gap-1 rounded-[2px] border border-surface-border px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-zinc-500"
+          className="font-brand inline-flex shrink-0 items-center gap-1 rounded-[2px] border border-surface-border px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-zinc-500"
         >
           #{t}
           <button
@@ -84,7 +88,7 @@ export function InlineTagInput({
         onBlur={() => commit()}
         placeholder="+ tag"
         aria-label="Add a tag"
-        className="font-brand w-14 rounded-[2px] border border-dashed border-surface-border bg-transparent px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-foreground placeholder:text-zinc-400 focus:border-foreground focus:outline-none"
+        className="font-brand w-14 shrink-0 rounded-[2px] border border-dashed border-surface-border bg-transparent px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-foreground placeholder:text-zinc-400 focus:border-foreground focus:outline-none"
       />
     </div>
   );

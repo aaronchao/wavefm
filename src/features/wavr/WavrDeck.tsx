@@ -14,7 +14,7 @@ import { SwipeCard, type SwipeCardHandle } from "./SwipeCard";
 import { useCardGesture } from "./useCardGesture";
 import { useDeckAudio, type DeckAudio } from "./useDeckAudio";
 import { useSwipeDeck } from "./useSwipeDeck";
-import { WaveField } from "./WaveField";
+import { SiriWaveform } from "@/src/features/player/SiriWaveform";
 
 /**
  * The stack: renders top + 2 peek, owns the deck reducer and the audio ring.
@@ -189,8 +189,10 @@ export function WavrDeck({
       <audio ref={audioElRef} preload="none" />
 
       {/* The waveform, as its own visible band ABOVE the card — animates
-          while playing, flat when not. Always on. */}
-      <WaveField playState={audio.playState} progress={audio.progress} />
+          while playing, flat when not. Always on. Same Siri-style flowing
+          line as the mini player (PreviewPlayer), not the bar-style
+          WaveField this used to be — one waveform look across the app. */}
+      <SiriWaveform active={audio.playState === "playing"} progress={audio.progress} />
 
       <div
         role="group"

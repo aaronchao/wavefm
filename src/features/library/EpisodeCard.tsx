@@ -22,6 +22,15 @@ import { OpenInLinks } from "./OpenInLinks";
  * identical everywhere. The drag handle is a separate element so a plain
  * tap still plays the preview (PlayableCard's own click target).
  */
+/** A small, stable 0/70/140ms bucket per id — so jiggling cards start
+ *  slightly out of phase with each other, like real Springboard icons,
+ *  without needing any shared/random state. */
+function jiggleDelayMs(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 3;
+  return h * 70;
+}
+
 export function EpisodeCard({
   episode,
   bucket,
@@ -31,6 +40,7 @@ export function EpisodeCard({
   onTagsChanged,
   onArchive,
   disabled = false,
+  jiggle = false,
 }: {
   episode: SavedEpisode;
   bucket: "inbox" | "queue";
@@ -43,6 +53,10 @@ export function EpisodeCard({
   /** True while a tag filter is active — a partial, filtered list can't
    *  safely compute a drop position relative to the true, unfiltered queue. */
   disabled?: boolean;
+  /** True on every OTHER card while a drag is in progress — the iOS-
+   *  homescreen "we're in reorder mode" wiggle. Never true for the card
+   *  actually being dragged (that one lifts into the DragOverlay instead). */
+  jiggle?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: episode.episodeId,
@@ -107,7 +121,9 @@ export function EpisodeCard({
       <PlayableCard
         onPlay={play}
         playLabel={`Preview ${episode.title}`}
-        className={`cursor-pointer !rounded-[2px] ${finished ? "opacity-60" : ""}`}
+        className={`h-36 cursor-pointer overflow-hidden !rounded-[2px] ${finished ? "opacity-60" : ""} ${
+          jiggle ? `jiggle [animation-delay:${jiggleDelayMs(episode.episodeId)}ms]` : ""
+        }`}
       >
         <button
           type="button"
@@ -140,12 +156,12 @@ export function EpisodeCard({
           {episode.showId ? (
             <Link
               href={`/show/${episode.showId}`}
-              className={`relative z-10 line-clamp-3 font-semibold leading-snug hover:text-accent hover:underline underline-offset-2 ${finished ? "line-through" : ""}`}
+              className={`relative z-10 line-clamp-2 font-semibold leading-snug hover:text-accent hover:underline underline-offset-2 ${finished ? "line-through" : ""}`}
             >
               {episode.title}
             </Link>
           ) : (
-            <p className={`line-clamp-3 font-semibold leading-snug ${finished ? "line-through" : ""}`}>
+            <p className={`line-clamp-2 font-semibold leading-snug ${finished ? "line-through" : ""}`}>
               {episode.title}
             </p>
           )}

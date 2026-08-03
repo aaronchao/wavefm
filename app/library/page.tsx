@@ -9,8 +9,9 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -471,8 +472,11 @@ function LibraryShowCard({
       <PlayableCard
         onPlay={() => previewShow(show)}
         playLabel={`Preview ${show.title}`}
-        // Show identity: sharp corners, square cover — Nothing-brand.
-        className="cursor-pointer !rounded-[2px]"
+        // Show identity: sharp corners, square cover — Nothing-brand. Fixed
+        // height so every Show card in the grid reads as identical size,
+        // regardless of title length or tag count (tags/links already
+        // scroll horizontally in a single row rather than wrapping taller).
+        className="h-32 cursor-pointer overflow-hidden !rounded-[2px]"
       >
         <CoverPlay
           src={show.coverUrl}
@@ -564,6 +568,29 @@ function EpisodesColumn({
   const [showArchived, setShowArchived] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  // Live local order for drag visuals — dnd-kit only animates a card's
+  // slide-out-of-the-way when it's already inside the SAME SortableContext
+  // items array the active card is being compared against at that instant.
+  // Reacting only in onDragEnd (the previous version) computes the right
+  // FINAL position but never shows the other cards moving live while
+  // hovering — this is dnd-kit's own documented "multiple containers"
+  // pattern: onDragOver keeps local order in sync with the pointer AS you
+  // drag, onDragEnd just persists wherever that local order ended up.
+  // Synced from the real data whenever it changes, except mid-drag (a
+  // background refetch landing between dragstart/dragend shouldn't yank a
+  // card out from under the pointer).
+  const [localInboxIds, setLocalInboxIds] = useState<string[]>(() => inbox.map((e) => e.episodeId));
+  const [localQueueIds, setLocalQueueIds] = useState<string[]>(() => queue.map((e) => e.episodeId));
+  const draggingRef = useRef(false);
+  const inboxSignal = inbox.map((e) => e.episodeId).join(",");
+  const queueSignal = queue.map((e) => e.episodeId).join(",");
+  useEffect(() => {
+    if (draggingRef.current) return;
+    setLocalInboxIds(inbox.map((e) => e.episodeId));
+    setLocalQueueIds(queue.map((e) => e.episodeId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- signals are the intentional trigger
+  }, [inboxSignal, queueSignal]);
+
   // A short activation distance so a plain tap (to open the preview player)
   // doesn't get eaten as an accidental drag start.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -579,6 +606,14 @@ function EpisodesColumn({
     );
   }
 
+  const episodeById = new Map([...inbox, ...queue].map((e) => [e.episodeId, e]));
+  const localInbox = localInboxIds
+    .map((id) => episodeById.get(id))
+    .filter((e): e is SavedEpisode => Boolean(e));
+  const localQueue = localQueueIds
+    .map((id) => episodeById.get(id))
+    .filter((e): e is SavedEpisode => Boolean(e));
+
   const archive = (episodeId: string) =>
     void setEpisodeBucket(episodeId, "archived").then(refresh);
   const restore = (episodeId: string) =>
@@ -591,44 +626,88 @@ function EpisodesColumn({
       ),
     ).then(refresh);
 
-  const activeEpisode = [...inbox, ...queue].find((e) => e.episodeId === activeId);
+  const activeEpisode = activeId ? episodeById.get(activeId) : undefined;
 
-  /**
-   * Drag from Inbox lands the card in the Queue at wherever it's dropped;
-   * drag within the Queue reorders it — both go through the same
-   * rankForIndex computation (REFINEMENTS.md #1/#3's fractional rank, now
-   * driven by a drop position instead of only a discrete ▲/▼ step or a
-   * fixed top/bottom). A tag filter can't safely reorder (the visible list
-   * is a subset — a drop position within it doesn't mean the same thing
-   * once the filter clears), so dragging is disabled per-card in that case
-   * (see EpisodeCard's `disabled` prop), and this is a no-op backstop.
-   */
-  function handleDragEnd(event: DragEndEvent) {
-    setActiveId(null);
+  function containerOf(id: string): "inbox" | "queue" | null {
+    if (localInboxIds.includes(id)) return "inbox";
+    if (localQueueIds.includes(id)) return "queue";
+    return null;
+  }
+
+  /** Keeps local order in sync AS the drag moves — see the state doc above. */
+  function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
     if (!over || filtered) return;
     const draggedId = String(active.id);
-    const overBucket = (over.data.current as { bucket?: "inbox" | "queue" } | undefined)?.bucket;
-    if (overBucket !== "queue") return; // only the Queue is a real drop target
-
     const overId = String(over.id);
-    const queueIdsWithoutActive = queue.map((e) => e.episodeId).filter((id) => id !== draggedId);
-    const index = queueIdsWithoutActive.indexOf(overId);
-    const dropIndex = index === -1 ? queueIdsWithoutActive.length : index;
-    const ranksWithoutActive = queue
-      .filter((e) => e.episodeId !== draggedId)
-      .map((e) => e.queueRank ?? 0);
+    const activeContainer = containerOf(draggedId);
+    const overContainer =
+      (over.data.current as { bucket?: "inbox" | "queue" } | undefined)?.bucket ??
+      containerOf(overId);
+    if (!activeContainer || overContainer !== "queue") return; // only the Queue accepts drops
+
+    if (activeContainer === "queue") {
+      setLocalQueueIds((ids) => {
+        const oldIndex = ids.indexOf(draggedId);
+        const newIndex = ids.indexOf(overId);
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return ids;
+        return arrayMove(ids, oldIndex, newIndex);
+      });
+      return;
+    }
+
+    // Inbox -> Queue: remove from Inbox, insert into Queue at the hovered spot.
+    setLocalInboxIds((ids) => ids.filter((id) => id !== draggedId));
+    setLocalQueueIds((ids) => {
+      if (ids.includes(draggedId)) return ids;
+      const overIndex = ids.indexOf(overId);
+      const next = [...ids];
+      next.splice(overIndex === -1 ? next.length : overIndex, 0, draggedId);
+      return next;
+    });
+  }
+
+  /**
+   * By the time a drag ends, onDragOver has already settled the local order
+   * exactly where it visually landed — this just reads that final position
+   * and persists it as a fractional queueRank (REFINEMENTS.md #1/#3),
+   * touching only the moved row. A tag filter can't safely reorder (the
+   * visible list is a subset — a position within it doesn't mean the same
+   * thing once the filter clears), so dragging is disabled per-card in that
+   * case (EpisodeCard's `disabled` prop) and this is a no-op backstop.
+   */
+  function handleDragEnd(event: DragEndEvent) {
+    draggingRef.current = false;
+    setActiveId(null);
+    if (filtered) return;
+    const draggedId = String(event.active.id);
+    const dropIndex = localQueueIds.indexOf(draggedId);
+    if (dropIndex === -1) return; // never entered the Queue
+    const ranksWithoutActive = localQueueIds
+      .filter((id) => id !== draggedId)
+      .map((id) => episodeById.get(id)?.queueRank ?? 0);
     const rank = rankForIndex(ranksWithoutActive, dropIndex);
     void setEpisodeBucket(draggedId, "queue", rank).then(refresh);
+  }
+
+  function handleDragCancel() {
+    draggingRef.current = false;
+    setActiveId(null);
+    setLocalInboxIds(inbox.map((e) => e.episodeId));
+    setLocalQueueIds(queue.map((e) => e.episodeId));
   }
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={(e) => setActiveId(String(e.active.id))}
+      onDragStart={(e) => {
+        draggingRef.current = true;
+        setActiveId(String(e.active.id));
+      }}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={handleDragCancel}
     >
       <div className="flex flex-col gap-6">
         <div className="grid items-start gap-6 md:grid-cols-2">
@@ -636,16 +715,13 @@ function EpisodesColumn({
             <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
               Inbox <span className="text-zinc-400">— new, not yet sorted</span>
             </h3>
-            {inbox.length === 0 ? (
+            {localInbox.length === 0 ? (
               <p className="text-sm text-zinc-500">{"Nothing new — you're caught up."}</p>
             ) : (
-              <SortableContext
-                items={inbox.map((e) => e.episodeId)}
-                strategy={verticalListSortingStrategy}
-              >
+              <SortableContext items={localInboxIds} strategy={verticalListSortingStrategy}>
                 <ul className="flex flex-col gap-3">
                   <AnimatePresence initial={false}>
-                    {inbox.map((e) => (
+                    {localInbox.map((e) => (
                       <EpisodeCard
                         key={e.episodeId}
                         episode={e}
@@ -656,6 +732,7 @@ function EpisodesColumn({
                         onTagsChanged={onTagsChanged}
                         onArchive={() => archive(e.episodeId)}
                         disabled={filtered}
+                        jiggle={activeId !== null && activeId !== e.episodeId}
                       />
                     ))}
                   </AnimatePresence>
@@ -669,19 +746,16 @@ function EpisodesColumn({
               Queue
             </h3>
             <QueueDropZone>
-              {queue.length === 0 && (
+              {localQueue.length === 0 && (
                 <li className="list-none text-sm text-zinc-500">
                   {filtered
                     ? "No queued episodes with this tag."
                     : "Drag something over from your Inbox."}
                 </li>
               )}
-              <SortableContext
-                items={queue.map((e) => e.episodeId)}
-                strategy={verticalListSortingStrategy}
-              >
+              <SortableContext items={localQueueIds} strategy={verticalListSortingStrategy}>
                 <AnimatePresence initial={false}>
-                  {queue.map((e) => (
+                  {localQueue.map((e) => (
                     <EpisodeCard
                       key={e.episodeId}
                       episode={e}
@@ -692,6 +766,7 @@ function EpisodesColumn({
                       onTagsChanged={onTagsChanged}
                       onArchive={() => archive(e.episodeId)}
                       disabled={filtered}
+                      jiggle={activeId !== null && activeId !== e.episodeId}
                     />
                   ))}
                 </AnimatePresence>
@@ -745,8 +820,11 @@ function QueueDropZone({ children }: { children: React.ReactNode }) {
 
 /** The floating "picked up" card that follows the pointer while dragging. */
 function DragPreviewCard({ episode }: { episode: SavedEpisode }) {
+  // The "picked up" iOS-icon feel: slightly larger and tilted, floating
+  // above everything else with a real shadow — distinct from the flat list
+  // rows it's hovering over.
   return (
-    <div className="flex w-full max-w-md rotate-1 items-center gap-3 rounded-[2px] border border-accent bg-background p-3 shadow-lg">
+    <div className="flex w-full max-w-md scale-105 rotate-2 items-center gap-3 rounded-[2px] border border-accent bg-background p-3 shadow-2xl">
       <span className="shrink-0 text-zinc-300">
         <GripIcon className="h-4 w-4" />
       </span>
