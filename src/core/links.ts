@@ -36,6 +36,32 @@ export function itunesId(id: string | undefined): string | undefined {
   return id && /^\d+$/.test(id) ? id : undefined;
 }
 
+/**
+ * The one-tap "▶ Listen" primary action (REFINEMENTS.md #4). Priority:
+ * (1) the remembered preferred player, if it has a real (non-search) link;
+ * (2) any other real link, next-best — a genuine deep link beats a search
+ * even for the "wrong" platform; (3) the preferred player's link even if
+ * it's search-only, as a last resort before giving up; (4) null. The full
+ * icon row (still rendered alongside) is the fallback for "just search".
+ */
+export function pickPreferredLink(
+  links: PlatformLink[],
+  preferred: PlatformId | null | undefined,
+): PlatformLink | null {
+  const isReal = (l: PlatformLink) => Boolean(l.url) && !l.isSearch;
+  if (preferred) {
+    const match = links.find((l) => l.id === preferred);
+    if (match && isReal(match)) return match;
+  }
+  const nextBest = links.find(isReal);
+  if (nextBest) return nextBest;
+  if (preferred) {
+    const match = links.find((l) => l.id === preferred && l.url);
+    if (match) return match;
+  }
+  return null;
+}
+
 export function platformLinks(
   title: string,
   stored: Partial<Record<PlatformId, string>> = {},

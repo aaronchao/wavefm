@@ -2,11 +2,13 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { getPrefs, setInterests } from "@/src/data/repos/prefsRepo";
+import type { PlatformId } from "@/src/core/links";
+import { getPrefs, setInterests, setPreferredPlayer } from "@/src/data/repos/prefsRepo";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
 import { getSupabase } from "@/src/data/supabase/client";
 import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
+import { NothingToggle } from "@/src/ui";
 import { Charts } from "./Charts";
 import { EpisodeCharts } from "./EpisodeCharts";
 import { RankedRecs } from "./RankedRecs";
@@ -81,8 +83,9 @@ export function DiscoverPage() {
           Your next favorite show is hiding in here.
         </h1>
         {configured && (
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <InlineSync />
+            <PreferredPlayerPicker preferred={prefsQ.data?.preferred_player ?? null} />
           </div>
         )}
       </div>
@@ -145,6 +148,46 @@ export function DiscoverPage() {
 
       <FloatingSearch />
     </main>
+  );
+}
+
+const PLAYER_LABELS: Record<PlatformId, string> = {
+  apple: "Apple",
+  spotify: "Spotify",
+  youtubeMusic: "YT Music",
+  pocketCasts: "Pocket Casts",
+  xiaoyuzhou: "小宇宙",
+};
+
+/**
+ * Remembered default player (REFINEMENTS.md #4) — sets the one-tap
+ * "▶ Listen" primary action everywhere a show/episode card renders
+ * (src/features/library/OpenInLinks.tsx). Signed-in only, same as every
+ * other synced pref here.
+ */
+function PreferredPlayerPicker({ preferred }: { preferred: PlatformId | null }) {
+  const queryClient = useQueryClient();
+  async function pick(id: PlatformId) {
+    await setPreferredPlayer(preferred === id ? null : id);
+    await queryClient.invalidateQueries({ queryKey: ["prefs"] });
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <span className="font-brand shrink-0 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+        Listen on
+      </span>
+      {(Object.keys(PLAYER_LABELS) as PlatformId[]).map((id) => (
+        <NothingToggle
+          key={id}
+          active={preferred === id}
+          onClick={() => void pick(id)}
+          ariaLabel={`Set ${PLAYER_LABELS[id]} as your default player`}
+          className="!px-2 !py-1 !text-[11px]"
+        >
+          {PLAYER_LABELS[id]}
+        </NothingToggle>
+      ))}
+    </div>
   );
 }
 

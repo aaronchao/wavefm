@@ -1,7 +1,9 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { itunesId, platformLinks, type PlatformId } from "@/src/core/links";
+import { itunesId, pickPreferredLink, platformLinks, type PlatformId } from "@/src/core/links";
+import { getPrefs } from "@/src/data/repos/prefsRepo";
 import type { PlatformLinks } from "@/src/data/catalog/types";
 
 /**
@@ -53,10 +55,65 @@ export function OpenInLinks({
   const links = platformLinks(title, { apple: appleUrl, ...stored }, itunesId(showId));
   const box = size === "md" ? "h-9 w-9" : "h-7 w-7";
   const glyph = size === "md" ? "h-5 w-5" : "h-4 w-4";
+
+  // Remembered default player (REFINEMENTS.md #4) — one big primary action
+  // instead of making the user re-scan every icon every time. Shared cache
+  // key across every card on the page, so this is one fetch, not one per card.
+  const prefsQ = useQuery({ queryKey: ["prefs", "player"], queryFn: getPrefs });
+  const primary = pickPreferredLink(links, prefsQ.data?.preferred_player);
+  const PrimaryIcon = primary ? PLATFORM_ICONS[primary.id] : null;
+
+  return (
+    <div className={className}>
+      {primary && PrimaryIcon && (
+        <a
+          href={primary.url!}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen?.();
+          }}
+          aria-label={`Listen on ${primary.label}${primary.isSearch ? " (search)" : ""}`}
+          style={{ backgroundColor: PLATFORM_COLORS[primary.id] }}
+          className="mb-1.5 inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-transform hover:shadow-md active:scale-95"
+        >
+          <PrimaryIcon className="h-4 w-4" />
+          Listen on {primary.label}
+        </a>
+      )}
+      <OpenInLinksRow
+        links={links}
+        feedUrl={feedUrl}
+        label={label}
+        box={box}
+        glyph={glyph}
+        onOpen={onOpen}
+      />
+    </div>
+  );
+}
+
+/** The full "more options" icon row — every platform, always present. */
+function OpenInLinksRow({
+  links,
+  feedUrl,
+  label,
+  box,
+  glyph,
+  onOpen,
+}: {
+  links: ReturnType<typeof platformLinks>;
+  feedUrl?: string;
+  label: string;
+  box: string;
+  glyph: string;
+  onOpen?: () => void;
+}) {
   return (
     // flex-nowrap keeps the icons on one horizontal, scrollable row on mobile
     // instead of stacking; a heading supplies context so labels stay off.
-    <div className={`flex flex-nowrap items-center gap-1.5 overflow-x-auto ${className}`}>
+    <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto">
       {label && (
         <span className="font-brand shrink-0 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
           {label}
