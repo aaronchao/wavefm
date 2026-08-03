@@ -91,12 +91,14 @@ export function OpenInLinks({
     staleTime: Infinity,
   });
 
-  // Real YouTube channel link (REFINEMENTS.md #6) — standing in for YouTube
-  // Music's dead-end search (it has no add-by-RSS and no reliable show-
-  // search of its own). Same lazy/cached shape as the Spotify lookup above.
+  // Real YouTube link (REFINEMENTS.md #6) — standing in for YouTube Music's
+  // dead-end search (it has no add-by-RSS and no reliable show-search of
+  // its own). When this is an episode (showTitle given), `title` is the
+  // episode-specific query — resolves that episode's own video (autoplays
+  // on open) rather than just the show's channel, which had nothing playing.
   const youtubeQ = useQuery({
-    queryKey: ["youtubeLink", lookupTitle],
-    queryFn: () => getYoutubeLink(lookupTitle),
+    queryKey: ["youtubeLink", lookupTitle, showTitle ? title : null],
+    queryFn: () => getYoutubeLink(lookupTitle, showTitle ? title : undefined),
     enabled: !stored?.youtubeMusic,
     staleTime: Infinity,
   });

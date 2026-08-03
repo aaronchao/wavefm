@@ -143,6 +143,33 @@ export async function youtubeChannelUrl(title: string): Promise<string | null> {
   return `https://www.youtube.com/channel/${best.channelId}`;
 }
 
+/**
+ * A specific episode's own YouTube video, when one is findable — reported
+ * unusable otherwise: `youtubeChannelUrl` above only ever links the show's
+ * CHANNEL (a listing of every video), so clicking "Listen" from an episode
+ * landed on a browse page with nothing playing, not the episode itself.
+ * Searches on the episode's own title (real per-episode uploads are far
+ * more likely to contain it verbatim than a show-level query would) and
+ * requires the match before ever using it; falls back to the channel (at
+ * least the right show) and finally null. A watch URL autoplays on load in
+ * virtually every browser, so this is the closest a plain link gets to
+ * "click it and the episode starts playing."
+ */
+export async function youtubeEpisodeUrl(
+  episodeTitle: string,
+  showTitle: string,
+): Promise<string | null> {
+  const matched = await fetchMatched(episodeTitle);
+  if (matched && matched.length > 0) {
+    const relevant = matched.filter((m) => normalize(m.title).includes(normalize(episodeTitle)));
+    if (relevant.length > 0) {
+      const best = relevant.sort((a, b) => b.views - a.views)[0];
+      return `https://www.youtube.com/watch?v=${best.videoId}`;
+    }
+  }
+  return youtubeChannelUrl(showTitle);
+}
+
 /** Buzz + the top few videos (title + watch URL) as readable evidence. */
 export async function youtubeDiscussion(
   title: string,

@@ -473,6 +473,45 @@ describe("youtubeChannelUrl", () => {
   });
 });
 
+describe("youtubeEpisodeUrl", () => {
+  it("links the matched video's own watch URL, not the channel", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch(() => ({
+      body: {
+        items: [{ id: { videoId: "ep42" }, snippet: { title: "EP12 深度解析", channelId: "UC123" } }],
+      },
+    }));
+    const { youtubeEpisodeUrl } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeEpisodeUrl("EP12 深度解析", "Show X")).toBe(
+      "https://www.youtube.com/watch?v=ep42",
+    );
+  });
+
+  it("falls back to the show's channel when no video matches the episode", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch((url) => {
+      const q = new URL(url).searchParams.get("q") ?? "";
+      // The episode query finds nothing relevant; the fallback channel
+      // query (by show title) finds a real match.
+      if (q.includes("Unmatched Episode")) {
+        return { body: { items: [{ id: { videoId: "z" }, snippet: { title: "Unrelated", channelId: "UC0" } }] } };
+      }
+      return { body: { items: [{ id: { videoId: "a" }, snippet: { title: "Show X ep 1", channelId: "UC123" } }] } };
+    });
+    const { youtubeEpisodeUrl } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeEpisodeUrl("Unmatched Episode", "Show X")).toBe(
+      "https://www.youtube.com/channel/UC123",
+    );
+  });
+
+  it("returns null when neither the episode nor the channel resolves", async () => {
+    process.env.YOUTUBE_API_KEY = "k";
+    mockFetch(() => ({ body: { items: [] } }));
+    const { youtubeEpisodeUrl } = await import("@/src/data/buzz/youtube");
+    expect(await youtubeEpisodeUrl("Show X EP1", "Show X")).toBeNull();
+  });
+});
+
 describe("bilibiliBuzz", () => {
   it("sums views and comments+danmaku across title-matched videos only", async () => {
     mockFetch(() => ({
