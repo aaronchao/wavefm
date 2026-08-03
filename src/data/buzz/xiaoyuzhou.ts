@@ -1,4 +1,5 @@
 import type { BuzzInput } from "@/src/core/recommend";
+import { getProviderToken, setProviderToken } from "@/src/data/repos/providerTokensRepo";
 import { titlesMatch } from "./match";
 
 /**
@@ -30,12 +31,30 @@ const APP_HEADERS: Record<string, string> = {
 };
 
 // 小宇宙 access tokens are short-lived; a refresh token mints new ones.
-// Cache the freshest access token in-process (best-effort across warm
-// invocations — serverless may still reuse the env token on cold starts).
+// Module memory is fastest (same warm instance, REFINEMENTS.md #18) but is
+// lost on every cold start; provider_tokens (Supabase, server-only) backs
+// it up across instances so a cold start doesn't have to re-refresh.
 let liveAccess: string | null = null;
+const PROVIDER = "xiaoyuzhou";
 
 function envAccess(): string | null {
   return process.env.XIAOYUZHOU_ACCESS_TOKEN || null;
+}
+
+/** liveAccess -> the cross-instance cache -> the env token, in that order. */
+async function currentAccess(): Promise<string | null> {
+  if (liveAccess) return liveAccess;
+  const cached = await getProviderToken(PROVIDER);
+  if (cached) {
+    liveAccess = cached;
+    return cached;
+  }
+  return envAccess();
+}
+
+function rememberAccess(token: string): void {
+  liveAccess = token;
+  void setProviderToken(PROVIDER, token); // best-effort; never blocks the caller
 }
 
 /** Exchange the refresh token for a new access token; null on any failure. */
@@ -77,11 +96,11 @@ async function search(title: string, token: string): Promise<Response> {
 export async function xiaoyuzhouBuzz(title: string): Promise<BuzzInput | null> {
   // refresh-first: a valid refresh token is enough even with no/expired
   // access token (the access token is short-lived and often absent).
-  let token = liveAccess ?? envAccess();
+  let token = await currentAccess();
   if (!token) {
     token = await refreshAccess();
     if (!token) return null; // not configured / refresh failed — skip
-    liveAccess = token;
+    rememberAccess(token);
   }
   try {
     let res = await search(title, token);
@@ -89,7 +108,7 @@ export async function xiaoyuzhouBuzz(title: string): Promise<BuzzInput | null> {
     if (res.status === 401 || res.status === 403) {
       const fresh = await refreshAccess();
       if (!fresh) return null;
-      liveAccess = fresh;
+      rememberAccess(fresh);
       res = await search(title, fresh);
     }
     if (!res.ok) return null;
