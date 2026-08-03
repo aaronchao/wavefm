@@ -30,12 +30,24 @@ export function toShowInput(show: CatalogShow): ShowInput {
  * Candidate pool: one catalog search per interest (seed labels when the
  * user hasn't picked yet), unioned and deduped. Cached for hours — the
  * engine itself runs locally per Section 8.7.
+ *
+ * `extraTopics` (REFINEMENTS.md #16): recommend() filters blocked/saved
+ * shows out AFTER scoring, so a heavily-blocked user was getting a
+ * thinner feed from the same fixed-size pool. Rather than touching the
+ * pure scoring pipeline, pull in a few more topic queries up front so
+ * enough survives the filter — proportional to the caller's block count.
  */
-async function fetchCandidates(interests: string[]): Promise<CatalogShow[]> {
+async function fetchCandidates(
+  interests: string[],
+  extraTopics: number,
+): Promise<CatalogShow[]> {
   // cold start: search the first few trending topics (personal seeds are
   // hidden from defaultTopics, so the cold feed leads with mainstream)
+  const base = interests.length > 0 ? interests : defaultTopics().slice(0, 8);
   const queries =
-    interests.length > 0 ? interests : defaultTopics().slice(0, 8);
+    extraTopics > 0
+      ? [...base, ...defaultTopics().filter((t) => !base.includes(t)).slice(0, extraTopics)]
+      : base;
   const results = await Promise.all(queries.map((q) => searchShows(q)));
   const byId = new Map<string, CatalogShow>();
   for (const r of results) {
@@ -44,6 +56,11 @@ async function fetchCandidates(interests: string[]): Promise<CatalogShow[]> {
     }
   }
   return [...byId.values()];
+}
+
+/** One extra topic query per 5 blocks, capped at 6 — a bounded, cheap lever. */
+export function extraTopicsFor(blockedCount: number): number {
+  return Math.min(6, Math.floor(blockedCount / 5));
 }
 
 export type Recommendations = {
@@ -68,10 +85,15 @@ export function useRecommendations(): Recommendations {
   const savedQ = useQuery({ queryKey: ["saved", scope], queryFn: listSaved });
 
   const interests = useMemo(() => prefsQ.data?.interests ?? [], [prefsQ.data]);
+  const blockedCount = useMemo(
+    () => (engagementQ.data?.engagements ?? []).filter((e) => e.type === "block").length,
+    [engagementQ.data],
+  );
+  const extraTopics = extraTopicsFor(blockedCount);
   const candidatesQ = useQuery({
-    queryKey: ["candidates", [...interests].sort().join("|")],
-    queryFn: () => fetchCandidates(interests),
-    enabled: prefsQ.isSuccess,
+    queryKey: ["candidates", [...interests].sort().join("|"), extraTopics],
+    queryFn: () => fetchCandidates(interests, extraTopics),
+    enabled: prefsQ.isSuccess && engagementQ.isSuccess,
     staleTime: 3 * 60 * 60 * 1000,
   });
 
