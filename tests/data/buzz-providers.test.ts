@@ -164,6 +164,53 @@ describe("xyzrankBuzz", () => {
   });
 });
 
+describe("xyzrankNewPodcasts", () => {
+  it("hits /api/new-podcasts and parses the ranked list", async () => {
+    mockFetch((url) => {
+      expect(url).toContain("/api/new-podcasts");
+      return { body: [{ name: "新播客", subscription: 500 }] };
+    });
+    const { xyzrankNewPodcasts } = await import("@/src/data/buzz/xyzrank");
+    expect(await xyzrankNewPodcasts()).toEqual([
+      { rank: 1, title: "新播客", subscribers: 500, plays: undefined, comments: undefined },
+    ]);
+  });
+
+  it("returns null when the endpoint fails", async () => {
+    mockFetch(() => ({ status: 500, body: {} }));
+    const { xyzrankNewPodcasts } = await import("@/src/data/buzz/xyzrank");
+    expect(await xyzrankNewPodcasts()).toBeNull();
+  });
+});
+
+describe("xyzrankNewEpisodes", () => {
+  it("hits /api/new-episodes and parses the ranked list", async () => {
+    mockFetch((url) => {
+      expect(url).toContain("/api/new-episodes");
+      return {
+        body: [{ title: "新单集", podcastName: "某播客", plays: 100, url: "https://xyzrank.com/e/1" }],
+      };
+    });
+    const { xyzrankNewEpisodes } = await import("@/src/data/buzz/xyzrank");
+    expect(await xyzrankNewEpisodes()).toEqual([
+      {
+        rank: 1,
+        title: "新单集",
+        showTitle: "某播客",
+        plays: 100,
+        comments: undefined,
+        url: "https://xyzrank.com/e/1",
+      },
+    ]);
+  });
+
+  it("returns null when the endpoint fails", async () => {
+    mockFetch(() => ({ status: 500, body: {} }));
+    const { xyzrankNewEpisodes } = await import("@/src/data/buzz/xyzrank");
+    expect(await xyzrankNewEpisodes()).toBeNull();
+  });
+});
+
 describe("xiaoyuzhouBuzz", () => {
   it("refreshes first when only a refresh token is set, then searches", async () => {
     process.env.XIAOYUZHOU_REFRESH_TOKEN = "refresh";

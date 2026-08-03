@@ -152,6 +152,34 @@ export type EpisodeChartsResponse = {
   degraded: boolean;
 };
 
+/** xyzrank.com's four boards — see src/data/buzz/xyzrank.ts. */
+export type XyzrankTab = "podcasts" | "new-podcasts" | "episodes" | "new-episodes";
+
+/** One episode row on a xyzrank episode board, resolved enough to listen. */
+export type XyzrankEpisodeItem = {
+  id: string;
+  title: string;
+  showTitle?: string;
+  /** Parent show's catalog id, when resolved — powers OpenInLinks/Pocket Casts. */
+  showId?: string;
+  /** Parent show's RSS feed, when resolved — powers the YouTube Music assist. */
+  feedUrl?: string;
+  appleUrl?: string;
+  coverUrl?: string;
+  platformLinks?: PlatformLinks;
+  /** xyzrank/小宇宙's own episode page, when it provides one. */
+  url?: string;
+  why: string;
+};
+
+/** Response of /api/catalog/charts/xyzrank — one of xyzrank.com's four boards. */
+export type XyzrankBoardResponse = {
+  tab: XyzrankTab;
+  shows: SimilarShow[];
+  episodes: XyzrankEpisodeItem[];
+  degraded: boolean;
+};
+
 /** One ranked episode of a show (for the discovery "top episodes" list). */
 export type RankedEpisodeItem = {
   id: string;

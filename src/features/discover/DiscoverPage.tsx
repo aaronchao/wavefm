@@ -11,6 +11,7 @@ import { useSession } from "@/src/state/useSession";
 import { NothingToggle } from "@/src/ui";
 import { Charts } from "./Charts";
 import { EpisodeCharts } from "./EpisodeCharts";
+import { XyzrankBoard } from "./XyzrankBoard";
 import { RankedRecs } from "./RankedRecs";
 import { SavedRails } from "./SavedRails";
 import { SurpriseDeck } from "./SurpriseDeck";
@@ -145,6 +146,11 @@ export function DiscoverPage() {
       <div className="mb-12 grid items-start gap-10 lg:grid-cols-2">
         <Charts />
         <EpisodeCharts />
+      </div>
+
+      {/* xyzrank.com's own four boards, verbatim — the very bottom of Discover */}
+      <div className="mb-12">
+        <XyzrankBoard />
       </div>
 
       <FloatingSearch />

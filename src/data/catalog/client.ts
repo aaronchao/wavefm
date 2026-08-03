@@ -15,6 +15,8 @@ import type {
   RankedEpisodeItem,
   SimilarResponse,
   TopPicksResponse,
+  XyzrankBoardResponse,
+  XyzrankTab,
 } from "./types";
 
 /** Browser-side typed client for /api/catalog/*. Failures degrade, never throw. */
@@ -118,6 +120,25 @@ export async function getEpisodeCharts(limit = 20): Promise<EpisodeChartsRespons
     return { episodes: asArray(json.episodes), degraded: Boolean(json.degraded) };
   } catch {
     return { episodes: [], degraded: true };
+  }
+}
+
+export async function getXyzrankBoard(
+  tab: XyzrankTab,
+  limit = 20,
+): Promise<XyzrankBoardResponse> {
+  try {
+    const res = await fetch(`/api/catalog/charts/xyzrank?tab=${tab}&limit=${limit}`);
+    if (!res.ok) return { tab, shows: [], episodes: [], degraded: true };
+    const json = (await res.json()) as Partial<XyzrankBoardResponse>;
+    return {
+      tab,
+      shows: asArray(json.shows),
+      episodes: asArray(json.episodes),
+      degraded: Boolean(json.degraded),
+    };
+  } catch {
+    return { tab, shows: [], episodes: [], degraded: true };
   }
 }
 

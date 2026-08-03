@@ -18,6 +18,7 @@ You are building **Wavr**: a free, browser-based, cross-device **podcast discove
 - `PROXY_EXTERNAL_CALLS` — all third-party fetches (iTunes, Podcast Index, Douban, Xiaoyuzhou) go through the app's own `/api/*` routes (fixes CORS, hides keys, enables caching). The browser never calls them directly.
 - `ONE_CLICK` — save / like / open / not-for-me are each a single click.
 - `PURE_CORE` — recommendation logic in `/src/core` has no React/Next imports; fully unit-tested and deterministic.
+- `NO_CODE_IN_TERMINAL` — never display code blocks/diffs in chat responses or terminal output (no `cat`/`sed -n` dumps of file contents, no pasted snippets). Use Read/Edit/Write tools to make changes silently; report what changed in prose only.
 - Work **module by module** (Section 3). Finish + typecheck a module before the next.
 
 ---

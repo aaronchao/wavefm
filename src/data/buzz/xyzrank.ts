@@ -3,12 +3,42 @@ import { normalizeForMatch } from "./match";
 
 /**
  * 中文播客榜 (xyzrank.com) — free JSON API built on 小宇宙 + Apple data,
- * the same source xyzrank.com itself renders. One cached fetch serves
- * every lookup; any failure returns null and the signal is skipped.
- * Endpoints per their docs: /api/podcasts (popular), /api/new-podcasts.
+ * the same source xyzrank.com itself renders. One cached fetch per endpoint
+ * serves every lookup; any failure returns null and the signal is skipped.
+ * The site's own four boards, per its (now-archived) scraper's README —
+ * github.com/eddiehe99/xyzrank — map straight onto its own tabs:
+ *   /api/podcasts       — 热门播客 (popular podcasts)
+ *   /api/new-podcasts   — 新晋播客 (emerging podcasts)
+ *   /api/episodes       — 热门单集 (hot episodes)
+ *   /api/new-episodes   — 新晋单集 (rising episodes)
  */
 
 const REVALIDATE_SECONDS = 24 * 60 * 60; // the ranking moves daily
+const BROWSER_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+  Referer: "https://xyzrank.com/",
+};
+
+/**
+ * xyzrank sits behind a bot filter that 403s bare server-side fetches;
+ * these browser-like headers get us the JSON, but it's still best-effort —
+ * any failure just returns null so a board falls back to its own backbone.
+ */
+async function fetchXyzJson(path: string): Promise<unknown | null> {
+  try {
+    const res = await fetch(`https://xyzrank.com${path}`, {
+      next: { revalidate: REVALIDATE_SECONDS },
+      headers: BROWSER_HEADERS,
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 /** One ranked show on 中文播客榜, with its display title preserved. */
 export type XyzChartEntry = {
@@ -66,33 +96,17 @@ function extractOrdered(json: unknown): XyzChartEntry[] {
   return [];
 }
 
-let memo: Promise<XyzChartEntry[] | null> | null = null;
-
-async function fetchChart(): Promise<XyzChartEntry[] | null> {
-  try {
-    // xyzrank sits behind a bot filter that 403s bare server-side fetches;
-    // browser-like headers get us the JSON. Still best-effort — any failure
-    // just drops the enrichment, the board falls back to the Apple CN chart.
-    const res = await fetch("https://xyzrank.com/api/podcasts", {
-      next: { revalidate: REVALIDATE_SECONDS },
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-        Accept: "application/json, text/plain, */*",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        Referer: "https://xyzrank.com/",
-      },
-    });
-    if (!res.ok) return null;
-    const entries = extractOrdered(await res.json());
-    return entries.length > 0 ? entries : null;
-  } catch {
-    return null;
-  }
+async function fetchChart(path: string): Promise<XyzChartEntry[] | null> {
+  const json = await fetchXyzJson(path);
+  if (json === null) return null;
+  const entries = extractOrdered(json);
+  return entries.length > 0 ? entries : null;
 }
 
+let memo: Promise<XyzChartEntry[] | null> | null = null;
+
 async function chartIndex(): Promise<XyzChartEntry[] | null> {
-  memo ??= fetchChart();
+  memo ??= fetchChart("/api/podcasts");
   const chart = await memo;
   if (!chart) memo = null; // retry next request rather than cache the failure
   return chart;
@@ -101,6 +115,16 @@ async function chartIndex(): Promise<XyzChartEntry[] | null> {
 /** The full 中文播客榜 leaderboard, ordered by rank (for Chinese discovery). */
 export async function xyzrankChart(): Promise<XyzChartEntry[] | null> {
   return chartIndex();
+}
+
+let memoNewPodcasts: Promise<XyzChartEntry[] | null> | null = null;
+
+/** 新晋播客 — emerging shows climbing the board, ordered by rank. */
+export async function xyzrankNewPodcasts(): Promise<XyzChartEntry[] | null> {
+  memoNewPodcasts ??= fetchChart("/api/new-podcasts");
+  const chart = await memoNewPodcasts;
+  if (!chart) memoNewPodcasts = null;
+  return chart;
 }
 
 /** One hot episode on 中文播客榜's episode board. */
@@ -156,31 +180,30 @@ function extractEpisodes(json: unknown): XyzEpisodeEntry[] {
   return [];
 }
 
+async function fetchEpisodes(path: string): Promise<XyzEpisodeEntry[] | null> {
+  const json = await fetchXyzJson(path);
+  if (json === null) return null;
+  const entries = extractEpisodes(json);
+  return entries.length > 0 ? entries : null;
+}
+
 let memoEpisodes: Promise<XyzEpisodeEntry[] | null> | null = null;
 
-/** 中文播客榜's hot-episodes board (best-effort, cached daily). */
+/** 热门单集 — 中文播客榜's hot-episodes board (best-effort, cached daily). */
 export async function xyzrankHotEpisodes(): Promise<XyzEpisodeEntry[] | null> {
-  memoEpisodes ??= (async () => {
-    try {
-      const res = await fetch("https://xyzrank.com/api/episodes", {
-        next: { revalidate: REVALIDATE_SECONDS },
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-          Accept: "application/json, text/plain, */*",
-          "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-          Referer: "https://xyzrank.com/",
-        },
-      });
-      if (!res.ok) return null;
-      const entries = extractEpisodes(await res.json());
-      return entries.length > 0 ? entries : null;
-    } catch {
-      return null;
-    }
-  })();
+  memoEpisodes ??= fetchEpisodes("/api/episodes");
   const eps = await memoEpisodes;
   if (!eps) memoEpisodes = null; // retry next request rather than cache failure
+  return eps;
+}
+
+let memoNewEpisodes: Promise<XyzEpisodeEntry[] | null> | null = null;
+
+/** 新晋单集 — rising episodes, ordered by rank. */
+export async function xyzrankNewEpisodes(): Promise<XyzEpisodeEntry[] | null> {
+  memoNewEpisodes ??= fetchEpisodes("/api/new-episodes");
+  const eps = await memoNewEpisodes;
+  if (!eps) memoNewEpisodes = null;
   return eps;
 }
 
