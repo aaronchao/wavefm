@@ -316,25 +316,31 @@ test("show detail lists the show's own top episodes", async ({ page }) => {
   await expect(page.getByText("Attachment styles deep-dive")).toBeVisible();
 });
 
-test("discover surfaces the 中文播客榜 chart in the Charts block", async ({ page }) => {
+test("discover surfaces the 中文播客榜 board (xyzrank) with its own tabs", async ({ page }) => {
   await stub(page);
-  await page.route("**/api/catalog/charts/chinese**", (r) =>
+  await page.route("**/api/catalog/charts/xyzrank**", (r) =>
     r.fulfill({
       json: {
         shows: [
-          show("900", "故事FM", "寇爱哲", ["Society & Culture"], {
-            why: "#1 on 中文播客榜 · 12w subscribers",
-          }),
+          {
+            id: "900",
+            rank: 1,
+            title: "故事FM",
+            author: "寇爱哲",
+            category: "Society & Culture",
+            avgPlays: 12000,
+          },
         ],
+        episodes: [],
         degraded: false,
       },
     }),
   );
 
   await page.goto("/");
-  // Charts block is present with the 小宇宙 tab active by default
-  await expect(page.getByRole("heading", { name: "Charts" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "小宇宙" })).toBeVisible();
+  // 热门播客 (Popular podcasts) is the default-active tab of the four.
+  await expect(page.getByRole("heading", { name: "中文播客榜" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "热门播客" })).toBeVisible();
   await expect(page.getByText("故事FM")).toBeVisible();
 });
 
