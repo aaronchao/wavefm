@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { itunesId, pickPreferredLink, platformLinks } from "@/src/core/links";
+import {
+  itunesId,
+  pickPreferredLink,
+  platformLinks,
+  youtubeMusicAddByRssUrl,
+} from "@/src/core/links";
 
 describe("platformLinks", () => {
   it("uses stored URLs when known", () => {
@@ -62,6 +67,12 @@ describe("platformLinks", () => {
     const yt = platformLinks("Show").find((l) => l.id === "youtubeMusic")!;
     expect(yt.url).toBe("https://music.youtube.com/search?q=Show");
     expect(yt.isSearch).toBe(true);
+  });
+
+  it("youtubeMusicAddByRssUrl base64url-encodes the feed (used by the bulk-add panel too)", () => {
+    expect(youtubeMusicAddByRssUrl("https://example.com/feed.xml")).toBe(
+      "https://music.youtube.com/library/podcasts?addrssfeed=aHR0cHM6Ly9leGFtcGxlLmNvbS9mZWVkLnhtbA",
+    );
   });
 
   it("always returns all platforms in stable order (Pocket Casts after YouTube Music)", () => {

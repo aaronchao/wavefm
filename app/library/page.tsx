@@ -32,6 +32,7 @@ import {
   type ShowTagMap,
 } from "@/src/data/repos/showTagsRepo";
 import { renameTagEverywhere } from "@/src/data/repos/tagsRepo";
+import { BulkYoutubeMusicButton } from "@/src/features/library/BulkYoutubeMusicButton";
 import { ExportOpmlButton } from "@/src/features/library/ExportOpmlButton";
 import { ImportOpmlButton } from "@/src/features/library/ImportOpmlButton";
 import { InlineTagInput } from "@/src/features/library/InlineTagInput";
@@ -135,6 +136,7 @@ export default function LibraryPage() {
         <div className="flex flex-wrap items-center gap-2">
           <ImportOpmlButton />
           <ExportOpmlButton />
+          <BulkYoutubeMusicButton />
         </div>
       </div>
       <p className="mb-4 text-zinc-500">

@@ -72,6 +72,15 @@ function base64Url(value: string): string {
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/**
+ * YouTube Music's real (if Google-undocumented) add-by-RSS deep link for a
+ * feed — see the module doc above. Exported so a bulk "add all my shows"
+ * flow can build one per saved show without duplicating the encoding.
+ */
+export function youtubeMusicAddByRssUrl(feedUrl: string): string {
+  return `https://music.youtube.com/library/podcasts?addrssfeed=${base64Url(feedUrl)}`;
+}
+
 export function platformLinks(
   title: string,
   stored: Partial<Record<PlatformId, string>> = {},
@@ -111,9 +120,7 @@ export function platformLinks(
     entry(
       "youtubeMusic",
       stored.youtubeMusic ? "YouTube" : "YouTube Music",
-      feedUrl
-        ? `https://music.youtube.com/library/podcasts?addrssfeed=${base64Url(feedUrl)}`
-        : `https://music.youtube.com/search?q=${q}`,
+      feedUrl ? youtubeMusicAddByRssUrl(feedUrl) : `https://music.youtube.com/search?q=${q}`,
     ),
     pocketCasts(),
     entry("xiaoyuzhou", "小宇宙", `https://www.xiaoyuzhoufm.com/search/${q}`),
