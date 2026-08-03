@@ -211,7 +211,11 @@ export function WavrDeck({
         // rest — no text selection, no iOS callout, no context menu.
         onContextMenu={(e) => e.preventDefault()}
         style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
-        className="relative h-[27rem] w-full touch-none select-none outline-none focus-visible:outline-2 focus-visible:outline-accent"
+        // min(27rem, 60dvh) — full stage height on a normal viewport, but
+        // shrinks gracefully on short phones (iPhone SE-class) instead of
+        // overflowing and forcing page scroll, which fights the deck's
+        // full-surface swipe gesture for the same pointer events.
+        className="relative h-[min(27rem,60dvh)] w-full touch-none select-none outline-none focus-visible:outline-2 focus-visible:outline-accent"
       >
         {overview && (
           <DeckOverview

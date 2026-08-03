@@ -111,7 +111,7 @@ function TopicEpisodeRow({ ep }: { ep: CatalogEpisode }) {
             <p className="line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">{ep.showTitle}</p>
           )
         )}
-        {when && <p className="line-clamp-1 text-[11px] text-zinc-400">{when}</p>}
+        {when && <p className="line-clamp-1 text-[11px] text-muted-foreground">{when}</p>}
       </div>
       <NothingToggle
         active={queued}

@@ -55,7 +55,7 @@ export function ImportOpmlButton() {
       >
         {state === "working" ? "Importing…" : "Import OPML"}
       </button>
-      {msg && <span className="text-xs text-zinc-400">{msg}</span>}
+      {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
     </div>
   );
 }

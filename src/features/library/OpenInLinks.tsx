@@ -165,7 +165,7 @@ function OpenInLinksRow({
               key={l.id}
               aria-disabled
               title={`${l.label} — link unavailable`}
-              className={`flex ${box} shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-surface text-zinc-400 opacity-40`}
+              className={`flex ${box} shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-surface text-muted-foreground opacity-40`}
             >
               <Icon className={glyph} />
             </span>
@@ -188,7 +188,7 @@ function OpenInLinksRow({
             className={`flex ${box} shrink-0 items-center justify-center rounded-full transition-colors ${
               branded
                 ? "bg-surface hover:opacity-80"
-                : "bg-surface text-zinc-400 grayscale hover:text-zinc-600 dark:hover:text-zinc-200"
+                : "bg-surface text-muted-foreground grayscale hover:text-zinc-600 dark:hover:text-zinc-200"
             }`}
           >
             <Icon className={glyph} />
@@ -231,7 +231,7 @@ function RssCopyIcon({
       <span
         aria-disabled
         title="RSS feed — unavailable"
-        className={`flex ${box} shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-surface text-zinc-400 opacity-40`}
+        className={`flex ${box} shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-surface text-muted-foreground opacity-40`}
       >
         <RadarIcon className={glyph} />
       </span>

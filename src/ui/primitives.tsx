@@ -92,7 +92,7 @@ export function Chip({
  */
 export function DegradedHint({ className = "" }: { className?: string }) {
   return (
-    <p className={`text-xs text-zinc-400 dark:text-zinc-500 ${className}`}>
+    <p className={`text-xs text-muted-foreground dark:text-zinc-500 ${className}`}>
       Some sources are unavailable right now — results may be thinner than usual.
     </p>
   );

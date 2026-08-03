@@ -143,7 +143,7 @@ function EpisodeRow({ ep }: { ep: ChartEpisodeItem }) {
             💬 {ep.context}
           </p>
         )}
-        <p className="line-clamp-1 text-[11px] text-zinc-400">{ep.why}</p>
+        <p className="line-clamp-1 text-[11px] text-muted-foreground">{ep.why}</p>
       </div>
       <NothingToggle
         active={queued}

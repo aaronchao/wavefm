@@ -206,7 +206,7 @@ function EpisodeColumnRow({ ep, show }: { ep: RankedEpisodeItem; show: SimilarSh
         >
           {show.title} →
         </Link>
-        <p className="line-clamp-1 text-[11px] text-zinc-400">
+        <p className="line-clamp-1 text-[11px] text-muted-foreground">
           <span
             className={`font-mono uppercase tracking-wider ${
               ep.basis === "discussion" ? "text-accent" : ""

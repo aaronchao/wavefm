@@ -200,7 +200,7 @@ function ColumnHeading({
   return (
     <h2 className="font-brand mb-3 flex items-baseline gap-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
       {children}
-      <span className="text-[11px] tracking-[0.2em] text-zinc-400">{count}</span>
+      <span className="text-[11px] tracking-[0.2em] text-muted-foreground">{count}</span>
     </h2>
   );
 }
@@ -525,7 +525,7 @@ function LibraryShowCard({
             onRemove();
           }}
           aria-label={`Remove ${show.title}`}
-          className="relative z-10 shrink-0 rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
+          className="relative z-10 shrink-0 rounded-full px-2 py-1 text-muted-foreground hover:text-foreground"
         >
           ✕
         </button>
@@ -723,7 +723,7 @@ function EpisodesColumn({
         <div className="grid items-start gap-6 md:grid-cols-2">
           <div>
             <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Inbox <span className="text-zinc-400">— new, not yet sorted</span>
+              Inbox <span className="text-muted-foreground">— new, not yet sorted</span>
             </h3>
             {localInbox.length === 0 ? (
               <p className="text-sm text-zinc-500">{"Nothing new — you're caught up."}</p>
@@ -876,7 +876,7 @@ function ArchivedRow({
         type="button"
         onClick={onRemove}
         aria-label={`Remove ${episode.title}`}
-        className="shrink-0 rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
+        className="shrink-0 rounded-full px-2 py-1 text-muted-foreground hover:text-foreground"
       >
         ✕
       </button>
@@ -931,7 +931,7 @@ function FeedSyncPanel({ signedIn }: { signedIn: boolean }) {
       <button type="button" onClick={copy} className="nothing-toggle shrink-0 px-2 py-1 text-[11px]">
         {copied ? "Copied ✓" : "Copy URL"}
       </button>
-      <button type="button" onClick={regenerate} className="shrink-0 text-zinc-400 underline hover:text-foreground">
+      <button type="button" onClick={regenerate} className="shrink-0 text-muted-foreground underline hover:text-foreground">
         Regenerate
       </button>
     </div>
@@ -996,7 +996,7 @@ function GpodderSyncPanel() {
         </span>
       )}
       {status === "error" && (
-        <span className="shrink-0 text-zinc-400">No matching episodes found — check your login.</span>
+        <span className="shrink-0 text-muted-foreground">No matching episodes found — check your login.</span>
       )}
     </div>
   );

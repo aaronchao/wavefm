@@ -45,7 +45,7 @@ export function SimilarContent({
 
   return (
     <section>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
         {seedTitle ? `More like ${seedTitle}` : "More like this"}
       </h2>
       <div className="grid items-start gap-8 md:grid-cols-2">

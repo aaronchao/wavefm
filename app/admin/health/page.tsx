@@ -87,14 +87,14 @@ export default function SourceHealthPage() {
                 <td className="py-2 text-zinc-500">{r.lang}</td>
                 <td className="py-2">
                   {!r.configured ? (
-                    <span className="text-zinc-400">not configured</span>
+                    <span className="text-muted-foreground">not configured</span>
                   ) : r.ok ? (
                     <span className="text-green-600">ok</span>
                   ) : (
                     <span className="font-semibold text-red-600">not ok</span>
                   )}
                 </td>
-                <td className="py-2 text-zinc-400">{r.configured ? r.durationMs : "—"}</td>
+                <td className="py-2 text-muted-foreground">{r.configured ? r.durationMs : "—"}</td>
               </tr>
             ))}
           </tbody>

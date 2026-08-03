@@ -80,14 +80,14 @@ function TopPickRow({ pick, rank }: { pick: SimilarShow; rank: number }) {
         playLabel={`Preview ${pick.title}`}
         className="cursor-pointer"
       >
-        <span className="w-6 shrink-0 text-center text-sm font-bold tabular-nums text-zinc-400">
+        <span className="w-6 shrink-0 text-center text-sm font-bold tabular-nums text-muted-foreground">
           {rank}
         </span>
         <CoverTile src={pick.coverUrl} size={56} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{pick.title}</p>
           <p className="truncate text-sm text-zinc-500">{pick.author}</p>
-          <p className="truncate text-xs text-zinc-400">▶ {pick.why}</p>
+          <p className="truncate text-xs text-muted-foreground">▶ {pick.why}</p>
         </div>
         <Link
           href={`/show/${pick.id}`}

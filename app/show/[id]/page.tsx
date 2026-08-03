@@ -71,7 +71,7 @@ function ShowDetail({ show }: { show: CatalogShow }) {
           <h1 className="text-2xl font-bold">{show.title}</h1>
           <p className="text-zinc-500">{show.author}</p>
           {show.categories.length > 0 && (
-            <p className="mt-1 text-xs text-zinc-400">
+            <p className="mt-1 text-xs text-muted-foreground">
               {show.categories.slice(0, 4).join(" · ")}
             </p>
           )}
@@ -91,7 +91,7 @@ function ShowDetail({ show }: { show: CatalogShow }) {
       <TagEditor showId={show.id} />
 
       <section>
-        <h2 className="font-brand mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+        <h2 className="font-brand mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Listen on
         </h2>
         {/* icons only, one horizontal row — brand colour when a stored link
@@ -110,7 +110,7 @@ function ShowDetail({ show }: { show: CatalogShow }) {
 
       {show.description && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             About
           </h2>
           <p className="whitespace-pre-line leading-relaxed text-zinc-600 dark:text-zinc-300">

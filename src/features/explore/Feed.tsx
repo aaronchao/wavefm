@@ -99,7 +99,7 @@ function FeedCard({
           </Link>
           <p className="truncate text-sm text-zinc-500">{show.author}</p>
           {show.categories.length > 0 && (
-            <p className="truncate text-xs text-zinc-400">
+            <p className="truncate text-xs text-muted-foreground">
               {show.categories.slice(0, 3).join(" · ")}
             </p>
           )}

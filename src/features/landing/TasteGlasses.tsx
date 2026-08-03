@@ -36,7 +36,7 @@ export function TasteGlasses() {
     <div className="rounded-card border border-surface-border bg-surface/40 p-6 sm:p-8">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-400">
+          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
             Try it
           </span>
           <h3 className="mt-1 text-xl font-bold sm:text-2xl">

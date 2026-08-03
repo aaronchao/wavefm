@@ -63,7 +63,7 @@ export function BulkYoutubeMusicButton() {
         <button
           type="button"
           onClick={() => setItems(null)}
-          className="text-zinc-400 underline hover:text-foreground"
+          className="text-muted-foreground underline hover:text-foreground"
         >
           Close
         </button>

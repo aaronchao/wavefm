@@ -238,7 +238,7 @@ function InlineAddChip({ onAdd }: { onAdd: (t: string) => void }) {
       onBlur={commit}
       placeholder="Add an interest…"
       aria-label="Add an interest"
-      className="font-brand w-32 shrink-0 rounded-[2px] border border-dashed border-surface-border bg-transparent px-2.5 py-1.5 text-[11px] uppercase tracking-wider text-foreground placeholder:text-zinc-400 focus:border-foreground focus:outline-none"
+      className="font-brand w-32 shrink-0 rounded-[2px] border border-dashed border-surface-border bg-transparent px-2.5 py-1.5 text-[11px] uppercase tracking-wider text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
     />
   );
 }
@@ -279,7 +279,7 @@ function TopicChip({
             onDelete();
           }}
           aria-label={`Remove ${label}`}
-          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-surface-border bg-background text-[9px] leading-none text-zinc-400 shadow-sm hover:border-foreground hover:text-foreground"
+          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-surface-border bg-background text-[9px] leading-none text-muted-foreground shadow-sm hover:border-foreground hover:text-foreground"
         >
           ×
         </button>

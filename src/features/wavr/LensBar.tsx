@@ -27,10 +27,10 @@ export function LensBar({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between px-0.5">
-        <span className="font-brand text-[10px] uppercase tracking-[0.14em] text-zinc-400">
+        <span className="font-brand text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
           Your interests
         </span>
-        <span className="font-brand text-[10px] uppercase tracking-[0.14em] text-zinc-400">
+        <span className="font-brand text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
           {remaining} left
         </span>
       </div>
@@ -92,7 +92,7 @@ function AddTag({ onAdd }: { onAdd: (tag: string) => void }) {
       onBlur={commit}
       placeholder="+ tag"
       aria-label="Add an interest"
-      className="font-brand w-16 shrink-0 rounded-[2px] border border-dashed border-foreground/50 bg-transparent px-2 py-1 text-[11px] uppercase tracking-wider text-foreground placeholder:text-zinc-400 focus:border-foreground focus:outline-none"
+      className="font-brand w-16 shrink-0 rounded-[2px] border border-dashed border-foreground/50 bg-transparent px-2 py-1 text-[11px] uppercase tracking-wider text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
     />
   );
 }

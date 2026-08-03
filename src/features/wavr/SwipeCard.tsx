@@ -132,7 +132,7 @@ export const SwipeCard = forwardRef<
           </motion.span>
           <motion.span
             style={{ opacity: skipOp }}
-            className="font-brand pointer-events-none absolute left-4 top-4 z-10 -rotate-12 rounded-pill border-2 border-zinc-400 px-3 py-1 text-sm font-bold uppercase text-zinc-400"
+            className="font-brand pointer-events-none absolute left-4 top-4 z-10 -rotate-12 rounded-pill border-2 border-zinc-400 px-3 py-1 text-sm font-bold uppercase text-muted-foreground"
           >
             Skip
           </motion.span>

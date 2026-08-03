@@ -65,7 +65,7 @@ function SearchInner() {
       {!term && (
         <p className="text-zinc-500">Find any show — try a name, a topic, or 中文.</p>
       )}
-      {isFetching && <p className="mb-3 text-sm text-zinc-400">Searching…</p>}
+      {isFetching && <p className="mb-3 text-sm text-muted-foreground">Searching…</p>}
       {data?.degraded && (
         <p className="text-zinc-500">
           Search is unavailable right now — try again in a bit.

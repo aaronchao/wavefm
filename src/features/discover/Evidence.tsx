@@ -57,7 +57,7 @@ export function Evidence({
           >
             {evidence.map((e, i) => (
               <li key={i} className="text-xs">
-                <span className="font-brand mr-1.5 uppercase tracking-wider text-zinc-400">
+                <span className="font-brand mr-1.5 uppercase tracking-wider text-muted-foreground">
                   {e.source}
                 </span>
                 {e.sentiment != null && Math.abs(e.sentiment) > 0.15 && (

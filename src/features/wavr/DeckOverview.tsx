@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import type { WavrCard } from "@/src/core/wavr";
 import { haptic } from "@/src/ui";
+import { springs } from "@/src/ui/tokens";
 import { CardFace } from "./CardFace";
 
 /** Render at most ±4 covers around the centre — depth, not a wall of art. */
@@ -136,7 +137,7 @@ export function DeckOverview({
                 scale: d === 0 ? 1 : 0.82,
                 opacity: Math.abs(d) > 3 ? 0 : 1 - Math.min(Math.abs(d), 4) * 0.16,
               }}
-              transition={{ type: "spring", stiffness: 260, damping: 30, mass: 0.9 }}
+              transition={springs.rise}
             >
               <CardFace card={c} progress={0} playState="paused" variant="compact" />
               {/* A darkening sheen on the angled covers sells the 3D turn. */}
@@ -165,7 +166,7 @@ export function DeckOverview({
         <div className="mb-3 w-full max-w-xs shrink-0 px-4 text-center">
           <p className="truncate text-sm font-semibold">{selected.title}</p>
           <p className="truncate text-xs text-zinc-500">{selected.showTitle}</p>
-          <p className="mt-1 font-brand text-[10px] uppercase tracking-[0.18em] text-zinc-400">
+          <p className="mt-1 font-brand text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
             {scrubIndex + 1} of {queue.length} · release to play
           </p>
         </div>

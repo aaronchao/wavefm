@@ -47,7 +47,7 @@ export function TagEditor({ showId }: { showId: string }) {
 
   return (
     <section>
-      <h2 className="font-brand mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+      <h2 className="font-brand mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
         Your tags
       </h2>
       <div className="flex flex-wrap items-center gap-2">
@@ -88,7 +88,7 @@ export function TagEditor({ showId }: { showId: string }) {
           onBlur={() => commit()}
           placeholder="+ add tag"
           aria-label="Add a tag"
-          className="font-brand w-28 rounded-[2px] border border-dashed border-surface-border bg-transparent px-2.5 py-1 text-[11px] uppercase tracking-wider text-foreground placeholder:text-zinc-400 focus:border-foreground focus:outline-none"
+          className="font-brand w-28 rounded-[2px] border border-dashed border-surface-border bg-transparent px-2.5 py-1 text-[11px] uppercase tracking-wider text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
         />
       </div>
     </section>

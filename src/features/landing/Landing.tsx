@@ -20,7 +20,7 @@ export function Landing() {
         <div>
           <div className="mb-5 flex items-center gap-2">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-zinc-400">
+            <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
               WaveFM · Podcast Discovery
             </span>
           </div>
@@ -67,7 +67,7 @@ export function Landing() {
           </motion.div>
 
           <motion.p
-            className="mt-5 font-mono text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+            className="mt-5 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.85, duration: 0.6 }}
@@ -86,7 +86,7 @@ export function Landing() {
 
       {/* Features */}
       <section className="mt-24">
-        <h2 className="mb-8 text-center font-mono text-[11px] uppercase tracking-[0.22em] text-zinc-400">
+        <h2 className="mb-8 text-center font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
           Built to end the endless research
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

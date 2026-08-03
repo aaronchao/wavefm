@@ -16,6 +16,7 @@ import {
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { player, usePlayerState, type PreviewMeta } from "@/src/state/player";
 import { CoverTile, NothingToggle } from "@/src/ui";
+import { springs } from "@/src/ui/tokens";
 import { SiriWaveform } from "./SiriWaveform";
 import { useClipWindow } from "./useClipWindow";
 
@@ -177,7 +178,7 @@ export function PreviewPlayer() {
             initial={{ y: 96, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 96, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 32 }}
+            transition={springs.press}
             // Liquid-glass Play bar: translucent + blurred so content shows
             // through, with a hairline border for edge definition. z-45 sits
             // above the tab bar (z-40) but strictly below the floating
@@ -218,7 +219,7 @@ export function PreviewPlayer() {
                 <button
                   onClick={() => player.dismiss()}
                   aria-label="Close preview"
-                  className="shrink-0 rounded-full px-2 py-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                  className="shrink-0 rounded-full px-2 py-1 text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-200"
                 >
                   ✕
                 </button>

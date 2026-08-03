@@ -90,16 +90,16 @@ export function SurpriseDeck({
           type="button"
           onClick={close}
           aria-label="Close Wavr Mini"
-          className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:text-foreground"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
         >
           ✕
         </button>
       </div>
 
-      <div className="relative h-[26rem] w-full max-w-sm">
+      <div className="relative h-[min(26rem,58dvh)] w-full max-w-sm">
         {loading ? (
           <div className="flex h-full items-center justify-center rounded-card border border-surface-border bg-background">
-            <p className="text-sm text-zinc-400">Finding episodes for you…</p>
+            <p className="text-sm text-muted-foreground">Finding episodes for you…</p>
           </div>
         ) : current ? (
           <>
@@ -211,7 +211,7 @@ function SwipeCard({
           </motion.span>
           <motion.span
             style={{ opacity: skip }}
-            className="font-brand absolute left-4 top-4 -rotate-12 rounded-pill border-2 border-zinc-400 px-3 py-1 text-sm font-bold uppercase text-zinc-400"
+            className="font-brand absolute left-4 top-4 -rotate-12 rounded-pill border-2 border-zinc-400 px-3 py-1 text-sm font-bold uppercase text-muted-foreground"
           >
             Skip
           </motion.span>

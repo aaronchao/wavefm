@@ -88,7 +88,7 @@ export function InlineTagInput({
         onBlur={() => commit()}
         placeholder="+ tag"
         aria-label="Add a tag"
-        className="font-brand w-14 shrink-0 rounded-[2px] border border-dashed border-surface-border bg-transparent px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-foreground placeholder:text-zinc-400 focus:border-foreground focus:outline-none"
+        className="font-brand w-14 shrink-0 rounded-[2px] border border-dashed border-surface-border bg-transparent px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
       />
     </div>
   );

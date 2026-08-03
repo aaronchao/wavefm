@@ -157,7 +157,7 @@ export function EpisodeCard({
           className={`relative z-10 flex shrink-0 touch-none items-center self-stretch px-0.5 dark:text-zinc-600 ${
             disabled
               ? "cursor-not-allowed text-zinc-200 dark:text-zinc-800"
-              : "cursor-grab text-zinc-300 hover:text-zinc-500 active:cursor-grabbing dark:hover:text-zinc-400"
+              : "cursor-grab text-zinc-300 hover:text-zinc-500 active:cursor-grabbing dark:hover:text-muted-foreground"
           }`}
         >
           <GripIcon className="h-4 w-4" />
@@ -193,7 +193,7 @@ export function EpisodeCard({
             ) : (
               <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
             ))}
-          <p className="truncate text-xs text-zinc-400">
+          <p className="truncate text-xs text-muted-foreground">
             {statusLabel}
             {resume ? ` · ${resume}` : ""}
             {episode.appleUrl ? "" : " · preview only"}
@@ -232,7 +232,7 @@ export function EpisodeCard({
             }}
             aria-label={`Archive ${episode.title}`}
             title="Not interested — archive"
-            className="rounded-full px-2 py-1 text-zinc-400 hover:text-foreground"
+            className="rounded-full px-2 py-1 text-muted-foreground hover:text-foreground"
           >
             ✕
           </button>

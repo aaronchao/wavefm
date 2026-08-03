@@ -52,14 +52,14 @@ export function TopEpisodes({ show }: { show: CatalogShow }) {
   return (
     <section>
       <div className="mb-2 flex items-baseline gap-2">
-        <h2 className="font-brand text-sm font-semibold uppercase tracking-wide text-zinc-400">
+        <h2 className="font-brand text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Top episodes
         </h2>
-        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-zinc-400">
+        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           {hasListens ? "most listened" : "where to start"}
         </span>
       </div>
-      {q.isLoading && <p className="text-sm text-zinc-400">Ranking episodes…</p>}
+      {q.isLoading && <p className="text-sm text-muted-foreground">Ranking episodes…</p>}
       <ol className="flex flex-col gap-1.5">
         {episodes.map((ep, i) => (
           <TopEpisodeRow key={ep.id} ep={ep} show={show} rank={i + 1} showListens={hasListens} />
@@ -119,12 +119,12 @@ function TopEpisodeRow({
 
   return (
     <li className="flex items-center gap-2.5 rounded-tile px-2 py-1.5 hover:bg-surface">
-      <span className="w-6 shrink-0 text-center font-mono text-sm tabular-nums text-zinc-400">
+      <span className="w-6 shrink-0 text-center font-mono text-sm tabular-nums text-muted-foreground">
         {String(rank).padStart(2, "0")}
       </span>
       <div className="min-w-0 flex-1">
         <p className="line-clamp-3 text-sm font-medium">{ep.title}</p>
-        <p className="truncate text-[11px] text-zinc-400">
+        <p className="truncate text-[11px] text-muted-foreground">
           <span
             className={`font-mono uppercase tracking-wider ${
               ep.basis === "discussion" || ep.basis === "listens" ? "text-accent" : ""

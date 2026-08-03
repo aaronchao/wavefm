@@ -52,7 +52,7 @@ export function SignalsConverge() {
         >
           <span className="-translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-pill border border-surface-border bg-background/90 px-2.5 py-1 font-mono text-[11px] shadow-sm backdrop-blur">
             <span className="font-semibold text-accent">{s.label}</span>
-            <span className="ml-1.5 text-zinc-400">{s.sub}</span>
+            <span className="ml-1.5 text-muted-foreground">{s.sub}</span>
           </span>
         </motion.div>
       ))}
@@ -65,7 +65,7 @@ export function SignalsConverge() {
         transition={reduce ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
       >
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-400">
+          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
             Rank 01
           </span>
           <span className="rounded-pill bg-accent px-2 py-0.5 font-mono text-[11px] font-semibold text-white">

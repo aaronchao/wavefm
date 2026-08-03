@@ -7,6 +7,10 @@
   --surface-border: #e4e4e7;
   --accent: #ff3b30; /* Signal Red — the single Wavr accent */
   --accent-soft: #ffeae8;
+  /* Secondary/meta text (status lines, stat rows, timestamps) — calibrated
+     per-theme for ~4.6:1+ against background. zinc-400 (#a1a1aa) alone was
+     ~2.9:1 on white, below WCAG AA for text people actually read. */
+  --muted-foreground: #71717a; /* zinc-500 */
 }
 
 @theme inline {
@@ -16,6 +20,7 @@
   --color-surface-border: var(--surface-border);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-muted-foreground: var(--muted-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-brand: var(--font-doto);
@@ -37,6 +42,7 @@
   --surface-border: #27272a;
   --accent: #ff453a; /* Signal Red, brightened for dark surfaces */
   --accent-soft: #3a0f0c;
+  --muted-foreground: #a1a1aa; /* zinc-400 — already ~7.5:1 against near-black */
 }
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));

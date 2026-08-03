@@ -93,7 +93,7 @@ export function FloatingSearch() {
           // overscroll-contain + its own scroll keeps the page beneath still.
           <div className="glass-panel mb-2 max-h-[60vh] overflow-y-auto overscroll-contain rounded-[2px] p-3 shadow-2xl">
             {isFetching && shows.length === 0 && episodes.length === 0 && (
-              <p className="px-1 py-3 text-sm text-zinc-400">Searching…</p>
+              <p className="px-1 py-3 text-sm text-muted-foreground">Searching…</p>
             )}
             {data?.degraded && (
               <p className="px-1 py-3 text-sm text-zinc-500">
@@ -149,7 +149,7 @@ export function FloatingSearch() {
             onFocus={() => setOpen(true)}
             placeholder="SEARCH PODCASTS · 搜索播客"
             aria-label="Search podcasts"
-            className="font-brand min-w-0 flex-1 bg-transparent text-sm uppercase tracking-wider text-foreground placeholder:text-zinc-400 focus:outline-none"
+            className="font-brand min-w-0 flex-1 bg-transparent text-sm uppercase tracking-wider text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
           {input && (
             <button
@@ -159,7 +159,7 @@ export function FloatingSearch() {
                 setTerm("");
               }}
               aria-label="Clear search"
-              className="shrink-0 rounded-full px-1 text-zinc-400 hover:text-foreground"
+              className="shrink-0 rounded-full px-1 text-muted-foreground hover:text-foreground"
             >
               ✕
             </button>

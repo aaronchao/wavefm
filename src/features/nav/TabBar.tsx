@@ -56,13 +56,13 @@ export function TabBar() {
                         : "text-accent/60 group-hover:text-accent"
                       : active
                         ? "text-accent"
-                        : "text-zinc-400 group-hover:text-foreground"
+                        : "text-muted-foreground group-hover:text-foreground"
                   }`}
                   active={active}
                 />
                 <span
                   className={`transition-colors ${
-                    active ? "text-accent" : "text-zinc-400 group-hover:text-foreground"
+                    active ? "text-accent" : "text-muted-foreground group-hover:text-foreground"
                   }`}
                 >
                   {t.label}

@@ -218,7 +218,7 @@ function XyzrankShowRow({ show }: { show: XyzrankShowItem }) {
             {[show.author, show.category].filter(Boolean).join(" · ")}
           </p>
         )}
-        <div className="mb-1.5 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-zinc-400">
+        <div className="mb-1.5 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
           {show.avgPlays != null && <Stat icon="▶" value={compact(show.avgPlays)} title="平均播放量" />}
           {show.avgComments != null && (
             <Stat icon="💬" value={compact(show.avgComments)} title="平均评论数" />
@@ -313,7 +313,7 @@ function XyzrankEpisodeRow({ ep }: { ep: XyzrankEpisodeItem }) {
             {ep.showTitle} →
           </Link>
         )}
-        <div className="mb-1.5 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-zinc-400">
+        <div className="mb-1.5 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
           {ep.plays != null && <Stat icon="▶" value={compact(ep.plays)} title="播放量" />}
           {ep.comments != null && <Stat icon="💬" value={compact(ep.comments)} title="评论数" />}
           {ep.subscribers != null && (

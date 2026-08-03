@@ -89,7 +89,7 @@ function SecondaryLink({ href, children }: { href: string; children: React.React
 
 function Empty({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex h-[28rem] flex-col items-center justify-center gap-3 rounded-card border border-surface-border bg-background p-6 text-center">
+    <div className="flex h-[min(28rem,62dvh)] flex-col items-center justify-center gap-3 rounded-card border border-surface-border bg-background p-6 text-center">
       <MachineLabel className="text-accent">◆ Wavr</MachineLabel>
       <p className="font-brand text-lg font-bold">{title}</p>
       {children}

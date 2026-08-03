@@ -179,7 +179,9 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function LoadingSkeleton() {
   return (
-    <div className="relative h-[28rem] w-full">
+    // Matches WavrDeck's own min(rem, dvh) stage height so the skeleton
+    // never flashes a taller/shorter box than the real deck that replaces it.
+    <div className="relative h-[min(28rem,62dvh)] w-full">
       {[2, 1, 0].map((i) => (
         <div
           key={i}
