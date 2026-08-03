@@ -83,6 +83,47 @@ export async function regenerateFeedToken(): Promise<string | null> {
   return error ? null : feed_token;
 }
 
+/**
+ * The public "share your Queue" page's token. Opt-in and off by default
+ * (unlike feed_token, which is always generated) — null means sharing is
+ * off and no public page resolves for this user. Supabase-only, same
+ * reasoning as the feed token: a public link needs a stable server-side
+ * identity to resolve against.
+ */
+export async function getShareToken(): Promise<string | null> {
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (!sb || !userId) return null;
+  const { data } = await sb
+    .from("prefs")
+    .select("share_token")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return (data as { share_token?: string | null } | null)?.share_token ?? null;
+}
+
+/** Turns sharing on (or rotates the link if it leaked) and returns the new token. */
+export async function enableSharing(): Promise<string | null> {
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (!sb || !userId) return null;
+  const share_token = crypto.randomUUID();
+  const { error } = await sb
+    .from("prefs")
+    .upsert({ user_id: userId, share_token, updated_at: new Date().toISOString() });
+  return error ? null : share_token;
+}
+
+/** Turns sharing off — the public page immediately 404s for this user. */
+export async function disableSharing(): Promise<void> {
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (!sb || !userId) return;
+  await sb
+    .from("prefs")
+    .upsert({ user_id: userId, share_token: null, updated_at: new Date().toISOString() });
+}
+
 export async function setInterests(interests: string[]): Promise<void> {
   const sb = getSupabase();
   const userId = await currentUserId();

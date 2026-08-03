@@ -27,7 +27,13 @@ import {
   syncFromGpodder,
   type SavedEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
-import { getFeedToken, regenerateFeedToken } from "@/src/data/repos/prefsRepo";
+import {
+  disableSharing,
+  enableSharing,
+  getFeedToken,
+  getShareToken,
+  regenerateFeedToken,
+} from "@/src/data/repos/prefsRepo";
 import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { rankForIndex } from "@/src/core/queue/rank";
 import { clusterSavedShow } from "@/src/core/recommend";
@@ -153,6 +159,7 @@ export default function LibraryPage() {
       </p>
 
       <FeedSyncPanel signedIn={signedIn} />
+      <SharePanel signedIn={signedIn} />
       <GpodderSyncPanel />
 
       <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
@@ -934,6 +941,93 @@ function FeedSyncPanel({ signedIn }: { signedIn: boolean }) {
       <button type="button" onClick={regenerate} className="shrink-0 text-muted-foreground underline hover:text-foreground">
         Regenerate
       </button>
+    </div>
+  );
+}
+
+/**
+ * Public "share your Queue" link — opt-in and off by default: nothing is
+ * public until this toggle is used, same private-token-as-credential
+ * pattern as FeedSyncPanel above, just gated behind an explicit on/off
+ * instead of always-present. Signed-in only, for the same reason.
+ */
+function SharePanel({ signedIn }: { signedIn: boolean }) {
+  const tokenQ = useQuery({
+    queryKey: ["shareToken"],
+    queryFn: getShareToken,
+    enabled: signedIn,
+  });
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const queryClient = useQueryClient();
+
+  if (!signedIn) return null;
+  const token = tokenQ.data;
+  const url = token
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/u/${token}`
+    : null;
+
+  async function enable() {
+    setBusy(true);
+    await enableSharing();
+    await queryClient.invalidateQueries({ queryKey: ["shareToken"] });
+    setBusy(false);
+  }
+
+  async function disable() {
+    if (!window.confirm("Turn off sharing? The current link will stop working immediately.")) return;
+    setBusy(true);
+    await disableSharing();
+    await queryClient.invalidateQueries({ queryKey: ["shareToken"] });
+    setBusy(false);
+  }
+
+  async function copy() {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // clipboard blocked — the URL is still visible to select manually
+    }
+  }
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[2px] border border-dashed border-surface-border px-3 py-2 text-xs text-zinc-500">
+      <span className="font-brand shrink-0 uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
+        Share your Queue
+      </span>
+      {url ? (
+        <>
+          <span className="min-w-0 flex-1 truncate">{url}</span>
+          <button type="button" onClick={copy} className="nothing-toggle shrink-0 px-2 py-1 text-[11px]">
+            {copied ? "Copied ✓" : "Copy link"}
+          </button>
+          <button
+            type="button"
+            onClick={disable}
+            disabled={busy}
+            className="shrink-0 text-muted-foreground underline hover:text-foreground disabled:opacity-40"
+          >
+            Turn off
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="min-w-0 flex-1 truncate">
+            Off by default — turn on to get a public link to your current Queue.
+          </span>
+          <button
+            type="button"
+            onClick={enable}
+            disabled={busy}
+            className="nothing-toggle shrink-0 px-2 py-1 text-[11px] disabled:opacity-40"
+          >
+            Turn on
+          </button>
+        </>
+      )}
     </div>
   );
 }

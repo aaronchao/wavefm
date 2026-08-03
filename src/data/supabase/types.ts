@@ -45,6 +45,10 @@ export type PrefsRow = {
   preferred_player?: "apple" | "spotify" | "youtubeMusic" | "pocketCasts" | "xiaoyuzhou" | null;
   /** Opaque token for the personal Listen-Later feed URL — REFINEMENTS.md #2. */
   feed_token?: string;
+  /** Opaque token for the public "share your Queue" page. Opt-in — null
+   *  until the user explicitly enables sharing (unlike feed_token, which
+   *  defaults to always-present since that feed is private-by-obscurity). */
+  share_token?: string | null;
   updated_at: string;
 };
 
