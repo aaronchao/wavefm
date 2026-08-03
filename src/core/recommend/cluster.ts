@@ -1,6 +1,6 @@
 import { cosine } from "./score";
 import { tokenize } from "./tokenize";
-import { l2Normalize } from "./vectorize";
+import { l2Normalize, vectorizeShow } from "./vectorize";
 import type { Cluster, ScoredCandidate, ShowInput, SparseVector } from "./types";
 
 export type SeedCluster = {
@@ -211,4 +211,24 @@ export function cluster(
   }
 
   return [...byId.values()];
+}
+
+/**
+ * Best-matching seed cluster for an already-saved show (REFINEMENTS.md
+ * #11) — the Library's auto-shelves. Just `cluster()`'s priority-2 seed
+ * match in isolation: "similar to something you saved" and "highly
+ * rated" don't make sense when what's being organized IS the saved set.
+ * Null means nothing cleared the match threshold — callers fall back to
+ * an "Unsorted" shelf rather than forcing a wrong-feeling label.
+ */
+export function clusterSavedShow(show: ShowInput): { id: string; label: string } | null {
+  const vector = vectorizeShow(show);
+  let best: { id: string; label: string; sim: number } | null = null;
+  for (const seed of seedVectors()) {
+    const sim = cosine(seed.vector, vector);
+    if (sim >= SEED_MATCH_THRESHOLD && (!best || sim > best.sim)) {
+      best = { id: seed.id, label: seed.label, sim };
+    }
+  }
+  return best ? { id: best.id, label: best.label } : null;
 }

@@ -21,6 +21,7 @@ import {
 import { getFeedToken, regenerateFeedToken } from "@/src/data/repos/prefsRepo";
 import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { rankAfterAdjacentMove, rankAtBottom, rankAtTop } from "@/src/core/queue/rank";
+import { clusterSavedShow } from "@/src/core/recommend";
 import {
   addShowTag,
   allTagsFrom,
@@ -322,9 +323,9 @@ function ShowsColumn({
     );
   }
 
-  return (
+  const renderCards = (items: typeof saved) => (
     <ul className="flex flex-col gap-3">
-      {saved.map(({ show, savedAt }) => (
+      {items.map(({ show, savedAt }) => (
         <LibraryShowCard
           key={show.id}
           show={show}
@@ -336,6 +337,55 @@ function ShowsColumn({
         />
       ))}
     </ul>
+  );
+
+  // Auto-shelves by taste cluster (REFINEMENTS.md #11) — only once the
+  // Library has enough shows for grouping to help rather than fragment a
+  // small list into singletons, and only with no manual tag filter active
+  // (a filter is already the more specific ask). Reuses the recommendation
+  // engine's own seed-cluster match, not a new taxonomy.
+  const AUTO_SHELF_THRESHOLD = 8;
+  if (filtered || saved.length < AUTO_SHELF_THRESHOLD) {
+    return renderCards(saved);
+  }
+
+  const shelves = new Map<string, { label: string; items: typeof saved }>();
+  const unsorted: typeof saved = [];
+  for (const s of saved) {
+    const match = clusterSavedShow({
+      id: s.show.id,
+      title: s.show.title,
+      description: s.show.description,
+      categories: s.show.categories,
+    });
+    if (!match) {
+      unsorted.push(s);
+      continue;
+    }
+    const shelf = shelves.get(match.id) ?? { label: match.label, items: [] };
+    shelf.items.push(s);
+    shelves.set(match.id, shelf);
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {[...shelves.values()].map((shelf) => (
+        <div key={shelf.label}>
+          <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+            {shelf.label}
+          </h3>
+          {renderCards(shelf.items)}
+        </div>
+      ))}
+      {unsorted.length > 0 && (
+        <div>
+          <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+            Unsorted
+          </h3>
+          {renderCards(unsorted)}
+        </div>
+      )}
+    </div>
   );
 }
 

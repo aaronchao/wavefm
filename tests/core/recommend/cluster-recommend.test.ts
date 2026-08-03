@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cluster,
+  clusterSavedShow,
   defaultTopics,
   diversify,
   recommend,
@@ -64,6 +65,32 @@ describe("cluster", () => {
     const clusters = cluster([scored("c-zane")]);
     expect(clusters[0].label).toBe("music culture");
     expect(clusters[0].why).toBe("More music culture");
+  });
+});
+
+describe("clusterSavedShow (Library auto-shelves, REFINEMENTS.md #11)", () => {
+  it("assigns a saved show to its best-matching seed cluster", () => {
+    const show = candidates.find((c) => c.id === "c-psychseattle")!;
+    expect(clusterSavedShow(show)).toEqual({ id: "psych-cases", label: "psychological case studies" });
+  });
+
+  it("returns null for a show off every seed topic (falls back to Unsorted)", () => {
+    const offSeed = {
+      id: "c-knitting",
+      title: "Pure Knitting",
+      description: "Yarn patterns and needlework chat.",
+      categories: ["Hobbies"],
+    };
+    expect(clusterSavedShow(offSeed)).toBeNull();
+  });
+
+  it("never uses the saved-similarity or rating rungs (nonsensical against itself)", () => {
+    // A show that would hit a seed cluster still gets THAT cluster, not a
+    // "Because you saved" or "Highly rated" label — those rungs simply
+    // aren't part of this function at all.
+    const show = candidates.find((c) => c.id === "c-zane")!;
+    const result = clusterSavedShow(show);
+    expect(result?.label).toBe("music culture");
   });
 });
 

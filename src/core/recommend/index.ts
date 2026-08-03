@@ -17,7 +17,7 @@ export { tokenize } from "./tokenize";
 export { buildIdf, l2Normalize, termWeights, vectorizeShow } from "./vectorize";
 export { tasteVector } from "./taste";
 export { cosine, scoreCandidate, DEFAULT_RATING_WEIGHT } from "./score";
-export { cluster, SEED_CLUSTERS, seedVectors, defaultTopics } from "./cluster";
+export { cluster, clusterSavedShow, SEED_CLUSTERS, seedVectors, defaultTopics } from "./cluster";
 export type { SeedCluster } from "./cluster";
 export { diversify } from "./diversify";
 export { rankSimilar, queryTermsForShow, qualityOf } from "./similar";
