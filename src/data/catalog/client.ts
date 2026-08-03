@@ -159,6 +159,18 @@ export async function getCommunityRecs(
   }
 }
 
+/** Real Spotify show URL for a title (REFINEMENTS.md #5), or null — never throws. */
+export async function getSpotifyLink(title: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/catalog/spotify-link?title=${encodeURIComponent(title)}`);
+    if (!res.ok) return null;
+    const json = (await res.json()) as { url?: string | null };
+    return json.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getSimilar(id: string): Promise<SimilarResponse> {
   try {
     const res = await fetch(`/api/catalog/similar?id=${encodeURIComponent(id)}`);

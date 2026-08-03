@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { itunesId, pickPreferredLink, platformLinks, type PlatformId } from "@/src/core/links";
+import { getSpotifyLink } from "@/src/data/catalog/client";
 import { getPrefs } from "@/src/data/repos/prefsRepo";
 import type { PlatformLinks } from "@/src/data/catalog/types";
 
@@ -52,7 +53,22 @@ export function OpenInLinks({
   /** Fired when a link is opened (e.g. to record an 'open' engagement). */
   onOpen?: () => void;
 }) {
-  const links = platformLinks(title, { apple: appleUrl, ...stored }, itunesId(showId));
+  // Real Spotify show URL (REFINEMENTS.md #5) — lazy, cached by title; only
+  // fetched when the payload didn't already supply one. Silently null when
+  // SPOTIFY_CLIENT_ID/SECRET aren't configured or there's no match — the
+  // icon just stays on its title-search fallback, same as always.
+  const spotifyQ = useQuery({
+    queryKey: ["spotifyLink", title],
+    queryFn: () => getSpotifyLink(title),
+    enabled: !stored?.spotify,
+    staleTime: Infinity,
+  });
+
+  const links = platformLinks(
+    title,
+    { apple: appleUrl, spotify: spotifyQ.data ?? undefined, ...stored },
+    itunesId(showId),
+  );
   const box = size === "md" ? "h-9 w-9" : "h-7 w-7";
   const glyph = size === "md" ? "h-5 w-5" : "h-4 w-4";
 
