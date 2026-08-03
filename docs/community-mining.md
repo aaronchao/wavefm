@@ -22,8 +22,9 @@ GitHub Actions cron ── harvest (Reddit + Douban/RSSHub) ── extract (pure
    |---|---|---|
    | `SUPABASE_URL` | yes | project URL |
    | `SUPABASE_SERVICE_ROLE_KEY` | yes | service role key (server-only; never client) |
-   | `RSSHUB_BASE` | for Douban | your RSSHub instance, e.g. `https://rsshub.<you>.dev` |
+   | `RSSHUB_BASE` | for Douban/Zhihu | your RSSHub instance, e.g. `https://rsshub.<you>.dev` |
    | `DOUBAN_GROUPS` | for Douban | comma-separated group ids to watch; Douban is off until set |
+   | `ZHIHU_TOPIC_IDS` | for Zhihu | comma-separated 知乎 topic ids to watch (REFINEMENTS.md #8); Zhihu is off until set. ⚠️ the `/zhihu/topic/:id` RSSHub route is unverified live in this repo (rsshub.app sits behind Cloudflare from CI) — confirm it once you have an instance reachable |
    | `REDDIT_CLIENT_ID` / `REDDIT_SECRET` | recommended | Reddit "script" app; anonymous fallback works but gets rate-limited from CI |
 
 3. **(Recommended) Self-host RSSHub** — free on Vercel/Render. Douban's API is

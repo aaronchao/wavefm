@@ -4,6 +4,7 @@ import { hackerNewsSource } from "./hackernews";
 import { pttSource } from "./ptt";
 import { redditSource } from "./reddit";
 import { v2exSource } from "./v2ex";
+import { zhihuSource } from "./zhihu";
 import type { HarvestSource, Seed } from "./types";
 
 export type { HarvestSource, Seed } from "./types";
@@ -17,7 +18,7 @@ export { parsePttSearch, parsePttThread } from "./ptt";
  * Harvest sources, all best-effort (null on failure). The two that use
  * fully-open APIs and work from CI without any setup — Hacker News (EN) and
  * V2EX/sov2ex (ZH) — lead as the reliable baseline; Reddit needs OAuth and
- * Douban needs RSSHub to contribute. PTT / Dcard / LIHKG and the promoted
+ * Douban/Zhihu need RSSHub to contribute. Dcard / LIHKG and the promoted
  * Xiaohongshu / Discord adapters plug in here behind the same interface.
  */
 export const SOURCES: HarvestSource[] = [
@@ -26,6 +27,7 @@ export const SOURCES: HarvestSource[] = [
   pttSource,
   redditSource,
   doubanSource,
+  zhihuSource,
 ];
 
 /**
