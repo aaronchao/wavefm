@@ -42,6 +42,8 @@ afterEach(() => {
   delete process.env.YOUTUBE_API_KEY;
   delete process.env.REDDIT_CLIENT_ID;
   delete process.env.REDDIT_SECRET;
+  delete process.env.LISTEN_NOTES_MONTHLY_CAP;
+  vi.doUnmock("@/src/data/repos/usageCountersRepo");
 });
 
 describe("listenNotesBuzz", () => {
@@ -70,6 +72,23 @@ describe("listenNotesBuzz", () => {
     mockFetch(() => ({ status: 401, body: {} }));
     const { listenNotesBuzz } = await import("@/src/data/buzz/listennotes");
     expect(await listenNotesBuzz("Dear Therapist")).toBeNull();
+  });
+
+  it("skips the call entirely once the monthly cap is reached (REFINEMENTS.md #19)", async () => {
+    process.env.LISTEN_NOTES_API_KEY = "k";
+    process.env.LISTEN_NOTES_MONTHLY_CAP = "1";
+    vi.doMock("@/src/data/repos/usageCountersRepo", () => ({
+      getMonthlyUsage: vi.fn().mockResolvedValue(1), // already at the cap of 1
+      incrementMonthlyUsage: vi.fn(),
+    }));
+    const spy = vi.fn();
+    mockFetch(() => {
+      spy();
+      return { body: { results: [{ title_original: "Dear Therapist", listen_score: 72 }] } };
+    });
+    const { listenNotesBuzz } = await import("@/src/data/buzz/listennotes");
+    expect(await listenNotesBuzz("Dear Therapist")).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
   });
 });
 
