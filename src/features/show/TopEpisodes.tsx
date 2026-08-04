@@ -32,7 +32,16 @@ function formatListens(n: number): string {
  * → recency). Each row plays a random middle section and can be queued to the
  * Library in one tap. Silent when the feed is unreachable.
  */
-export function TopEpisodes({ show }: { show: CatalogShow }) {
+export function TopEpisodes({
+  show,
+  onEpisodeSelect,
+}: {
+  show: CatalogShow;
+  /** Fired the moment any episode's Play is tapped — the Show page uses
+   *  this to reveal its background globe's country fly-to only once
+   *  there's been real engagement, not the instant the page loads. */
+  onEpisodeSelect?: () => void;
+}) {
   const q = useQuery({
     queryKey: ["catalog", "episodes-ranked", show.id],
     queryFn: () => getRankedEpisodes(show.id),
@@ -60,9 +69,16 @@ export function TopEpisodes({ show }: { show: CatalogShow }) {
         </span>
       </div>
       {q.isLoading && <p className="text-sm text-muted-foreground">Ranking episodes…</p>}
-      <ol className="flex flex-col gap-1.5">
+      <ol className="glass-panel flex flex-col gap-1.5 rounded-[1.75rem] p-3 shadow-lg">
         {episodes.map((ep, i) => (
-          <TopEpisodeRow key={ep.id} ep={ep} show={show} rank={i + 1} showListens={hasListens} />
+          <TopEpisodeRow
+            key={ep.id}
+            ep={ep}
+            show={show}
+            rank={i + 1}
+            showListens={hasListens}
+            onSelect={onEpisodeSelect}
+          />
         ))}
       </ol>
     </section>
@@ -74,11 +90,13 @@ function TopEpisodeRow({
   show,
   rank,
   showListens,
+  onSelect,
 }: {
   ep: RankedEpisodeItem;
   show: CatalogShow;
   rank: number;
   showListens: boolean;
+  onSelect?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [queued, setQueued] = useState(false);
@@ -144,7 +162,10 @@ function TopEpisodeRow({
         {queued ? "✓" : "+"}
       </NothingToggle>
       <PlayButton
-        onClick={() => previewRankedEpisode(ep, show)}
+        onClick={() => {
+          previewRankedEpisode(ep, show);
+          onSelect?.();
+        }}
         disabled={!ep.audioUrl}
         label={`Play the middle of ${ep.title}`}
       />

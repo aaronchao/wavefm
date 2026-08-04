@@ -56,7 +56,7 @@ export function SimilarContent({
           ) : (
             <ol className="flex flex-col gap-2.5">
               {data.shows.map((s) => (
-                <ShowRowCompact key={s.id} show={s} />
+                <ShowRowCompact key={s.id} show={s} glass />
               ))}
             </ol>
           )}
