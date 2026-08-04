@@ -10,74 +10,89 @@ import { usePathname } from "next/navigation";
  * tab); Settings folded into Discovery. Sits under the preview player, above
  * everything else.
  *
- * Wavr is the one tab that is red even when INACTIVE (§1.2 of
- * docs/wavr-route-design.md): the accent already marks the active tab, so
- * "make Wavr stand out in red" can only mean carrying the accent while the
- * others are zinc. Only the glyph is tinted — #ff3b30 on white is 3.68:1,
- * fine for a graphic but short of AA for a 10px label, so labels stay neutral.
+ * Wavr — already "the loud tab" (always red, even inactive; §1.2 of
+ * docs/wavr-route-design.md) — gets the CYLTabBarController-style
+ * treatment: a raised circular button poking above the bar's own top edge,
+ * rather than a third flat icon+label tab. Discovery and Library stay flat.
  */
-const TABS = [
+const SIDE_TABS = [
   { href: "/", label: "Discovery", icon: CompassIcon, match: (p: string) => p === "/" },
-  {
-    href: "/wavr",
-    label: "Wavr",
-    icon: WavrIcon,
-    match: (p: string) => p.startsWith("/wavr"),
-    /** Always-red treatment; see the note above. */
-    signal: true,
-  },
   { href: "/library", label: "Library", icon: LibraryIcon, match: (p: string) => p.startsWith("/library") },
 ];
 
+function SideTab({ tab }: { tab: (typeof SIDE_TABS)[number] }) {
+  const pathname = usePathname();
+  const active = tab.match(pathname);
+  const Icon = tab.icon;
+  return (
+    <li className="flex-1">
+      <Link
+        href={tab.href}
+        aria-current={active ? "page" : undefined}
+        className="group flex flex-col items-center gap-1 py-2.5 font-brand text-[10px] uppercase tracking-[0.14em]"
+      >
+        <Icon
+          className={`h-5 w-5 transition-colors ${
+            active ? "text-accent" : "text-muted-foreground group-hover:text-foreground"
+          }`}
+          active={active}
+        />
+        <span
+          className={`transition-colors ${
+            active ? "text-accent" : "text-muted-foreground group-hover:text-foreground"
+          }`}
+        >
+          {tab.label}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 export function TabBar() {
   const pathname = usePathname();
+  const wavrActive = pathname.startsWith("/wavr");
   return (
     <nav
       aria-label="Primary"
       className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-surface-border bg-background/90 backdrop-blur"
     >
       <ul className="mx-auto flex max-w-md items-stretch justify-around">
-        {TABS.map((t) => {
-          const active = t.match(pathname);
-          const Icon = t.icon;
-          const signal = "signal" in t && t.signal === true;
-          return (
-            <li key={t.href} className="flex-1">
-              <Link
-                href={t.href}
-                aria-current={active ? "page" : undefined}
-                className="group flex flex-col items-center gap-1 py-2.5 font-brand text-[10px] uppercase tracking-[0.14em]"
-              >
-                <Icon
-                  className={`h-5 w-5 transition-colors ${
-                    signal
-                      ? active
-                        ? "text-accent"
-                        : "text-accent/60 group-hover:text-accent"
-                      : active
-                        ? "text-accent"
-                        : "text-muted-foreground group-hover:text-foreground"
-                  }`}
-                  active={active}
-                />
-                <span
-                  className={`transition-colors ${
-                    active ? "text-accent" : "text-muted-foreground group-hover:text-foreground"
-                  }`}
-                >
-                  {t.label}
-                </span>
-                {/* rendered on every tab so the bar keeps a single height */}
-                <span
-                  aria-hidden
-                  className={`h-[3px] w-[3px] rounded-full ${
-                    active && signal ? "bg-accent" : "bg-transparent"
-                  }`}
-                />
-              </Link>
-            </li>
-          );
-        })}
+        <SideTab tab={SIDE_TABS[0]} />
+
+        {/* The middle slot is a plain flex-1 spacer in normal flow (keeps
+            Discovery/Library correctly spaced, and Wavr in DOM order
+            between them); the actual button breaks out of flow via
+            `absolute` so it can rise above the bar's top edge — a clean,
+            robust web approximation of CYLTabBarController's convex
+            centre button (no literal notch cut into the bar's own shape). */}
+        <li className="relative flex-1">
+          <Link
+            href="/wavr"
+            aria-current={wavrActive ? "page" : undefined}
+            aria-label="Wavr"
+            // -translate-y-[38%] pokes it above the bar without reaching
+            // far enough to collide with the Play bar (PreviewPlayer,
+            // z-45) that floats just above when one is up.
+            className="absolute inset-x-0 top-0 flex -translate-y-[38%] flex-col items-center gap-1"
+          >
+            <span
+              className={`nothing-circle h-14 w-14 border-2 shadow-lg ${wavrActive ? "scale-105" : ""}`}
+              style={{ background: "var(--accent)", borderColor: "var(--background)", color: "#fff" }}
+            >
+              <WavrIcon className="h-6 w-6" active={wavrActive} />
+            </span>
+            <span
+              className={`font-brand text-[10px] uppercase tracking-[0.14em] transition-colors ${
+                wavrActive ? "text-accent" : "text-accent/70"
+              }`}
+            >
+              Wavr
+            </span>
+          </Link>
+        </li>
+
+        <SideTab tab={SIDE_TABS[1]} />
       </ul>
     </nav>
   );
