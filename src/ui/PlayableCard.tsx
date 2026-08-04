@@ -17,12 +17,20 @@ export function PlayableCard({
   playLabel,
   className = "",
   style,
+  dragHandleProps,
   children,
 }: {
   onPlay: () => void;
   playLabel: string;
   className?: string;
   style?: React.CSSProperties;
+  /** Spread dnd-kit's `{...attributes, ...listeners}` here to make the
+   *  WHOLE card a drag source — pairs with a delay-based (not
+   *  distance-based) PointerSensor activationConstraint upstream, so a
+   *  quick tap still reaches `onClick` below (release-before-delay aborts
+   *  the drag gesture) while a press-and-hold picks the card up from
+   *  anywhere on it, with no separate grip affordance needed. */
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   children: ReactNode;
 }) {
   return (
@@ -32,7 +40,8 @@ export function PlayableCard({
           type="button"
           aria-label={playLabel}
           onClick={onPlay}
-          className="absolute inset-0 rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          {...dragHandleProps}
+          className="absolute inset-0 touch-none rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         />
         {children}
       </Card>

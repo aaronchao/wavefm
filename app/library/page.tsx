@@ -487,14 +487,26 @@ function LibraryShowCard({
         // a single row rather than wrapping taller).
         className="glass-panel h-32 cursor-pointer overflow-hidden !rounded-[1.75rem] shadow-lg"
       >
-        <CoverPlay
-          src={show.coverUrl}
-          size={56}
-          onPlay={() => previewShow(show)}
-          label={`Play a snippet of ${show.title}`}
-          className="relative z-10 !rounded-[2px]"
-        />
-        <div className="min-w-0 flex-1">
+        {/* Cover + tag column — tags live under the cover, not stacked
+            inline with the title text. */}
+        <div className="relative z-10 flex shrink-0 flex-col items-center gap-1">
+          <CoverPlay
+            src={show.coverUrl}
+            size={72}
+            onPlay={() => previewShow(show)}
+            label={`Play a snippet of ${show.title}`}
+            className="!rounded-2xl"
+          />
+          <InlineTagInput
+            tags={tags}
+            onAdd={(t) => void addShowTag(show.id, t).then(onTagsChanged)}
+            onRemove={(t) => void removeShowTag(show.id, t).then(onTagsChanged)}
+            className="w-24"
+          />
+        </div>
+        {/* justify-center vertically centers this block against the
+            (taller) cover+tag column instead of pinning to the top. */}
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
           <p className="font-brand line-clamp-2 font-bold leading-snug">
             {linkable ? (
               <Link
@@ -519,12 +531,7 @@ function LibraryShowCard({
             feedUrl={show.feedUrl}
             stored={show.platformLinks}
             showId={show.id}
-            className="relative z-10 mt-1.5"
-          />
-          <InlineTagInput
-            tags={tags}
-            onAdd={(t) => void addShowTag(show.id, t).then(onTagsChanged)}
-            onRemove={(t) => void removeShowTag(show.id, t).then(onTagsChanged)}
+            className="relative z-10"
           />
         </div>
         <button
@@ -608,9 +615,15 @@ function EpisodesColumn({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- signals are the intentional trigger
   }, [inboxSignal, queueSignal]);
 
-  // A short activation distance so a plain tap (to open the preview player)
-  // doesn't get eaten as an accidental drag start.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  // A delay (not distance) activation — the whole card is now both the
+  // play target AND the drag source (no separate grip handle), so a quick
+  // tap must always reach onPlay. A held press past the delay picks the
+  // card up from anywhere on it; moving more than `tolerance` before the
+  // delay elapses cancels activation so a scroll gesture that starts on a
+  // card doesn't get eaten as a drag either.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
 
   if (loading) return <p className="text-zinc-500">Loading…</p>;
   if (inbox.length === 0 && queue.length === 0 && archived.length === 0) {

@@ -12,10 +12,12 @@ export function InlineTagInput({
   tags,
   onAdd,
   onRemove,
+  className = "",
 }: {
   tags: string[];
   onAdd: (tag: string) => void;
   onRemove: (tag: string) => void;
+  className?: string;
 }) {
   const [draft, setDraft] = useState("");
   // Optimistic echo: a just-added tag shows (and is written) immediately,
@@ -49,7 +51,7 @@ export function InlineTagInput({
     // card grid; scrolling sideways keeps every card's height the same
     // regardless of tag count, without hiding any tag.
     <div
-      className="relative z-10 mt-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto"
+      className={`relative z-10 flex flex-nowrap items-center gap-1 overflow-x-auto ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       {uniqueTags.map((t) => (

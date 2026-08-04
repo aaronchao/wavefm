@@ -127,8 +127,9 @@ export function EpisodeCard({
       <PlayableCard
         onPlay={play}
         playLabel={`Preview ${episode.title}`}
+        dragHandleProps={disabled ? undefined : { ...attributes, ...listeners }}
         style={jiggle ? ({ "--jiggle-delay": `${jiggleDelayMs(episode.episodeId)}ms` } as CSSProperties) : undefined}
-        className={`glass-panel h-36 cursor-pointer overflow-hidden !rounded-[1.75rem] shadow-lg ${finished ? "opacity-60" : ""} ${
+        className={`glass-panel h-32 cursor-pointer overflow-hidden !rounded-[1.75rem] shadow-lg ${finished ? "opacity-60" : ""} ${
           jiggle ? "jiggle" : ""
         }`}
       >
@@ -142,34 +143,26 @@ export function EpisodeCard({
             className="snap-pulse pointer-events-none absolute inset-0 rounded-[2px]"
           />
         )}
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          disabled={disabled}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={
-            disabled
-              ? "Clear the tag filter to drag and reorder"
-              : `Drag to reorder ${episode.title}`
-          }
-          title={disabled ? "Clear the tag filter to drag and reorder" : "Drag to move"}
-          className={`relative z-10 flex shrink-0 touch-none items-center self-stretch px-0.5 dark:text-zinc-600 ${
-            disabled
-              ? "cursor-not-allowed text-zinc-200 dark:text-zinc-800"
-              : "cursor-grab text-zinc-300 hover:text-zinc-500 active:cursor-grabbing dark:hover:text-muted-foreground"
-          }`}
-        >
-          <GripIcon className="h-4 w-4" />
-        </button>
-        <CoverPlay
-          src={episode.coverUrl}
-          size={56}
-          onPlay={play}
-          label={`Play a snippet of ${episode.title}`}
-          className="relative z-10 !rounded-[2px]"
-        />
-        <div className="min-w-0 flex-1">
+        {/* Cover + tag column — the tag row lives here, under the cover,
+            instead of stacked inline with the title text. */}
+        <div className="relative z-10 flex shrink-0 flex-col items-center gap-1">
+          <CoverPlay
+            src={episode.coverUrl}
+            size={72}
+            onPlay={play}
+            label={`Play a snippet of ${episode.title}`}
+            className="!rounded-2xl"
+          />
+          <InlineTagInput
+            tags={tags}
+            onAdd={(t) => void addEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
+            onRemove={(t) => void removeEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
+            className="w-24"
+          />
+        </div>
+        {/* justify-center vertically centers this block against the
+            (taller) cover+tag column instead of pinning to the top. */}
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
           {episode.showId ? (
             <Link
               href={`/show/${episode.showId}`}
@@ -204,12 +197,7 @@ export function EpisodeCard({
             appleUrl={episode.appleUrl}
             feedUrl={feedUrl}
             showId={episode.showId}
-            className="relative z-10 mt-1.5"
-          />
-          <InlineTagInput
-            tags={tags}
-            onAdd={(t) => void addEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
-            onRemove={(t) => void removeEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
+            className="relative z-10"
           />
         </div>
         <div className="relative z-10 flex shrink-0 flex-col items-center gap-1">
