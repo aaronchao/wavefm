@@ -83,23 +83,27 @@ export async function regenerateFeedToken(): Promise<string | null> {
   return error ? null : feed_token;
 }
 
+export type ShareInfo = { token: string | null; slug: string | null };
+
 /**
- * The public "share your Queue" page's token. Opt-in and off by default
- * (unlike feed_token, which is always generated) — null means sharing is
- * off and no public page resolves for this user. Supabase-only, same
- * reasoning as the feed token: a public link needs a stable server-side
- * identity to resolve against.
+ * The public "share your Queue" page's identity. Opt-in and off by
+ * default (unlike feed_token, which is always generated) — a null token
+ * means sharing is off and no public page resolves for this user.
+ * `slug` is the optional human-chosen name (`/u/my-name`); when unset the
+ * public URL falls back to the raw token. Supabase-only, same reasoning
+ * as the feed token: a public link needs a stable server-side identity.
  */
-export async function getShareToken(): Promise<string | null> {
+export async function getShareInfo(): Promise<ShareInfo> {
   const sb = getSupabase();
   const userId = await currentUserId();
-  if (!sb || !userId) return null;
+  if (!sb || !userId) return { token: null, slug: null };
   const { data } = await sb
     .from("prefs")
-    .select("share_token")
+    .select("share_token, share_slug")
     .eq("user_id", userId)
     .maybeSingle();
-  return (data as { share_token?: string | null } | null)?.share_token ?? null;
+  const row = data as { share_token?: string | null; share_slug?: string | null } | null;
+  return { token: row?.share_token ?? null, slug: row?.share_slug ?? null };
 }
 
 /** Turns sharing on (or rotates the link if it leaked) and returns the new token. */
@@ -114,14 +118,49 @@ export async function enableSharing(): Promise<string | null> {
   return error ? null : share_token;
 }
 
-/** Turns sharing off — the public page immediately 404s for this user. */
+/** Turns sharing off — the public page immediately 404s for this user.
+ *  Clears any custom name too, so it's free for someone else to claim
+ *  rather than staying reserved by a link that no longer works. */
 export async function disableSharing(): Promise<void> {
   const sb = getSupabase();
   const userId = await currentUserId();
   if (!sb || !userId) return;
   await sb
     .from("prefs")
-    .upsert({ user_id: userId, share_token: null, updated_at: new Date().toISOString() });
+    .upsert({ user_id: userId, share_token: null, share_slug: null, updated_at: new Date().toISOString() });
+}
+
+const SLUG_PATTERN = /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/;
+
+/**
+ * Names (or renames) the public share link. Validated client-side against
+ * the same pattern the DB enforces (`prefs_share_slug_format`), so an
+ * obviously-invalid name never round-trips just to fail. A name already
+ * taken by another account surfaces as a friendly "taken" error (Postgres
+ * unique-violation, code 23505) rather than a generic failure — the
+ * caller re-prompts for a different name.
+ */
+export async function setShareSlug(
+  raw: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const slug = raw.trim().toLowerCase();
+  if (!SLUG_PATTERN.test(slug)) {
+    return {
+      ok: false,
+      error: "2-40 characters: lowercase letters, numbers, and hyphens only, no leading/trailing hyphen.",
+    };
+  }
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (!sb || !userId) return { ok: false, error: "Sign in to name your link." };
+  const { error } = await sb
+    .from("prefs")
+    .upsert({ user_id: userId, share_slug: slug, updated_at: new Date().toISOString() });
+  if (!error) return { ok: true };
+  if (error.code === "23505") {
+    return { ok: false, error: "That name is taken — try another." };
+  }
+  return { ok: false, error: "Couldn't save that name — try again." };
 }
 
 export async function setInterests(interests: string[]): Promise<void> {

@@ -31,8 +31,9 @@ import {
   disableSharing,
   enableSharing,
   getFeedToken,
-  getShareToken,
+  getShareInfo,
   regenerateFeedToken,
+  setShareSlug,
 } from "@/src/data/repos/prefsRepo";
 import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
 import { rankForIndex } from "@/src/core/queue/rank";
@@ -55,7 +56,7 @@ import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewShow } from "@/src/features/player/preview";
 import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
-import { CoverTile, haptic, NothingToggle, PlayableCard } from "@/src/ui";
+import { CoverTile, haptic, LiquidBackdrop, NothingToggle, PlayableCard } from "@/src/ui";
 
 /**
  * Library: the collection system, a single 2-column grid — Shows beside
@@ -145,6 +146,7 @@ export default function LibraryPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl p-4 pb-[calc(14rem+env(safe-area-inset-bottom))] sm:p-8 sm:pb-[calc(14rem+env(safe-area-inset-bottom))]">
+      <LiquidBackdrop />
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-brand text-2xl font-bold">Library</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -479,11 +481,11 @@ function LibraryShowCard({
       <PlayableCard
         onPlay={() => previewShow(show)}
         playLabel={`Preview ${show.title}`}
-        // Show identity: sharp corners, square cover — Nothing-brand. Fixed
-        // height so every Show card in the grid reads as identical size,
-        // regardless of title length or tag count (tags/links already
-        // scroll horizontally in a single row rather than wrapping taller).
-        className="h-32 cursor-pointer overflow-hidden !rounded-[2px]"
+        // Liquid Glass card, organic curve — fixed height so every Show
+        // card in the grid reads as identical size, regardless of title
+        // length or tag count (tags/links already scroll horizontally in
+        // a single row rather than wrapping taller).
+        className="glass-panel h-32 cursor-pointer overflow-hidden !rounded-[1.75rem] shadow-lg"
       >
         <CoverPlay
           src={show.coverUrl}
@@ -843,15 +845,15 @@ function DragPreviewCard({ episode }: { episode: SavedEpisode }) {
   // above everything else with a real shadow — distinct from the flat list
   // rows it's hovering over.
   return (
-    <div className="flex w-full max-w-md scale-105 rotate-2 items-center gap-3 rounded-[2px] border border-accent bg-background p-3 shadow-2xl">
+    <div className="glass-panel flex w-full max-w-md scale-105 rotate-2 items-center gap-3 !rounded-[1.75rem] p-3 shadow-2xl">
       <span className="shrink-0 text-zinc-300">
         <GripIcon className="h-4 w-4" />
       </span>
-      <CoverTile src={episode.coverUrl} size={48} className="!rounded-[2px]" />
+      <CoverTile src={episode.coverUrl} size={48} className="!rounded-2xl" />
       <div className="min-w-0 flex-1">
         <p className="line-clamp-2 font-semibold leading-snug">{episode.title}</p>
         {episode.showTitle && (
-          <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
+          <p className="line-clamp-1 text-sm text-muted-foreground">{episode.showTitle}</p>
         )}
       </div>
     </div>
@@ -952,25 +954,32 @@ function FeedSyncPanel({ signedIn }: { signedIn: boolean }) {
  * instead of always-present. Signed-in only, for the same reason.
  */
 function SharePanel({ signedIn }: { signedIn: boolean }) {
-  const tokenQ = useQuery({
-    queryKey: ["shareToken"],
-    queryFn: getShareToken,
+  const infoQ = useQuery({
+    queryKey: ["shareInfo"],
+    queryFn: getShareInfo,
     enabled: signedIn,
   });
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [naming, setNaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   if (!signedIn) return null;
-  const token = tokenQ.data;
-  const url = token
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/u/${token}`
-    : null;
+  const token = infoQ.data?.token ?? null;
+  const slug = infoQ.data?.slug ?? null;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const url = token ? `${origin}/u/${slug ?? token}` : null;
+
+  function refresh() {
+    return queryClient.invalidateQueries({ queryKey: ["shareInfo"] });
+  }
 
   async function enable() {
     setBusy(true);
     await enableSharing();
-    await queryClient.invalidateQueries({ queryKey: ["shareToken"] });
+    await refresh();
     setBusy(false);
   }
 
@@ -978,8 +987,19 @@ function SharePanel({ signedIn }: { signedIn: boolean }) {
     if (!window.confirm("Turn off sharing? The current link will stop working immediately.")) return;
     setBusy(true);
     await disableSharing();
-    await queryClient.invalidateQueries({ queryKey: ["shareToken"] });
+    await refresh();
     setBusy(false);
+  }
+
+  async function saveName() {
+    setNameError(null);
+    const result = await setShareSlug(nameDraft);
+    if (!result.ok) {
+      setNameError(result.error); // dupe or invalid — re-prompt with the reason, draft stays editable
+      return;
+    }
+    setNaming(false);
+    await refresh();
   }
 
   async function copy() {
@@ -994,39 +1014,76 @@ function SharePanel({ signedIn }: { signedIn: boolean }) {
   }
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[2px] border border-dashed border-surface-border px-3 py-2 text-xs text-zinc-500">
-      <span className="font-brand shrink-0 uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
-        Share your Queue
-      </span>
-      {url ? (
-        <>
-          <span className="min-w-0 flex-1 truncate">{url}</span>
-          <button type="button" onClick={copy} className="nothing-toggle shrink-0 px-2 py-1 text-[11px]">
-            {copied ? "Copied ✓" : "Copy link"}
+    <div className="mb-4 flex flex-col gap-2 rounded-[2px] border border-dashed border-surface-border px-3 py-2 text-xs text-zinc-500">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-brand shrink-0 uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
+          Share your Queue
+        </span>
+        {url ? (
+          <>
+            <span className="min-w-0 flex-1 truncate">{url}</span>
+            <button type="button" onClick={copy} className="nothing-toggle shrink-0 px-2 py-1 text-[11px]">
+              {copied ? "Copied ✓" : "Copy link"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNameDraft(slug ?? "");
+                setNameError(null);
+                setNaming((v) => !v);
+              }}
+              className="shrink-0 text-muted-foreground underline hover:text-foreground"
+            >
+              {slug ? "Rename" : "Name this link"}
+            </button>
+            <button
+              type="button"
+              onClick={disable}
+              disabled={busy}
+              className="shrink-0 text-muted-foreground underline hover:text-foreground disabled:opacity-40"
+            >
+              Turn off
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="min-w-0 flex-1 truncate">
+              Off by default — turn on to get a public link to your current Queue.
+            </span>
+            <button
+              type="button"
+              onClick={enable}
+              disabled={busy}
+              className="nothing-toggle shrink-0 px-2 py-1 text-[11px] disabled:opacity-40"
+            >
+              Turn on
+            </button>
+          </>
+        )}
+      </div>
+      {naming && (
+        <div className="flex flex-wrap items-center gap-2 pl-1">
+          <span className="shrink-0 text-muted-foreground">{`${origin}/u/`}</span>
+          <input
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void saveName()}
+            placeholder="your-name"
+            autoFocus
+            className="w-40 rounded-[2px] border border-surface-border bg-background px-2 py-1 text-xs text-foreground focus:border-foreground focus:outline-none"
+          />
+          <button type="button" onClick={() => void saveName()} className="nothing-toggle shrink-0 px-2 py-1 text-[11px]">
+            Save name
           </button>
           <button
             type="button"
-            onClick={disable}
-            disabled={busy}
-            className="shrink-0 text-muted-foreground underline hover:text-foreground disabled:opacity-40"
+            onClick={() => setNaming(false)}
+            className="shrink-0 text-muted-foreground underline hover:text-foreground"
           >
-            Turn off
+            Cancel
           </button>
-        </>
-      ) : (
-        <>
-          <span className="min-w-0 flex-1 truncate">
-            Off by default — turn on to get a public link to your current Queue.
-          </span>
-          <button
-            type="button"
-            onClick={enable}
-            disabled={busy}
-            className="nothing-toggle shrink-0 px-2 py-1 text-[11px] disabled:opacity-40"
-          >
-            Turn on
-          </button>
-        </>
+          {nameError && <span className="w-full text-accent">{nameError}</span>}
+        </div>
       )}
     </div>
   );

@@ -128,7 +128,7 @@ export function EpisodeCard({
         onPlay={play}
         playLabel={`Preview ${episode.title}`}
         style={jiggle ? ({ "--jiggle-delay": `${jiggleDelayMs(episode.episodeId)}ms` } as CSSProperties) : undefined}
-        className={`h-36 cursor-pointer overflow-hidden !rounded-[2px] ${finished ? "opacity-60" : ""} ${
+        className={`glass-panel h-36 cursor-pointer overflow-hidden !rounded-[1.75rem] shadow-lg ${finished ? "opacity-60" : ""} ${
           jiggle ? "jiggle" : ""
         }`}
       >

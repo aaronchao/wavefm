@@ -49,6 +49,11 @@ export type PrefsRow = {
    *  until the user explicitly enables sharing (unlike feed_token, which
    *  defaults to always-present since that feed is private-by-obscurity). */
   share_token?: string | null;
+  /** Optional human-chosen replacement for share_token in the public URL
+   *  (`/u/my-name` instead of `/u/<uuid>`) — unique, lowercase
+   *  alphanumeric + hyphens (DB-enforced via a check constraint). Null
+   *  until named; falls back to share_token in the URL until then. */
+  share_slug?: string | null;
   updated_at: string;
 };
 
