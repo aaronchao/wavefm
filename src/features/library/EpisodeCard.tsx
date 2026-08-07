@@ -9,6 +9,7 @@ import { addEpisodeTag, removeEpisodeTag } from "@/src/data/repos/episodeTagsRep
 import { updateEpisodeProgress, type SavedEpisode } from "@/src/data/repos/savedEpisodesRepo";
 import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode } from "@/src/features/player/preview";
+import { recordHandoff } from "@/src/data/repos/handoffRepo";
 import { NothingToggle, PlayableCard } from "@/src/ui";
 import { springs } from "@/src/ui/tokens";
 import { InlineTagInput } from "./InlineTagInput";
@@ -186,12 +187,16 @@ export function EpisodeCard({
             {resume ? ` · ${resume}` : ""}
             {episode.appleUrl ? "" : " · preview only"}
           </p>
+          {/* Opening a platform link IS the handoff: from here the episode
+              plays somewhere WaveFM can't observe, so onOpen's timestamp is
+              all the auto-retire heuristic gets (src/core/library/autoRetire). */}
           <OpenInLinks
             title={episode.showTitle ? `${episode.showTitle} ${episode.title}` : episode.title}
             showTitle={episode.showTitle}
             appleUrl={episode.appleUrl}
             audioUrl={episode.audioUrl}
             feedUrl={feedUrl}
+            onOpen={() => recordHandoff(episode.episodeId)}
             showId={episode.showId}
             className="relative z-10"
           />

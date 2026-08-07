@@ -133,13 +133,17 @@ test("queue an episode for later, then it appears in the Library", async ({ page
   ).toBeVisible();
 
   await page.goto("/library");
-  // The saved episode shows up twice, by design: once as Right Now's pick
-  // for the current slot, and once in the saved-episodes list below it.
+  // Right Now stays open — it answers "what do I play?", which is why the
+  // Library gets opened — so the saved episode surfaces there immediately.
+  const rightNow = page.getByRole("region").filter({ hasText: "Right now" });
+  await expect(rightNow.getByText("Ep 12: Attachment styles")).toBeVisible();
+
+  // The full list is collapsed by default now; expanding it shows the same
+  // episode again, this time as a link into its show.
+  await page.getByRole("button", { name: /Saved episodes/i }).click();
   await expect(
     page.getByRole("link", { name: "Ep 12: Attachment styles" }),
   ).toBeVisible();
-  const rightNow = page.getByRole("region").filter({ hasText: "Right now" });
-  await expect(rightNow.getByText("Ep 12: Attachment styles")).toBeVisible();
 });
 
 test("degraded Top Picks hides the section but the home page still renders", async ({ page }) => {
@@ -858,9 +862,16 @@ test("/wavr: tapping a tag with no existing match fetches and jumps to fresh car
   await expect(page.getByRole("heading", { name: "Freshly fetched comedy card" })).toBeVisible();
 });
 
-test("library offers OPML import and export", async ({ page }) => {
+test("library leads with saved shows; tools live behind collapsed sections", async ({ page }) => {
   await stub(page);
   await page.goto("/library");
+
+  // The mobile-first point of the page: the management tools no longer sit
+  // open above the user's own content — they're one tap away, not gone.
+  await expect(page.getByRole("button", { name: "Import OPML" })).toHaveCount(0);
+  const sync = page.getByRole("button", { name: /Sync & export/i });
+  await expect(sync).toBeVisible();
+  await sync.click();
   await expect(page.getByRole("button", { name: "Import OPML" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Export OPML" })).toBeVisible();
 });

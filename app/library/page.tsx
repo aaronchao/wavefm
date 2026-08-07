@@ -19,12 +19,15 @@ import { useEffect, useRef, useState } from "react";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { getRankedEpisodes, getShow } from "@/src/data/catalog/client";
 import { listEpisodeTags, type EpisodeTagMap } from "@/src/data/repos/episodeTagsRepo";
+import { episodesToRetire } from "@/src/core/library/autoRetire";
+import { clearHandoff, listHandoffs } from "@/src/data/repos/handoffRepo";
 import {
   listSavedEpisodes,
   removeEpisode,
   saveEpisode,
   setEpisodeBucket,
   syncFromGpodder,
+  updateEpisodeProgress,
   type SavedEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
 import {
@@ -47,6 +50,8 @@ import {
 } from "@/src/data/repos/showTagsRepo";
 import { renameTagEverywhere } from "@/src/data/repos/tagsRepo";
 import { BulkYoutubeMusicButton } from "@/src/features/library/BulkYoutubeMusicButton";
+import { CollapsibleSection } from "@/src/features/library/CollapsibleSection";
+import { ShowGrid } from "@/src/features/library/ShowGrid";
 import { EpisodeCard, GripIcon } from "@/src/features/library/EpisodeCard";
 import { ExportOpmlButton } from "@/src/features/library/ExportOpmlButton";
 import { ImportOpmlButton } from "@/src/features/library/ImportOpmlButton";
@@ -130,6 +135,33 @@ export default function LibraryPage() {
   // queue, so this only ever sees rows created before that change — promote
   // them once, on load, rather than stranding them in a bucket nothing
   // renders any more. Guarded by a ref so a refetch can't re-fire it.
+  // Auto-retire: an episode handed off to an external player, whose full
+  // run time plus a grace margin has since passed, is almost certainly done.
+  // Marking it finished drops it out of Right Now and off the "to play" pile
+  // without the user having to tell WaveFM something it could infer. Runs
+  // once per mount, guarded, and only ever sets `finished` — a status the
+  // user can flip back from the card, so a wrong guess costs one tap.
+  const retiredRef = useRef(false);
+  useEffect(() => {
+    if (retiredRef.current || episodes.length === 0) return;
+    const handoffs = listHandoffs();
+    if (Object.keys(handoffs).length === 0) return;
+    retiredRef.current = true;
+
+    const withHandoff = episodes.map((e) => ({ ...e, openedAt: handoffs[e.episodeId] }));
+    const due = episodesToRetire(withHandoff, Date.now());
+    if (due.length === 0) return;
+
+    void Promise.all(
+      due.map((e) =>
+        updateEpisodeProgress(e.episodeId, { status: "finished" }).then(() =>
+          clearHandoff(e.episodeId),
+        ),
+      ),
+    ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one pass per mount
+  }, [episodes.length]);
+
   const legacyInbox = episodes.filter((e) => e.bucket === "inbox");
   const promotedRef = useRef(false);
   useEffect(() => {
@@ -162,32 +194,25 @@ export default function LibraryPage() {
   return (
     <main className="mx-auto w-full max-w-5xl p-4 pb-[calc(14rem+env(safe-area-inset-bottom))] sm:p-8 sm:pb-[calc(14rem+env(safe-area-inset-bottom))]">
       <LiquidBackdrop />
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+      {/* Saved shows lead, and on a phone they're the only thing above the
+          fold. Everything else — the copy, the three sync panels, the tag
+          rail, the episode list — used to sit open above them, which is
+          screens of text to scroll past before reaching your own content.
+          They're all still here, one tap away, just not shouting. */}
+      <div className="mb-1 flex items-center justify-between gap-3">
         <h1 className="font-brand text-2xl font-bold">Library</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <ImportOpmlButton />
-          <ExportOpmlButton />
-          <BulkYoutubeMusicButton />
-        </div>
       </div>
-      <p className="mb-4 text-zinc-500">
-        Shows you follow and episodes saved for later — synced when signed in.
-      </p>
 
-      {/* Answering "what do I play?" comes before any of the management
-          chrome — that's the job the Library actually gets opened for. */}
+      <section className="mt-3">
+        <ShowGrid saved={visibleSaved} loading={savedQ.isLoading} filtered={Boolean(tag)} />
+      </section>
+
+      {/* Answering "what do I play?" is the other reason the Library gets
+          opened, so it sits directly under the covers — open by default,
+          unlike the management tools below it. */}
       <RightNow episodes={episodes} />
 
-      <FeedSyncPanel signedIn={signedIn} />
-      <SharePanel signedIn={signedIn} />
-      <GpodderSyncPanel />
-
-      <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
-
-      {/* One list of saved episodes (Archived tucked below), then Shows —
-          the long reference list — in its own section underneath. */}
-      <section>
-        <ColumnHeading count={visibleEpisodes.length}>Saved episodes</ColumnHeading>
+      <CollapsibleSection id="episodes" title="Saved episodes" count={visibleEpisodes.length}>
         <EpisodesColumn
           queue={queueEpisodes}
           archived={archivedEpisodes}
@@ -197,10 +222,10 @@ export default function LibraryPage() {
           onTagsChanged={invalidateTags}
           showFeedById={showFeedById}
         />
-      </section>
+      </CollapsibleSection>
 
-      <section className="mt-10">
-        <ColumnHeading count={visibleSaved.length}>Shows</ColumnHeading>
+      <CollapsibleSection id="tags" title="Tags & show details" count={visibleSaved.length}>
+        <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
         <ShowsColumn
           saved={visibleSaved}
           tagMap={showTagMap}
@@ -208,25 +233,24 @@ export default function LibraryPage() {
           filtered={Boolean(tag)}
           onTagsChanged={invalidateTags}
         />
-      </section>
+      </CollapsibleSection>
+
+      <CollapsibleSection id="sync" title="Sync & export">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportOpmlButton />
+            <ExportOpmlButton />
+            <BulkYoutubeMusicButton />
+          </div>
+          <FeedSyncPanel signedIn={signedIn} />
+          <SharePanel signedIn={signedIn} />
+          <GpodderSyncPanel />
+        </div>
+      </CollapsibleSection>
     </main>
   );
 }
 
-function ColumnHeading({
-  children,
-  count,
-}: {
-  children: React.ReactNode;
-  count: number;
-}) {
-  return (
-    <h2 className="font-brand mb-3 flex items-baseline gap-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
-      {children}
-      <span className="text-[11px] tracking-[0.2em] text-muted-foreground">{count}</span>
-    </h2>
-  );
-}
 
 /**
  * Horizontal, scrollable rail of the user's own tags — the Library filter.

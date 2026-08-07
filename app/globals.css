@@ -212,6 +212,156 @@ body {
     0 8px 32px rgb(0 0 0 / 0.5);
 }
 
+/* ---------------------------------------------------------------------
+   .glass-card — the Apple-quality Liquid Glass card.
+
+   `.glass-panel` above is a flat frosted sheet: blur, a diagonal wash, and
+   an inset hairline. That reads as frosted plastic. Real glass differs in
+   three ways this class adds:
+
+   1. REFRACTION. Light bends more where glass is thickest — the rim. The
+      ::after layer stacks a second backdrop-filter masked to the outer
+      band only, so the background visibly compresses and brightens toward
+      the edge instead of blurring uniformly.
+   2. EDGE HIGHLIGHTS with a light DIRECTION. A uniform inset hairline
+      looks printed on. The ::before ring is a conic gradient keyed to a
+      light source at the top-left, so the rim is bright where light
+      strikes, dim on the shadowed flank, with a weaker caustic bounce
+      opposite — the cue that actually reads as a bevelled edge.
+   3. SQUIRCLE geometry. `border-radius` is a circular arc, which meets the
+      straight edge with a visible curvature jump. Apple uses a
+      superellipse, where curvature eases in continuously. `corner-shape`
+      does this natively; without it the card degrades to a plain rounded
+      rect, which is merely less refined, not broken.
+
+   Kept as CSS (not per-card JS) so it costs nothing per card — the Library
+   renders many at once.
+   --------------------------------------------------------------------- */
+.glass-card {
+  position: relative;
+  isolation: isolate;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.30), rgb(255 255 255 / 0.04) 48%, rgb(255 255 255 / 0.14) 100%),
+    rgb(255 255 255 / 0.10);
+  backdrop-filter: blur(18px) saturate(185%);
+  -webkit-backdrop-filter: blur(18px) saturate(185%);
+  box-shadow:
+    /* specular top edge, then the shaded underside */
+    inset 0 1px 0.5px rgb(255 255 255 / 0.65),
+    inset 0 -1px 0.5px rgb(0 0 0 / 0.10),
+    /* contact shadow tight to the card, then the soft ambient one */
+    0 1px 2px rgb(0 0 0 / 0.10),
+    0 12px 28px -10px rgb(0 0 0 / 0.30);
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 220ms ease;
+}
+
+/* True squircle where the browser supports it. */
+@supports (corner-shape: superellipse(4)) {
+  .glass-card,
+  .glass-card::before,
+  .glass-card::after {
+    corner-shape: superellipse(4);
+  }
+}
+
+/* (2) Directional edge highlight — a 1px ring, not a border, so the
+   gradient can vary around the perimeter. Masked to the ring itself with
+   the standard two-layer xor trick. */
+.glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 1.1px;
+  background: conic-gradient(
+    from 200deg,
+    rgb(255 255 255 / 0) 0deg,
+    rgb(255 255 255 / 0.7) 55deg,
+    rgb(255 255 255 / 0.12) 150deg,
+    rgb(255 255 255 / 0.45) 250deg,
+    rgb(255 255 255 / 0) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* (1) Rim refraction — extra blur + lift, faded in only near the edge. */
+.glass-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  backdrop-filter: blur(7px) brightness(1.08) saturate(120%);
+  -webkit-backdrop-filter: blur(7px) brightness(1.08) saturate(120%);
+  -webkit-mask: radial-gradient(115% 115% at 50% 50%, transparent 52%, #000 94%);
+  mask: radial-gradient(115% 115% at 50% 50%, transparent 52%, #000 94%);
+  pointer-events: none;
+}
+
+/* Card content must sit above both effect layers. */
+.glass-card > * {
+  position: relative;
+  z-index: 2;
+}
+
+:root[data-theme="dark"] .glass-card {
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.015) 48%, rgb(255 255 255 / 0.05) 100%),
+    rgb(22 22 27 / 0.42);
+  box-shadow:
+    inset 0 1px 0.5px rgb(255 255 255 / 0.20),
+    inset 0 -1px 0.5px rgb(0 0 0 / 0.45),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 12px 28px -10px rgb(0 0 0 / 0.65);
+}
+:root[data-theme="dark"] .glass-card::before {
+  background: conic-gradient(
+    from 200deg,
+    rgb(255 255 255 / 0) 0deg,
+    rgb(255 255 255 / 0.34) 55deg,
+    rgb(255 255 255 / 0.05) 150deg,
+    rgb(255 255 255 / 0.20) 250deg,
+    rgb(255 255 255 / 0) 360deg
+  );
+}
+
+/* Interactive: glass lifts toward the light on press. Pointer-only, so a
+   touch tap doesn't leave a card stuck in its hover state. */
+@media (hover: hover) {
+  .glass-card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 1px 0.5px rgb(255 255 255 / 0.75),
+      inset 0 -1px 0.5px rgb(0 0 0 / 0.10),
+      0 2px 4px rgb(0 0 0 / 0.10),
+      0 18px 36px -12px rgb(0 0 0 / 0.34);
+  }
+}
+.glass-card-interactive:active {
+  transform: translateY(0) scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-card,
+  .glass-card-interactive:hover,
+  .glass-card-interactive:active {
+    transition: none;
+    transform: none;
+  }
+}
+
 /* The vibrant, multi-color blurred wash a Liquid Glass surface needs
    behind it to actually read as glass — a blur over a flat single-color
    page background barely tints at all (reported: on a near-black page

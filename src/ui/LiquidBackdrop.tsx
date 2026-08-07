@@ -13,19 +13,19 @@ export function LiquidBackdrop() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-background">
       <div
-        className="liquid-blob absolute -left-32 -top-32 h-[38rem] w-[38rem] rounded-full bg-[#ff3b30]/40 blur-[110px] dark:bg-[#ff453a]/70"
+        className="liquid-blob absolute -left-32 -top-32 h-[38rem] w-[38rem] rounded-full bg-[#ff3b30]/22 blur-[120px] dark:bg-[#ff453a]/28"
         style={{ animationDelay: "-2s" }}
       />
       <div
-        className="liquid-blob absolute -right-24 top-1/4 h-[34rem] w-[34rem] rounded-full bg-sky-400/35 blur-[110px] dark:bg-sky-400/65"
+        className="liquid-blob absolute -right-24 top-1/4 h-[34rem] w-[34rem] rounded-full bg-sky-400/18 blur-[120px] dark:bg-sky-400/24"
         style={{ animationDelay: "-9s" }}
       />
       <div
-        className="liquid-blob absolute bottom-[-10rem] left-1/4 h-[32rem] w-[32rem] rounded-full bg-fuchsia-400/30 blur-[110px] dark:bg-fuchsia-500/60"
+        className="liquid-blob absolute bottom-[-10rem] left-1/4 h-[32rem] w-[32rem] rounded-full bg-fuchsia-400/16 blur-[120px] dark:bg-fuchsia-500/22"
         style={{ animationDelay: "-15s" }}
       />
       <div
-        className="liquid-blob absolute bottom-10 right-10 h-80 w-80 rounded-full bg-amber-300/35 blur-[100px] dark:bg-amber-400/60"
+        className="liquid-blob absolute bottom-10 right-10 h-80 w-80 rounded-full bg-amber-300/16 blur-[110px] dark:bg-amber-400/20"
         style={{ animationDelay: "-5s" }}
       />
     </div>
