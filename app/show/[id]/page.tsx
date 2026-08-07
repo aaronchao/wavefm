@@ -7,6 +7,7 @@ import { getShow } from "@/src/data/catalog/client";
 import type { CatalogShow } from "@/src/data/catalog/types";
 import { recordEngagement } from "@/src/data/repos/engagementRepo";
 import { isSaved, saveShow, unsaveShow } from "@/src/data/repos/savedShowsRepo";
+import { cityFor } from "@/src/core/geo/cities";
 import { inferCountry } from "@/src/core/geo/inferCountry";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { CommunityRecs } from "@/src/features/show/CommunityRecs";
@@ -56,6 +57,18 @@ function ShowDetail({ show }: { show: CatalogShow }) {
   // revealing it the instant the page loads would spoil the "extra
   // information" as a reward for engaging, and just narrate over the page.
   const countryGuess = useMemo(() => inferCountry(show), [show]);
+  // The globe zooms in far enough that a country centroid would land the
+  // camera somewhere empty (China's is rural Gansu), so it flies to a city —
+  // one named in the show's own text when there is one, else that country's
+  // podcast-scene default. See cities.ts.
+  const cityGuess = useMemo(
+    () =>
+      cityFor(
+        countryGuess,
+        [show.title, show.author, show.description].filter(Boolean).join(" "),
+      ),
+    [countryGuess, show],
+  );
   const [revealed, setRevealed] = useState(false);
 
   // ONE_CLICK invariant for save
@@ -74,11 +87,13 @@ function ShowDetail({ show }: { show: CatalogShow }) {
 
   return (
     <SettleIn className="flex flex-col gap-6">
-      <GlobeBackdrop target={revealed ? countryGuess : null} />
+      <GlobeBackdrop target={revealed ? cityGuess : null} />
 
-      {revealed && countryGuess && (
+      {revealed && cityGuess && countryGuess && (
         <p className="glass-panel inline-flex w-fit items-center gap-1.5 self-start rounded-full px-3 py-1.5 text-xs text-foreground">
-          📍 Likely produced in {countryGuess.name} — best guess from the show&apos;s own text.
+          📍 Likely produced around {cityGuess.name}
+          {cityGuess.localName ? ` (${cityGuess.localName})` : ""}, {countryGuess.name} — best
+          guess from the show&apos;s own text.
         </p>
       )}
 
