@@ -44,3 +44,6 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# obsidian (this repo can be opened as a vault to edit its own docs)
+.obsidian/
