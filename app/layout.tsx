@@ -4,6 +4,7 @@ import Link from "next/link";
 import { TabBar } from "@/src/features/nav/TabBar";
 import { ThemeToggle } from "@/src/features/nav/ThemeToggle";
 import { PreviewPlayer } from "@/src/features/player/PreviewPlayer";
+import { SearchButton } from "@/src/features/search/SearchOverlay";
 import { Providers } from "@/src/state/providers";
 import "./globals.css";
 
@@ -59,17 +60,10 @@ export default function RootLayout({
             </Link>
             <div className="flex items-center gap-1">
               {/* Search lives here, not in the tab bar — the bar is reserved for
-                  the three places you spend time in (Discovery / Wavr / Library). */}
-              <Link
-                href="/search"
-                aria-label="Search"
-                className="rounded-full p-2 text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
-              >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="M20 20l-3.5-3.5" strokeLinecap="round" />
-                </svg>
-              </Link>
+                  the three places you spend time in (Discovery / Wavr / Library).
+                  Opens a full-screen overlay rather than navigating away, so
+                  searching never loses the page you were on. */}
+              <SearchButton />
               <ThemeToggle />
             </div>
           </header>

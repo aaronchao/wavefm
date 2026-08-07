@@ -44,7 +44,7 @@ export async function GET(
   }));
 
   const xml = buildListenLaterRss(episodes, {
-    title: "My WaveFM Queue",
+    title: "WaveFM",
     description: "Your personal Listen-Later queue, synced from WaveFM.",
     selfUrl: request.url,
   });

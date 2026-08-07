@@ -28,15 +28,19 @@ use** — the recurring pain being platforms (YouTube Music above all) that
 don't natively carry a show, forcing a manual RSS add. Each item below
 expands into its home section (§ links); this list is the priority order.
 
-1. **[organise] Inbox/Queue triage for the Library**, Castro-style. Today
-   every Discovery save lands in one flat "Listen Later" list — the direct
-   cause of "unmanageable as it grows." Split it: new saves land in an
-   untouched **Inbox**; a one-gesture triage ("top of queue" / "bottom of
-   queue" / archive) moves each into a small, deliberately-ordered
-   **Queue**. Volume is allowed to pile up in the Inbox precisely *because*
-   nothing there has been committed to yet — the Queue stays manageable
-   because everything in it was a decision. This is the actual fix for
-   "growing fast," more so than resequencing a flat pile. → §3.
+1. ~~**[organise] Inbox/Queue triage for the Library**, Castro-style.~~
+   **SUPERSEDED (Aug 2026) by "Right Now" — see §3a.** Triage shipped and
+   was then removed. The premise was that volume could pile up safely in an
+   Inbox because the Queue only accepted committed decisions — but that
+   just relocated the problem: the triage gesture was filing work on a
+   leisure app, so it never got done, and the Inbox became the same
+   unmanageable pile the flat list had been. Users also reported the Inbox
+   itself as *confusing*. The real need was never a better place to put
+   episodes; it was **not having to find one at listen time**. Replaced by
+   automatic surfacing (`src/core/library/rightNow.ts`): pick a time slot
+   (and optionally a vibe) and press play. `bucket` is now `queue` for all
+   new saves, with `archived` as the opt-out; `inbox` is retired and legacy
+   rows are promoted on load.
 2. **[one-click] Personal "Listen Later" RSS feed, synced to any podcast
    app.** Generate a private per-user feed (`/api/feed/listen-later/<token>`)
    from `saved_episodes` — real `<enclosure>` URLs already on hand (no
@@ -110,6 +114,30 @@ expands into its home section (§ links); this list is the priority order.
     toggle writes them. Matters more once listening is frictionless — an
     unused progress field means a bigger library can't show what's actually
     in progress. → §3.
+### §3a. "Right Now" — surfacing instead of filing
+
+The replacement for §3's triage. Two facts about the moment decide what to
+play, and both are already stored, so the user files nothing:
+
+- **Time** — `durationSec` minus `positionSec`, bucketed 15 min / 30 min /
+  1 hour / any. Cumulative (a 30-minute slot happily accepts an 8-minute
+  episode) with headroom past the round number, and judged on time
+  *remaining*, so a part-heard 90-minute episode correctly offers itself
+  for a short slot.
+- **Vibe** — `vibeOf()` (§ organize.ts), already derived from title text
+  with no user input. Only shown when a library actually spans >1 vibe.
+
+Ordering *is* the recommendation, so the UI takes `[0]` for "Play" and
+walks forward for "Another": already-started episodes lead (a half-listened
+episode is the strongest signal of intent, and finishing it drains the pile
+faster than starting something new), then the longest episode that still
+fits the slot, so a 30-minute slot isn't spent on a 5-minute episode.
+Finished episodes drop out. Pure and unit-tested in
+`tests/core/right-now.test.ts`.
+
+Design rule this encodes: **any mechanism that requires per-episode manual
+upkeep will rot.** Prefer deriving from data already present.
+
 13. **[organise] Real "new episodes" inbox** — and note this should probably
     *merge into the same Inbox from #1* rather than being a separate
     mechanism: a new episode of an already-saved show and a freshly-saved

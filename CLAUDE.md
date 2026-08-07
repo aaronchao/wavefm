@@ -23,6 +23,20 @@ You are building **Wavr**: a free, browser-based, cross-device **podcast discove
 
 ---
 
+## 0b. CHAT OUTPUT (how to talk to Aaron)
+
+- **Never display code or file contents in chat.** Keep the conversation
+  clean and decluttered. This covers all of: red/green diff blocks written
+  into a reply; the `Added N lines, removed N lines` previews the Edit tool
+  renders; and the `Wrote N lines to <path>` previews the Write tool renders.
+- Create and edit files with shell heredocs (`cat > path <<'EOF'`) or
+  python/perl instead — those render nothing. Reserve Edit/Write for when
+  exact-match safety genuinely matters, and say why.
+- Report what changed in prose, or cite `file_path:line_number`.
+- Be concise and token-efficient: no padding, no restating what's settled.
+
+---
+
 ## 1. TECH STACK (fixed)
 
 | Concern | Choice | Note |

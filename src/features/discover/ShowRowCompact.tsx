@@ -18,7 +18,7 @@ import { useSavedToggle } from "./useSavedToggle";
  * screen.
  *
  * `glass`: opt-in "Liquid Glass" treatment (same translucent+blurred recipe
- * as FloatingSearch's already-established look) — a Discover-only visual
+ * as the search overlay's already-established look) — a Discover-only visual
  * prototype, so this defaults off and is only passed `true` from Discover's
  * own call sites (RankedRecs, Charts). The Show-detail page reuses this same
  * component (SimilarContent, CommunityRecs) and deliberately keeps the

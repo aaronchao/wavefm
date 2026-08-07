@@ -52,9 +52,9 @@ import { ExportOpmlButton } from "@/src/features/library/ExportOpmlButton";
 import { ImportOpmlButton } from "@/src/features/library/ImportOpmlButton";
 import { InlineTagInput } from "@/src/features/library/InlineTagInput";
 import { OpenInLinks } from "@/src/features/library/OpenInLinks";
+import { RightNow } from "@/src/features/library/RightNow";
 import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewShow } from "@/src/features/player/preview";
-import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
 import { CoverTile, haptic, LiquidBackdrop, NothingToggle, PlayableCard } from "@/src/ui";
 
@@ -119,16 +119,31 @@ export default function LibraryPage() {
       )
     : episodes;
 
-  // Inbox/Queue triage (REFINEMENTS.md #1/#3) — reordering needs the TRUE
-  // queue order, so it's computed off the unfiltered list and only exposed
-  // when no tag filter is narrowing the view (a filtered subset can't say
-  // "swap with the next item" meaningfully).
+  // Reordering needs the TRUE queue order, so it's computed off the
+  // unfiltered list and only exposed when no tag filter is narrowing the
+  // view (a filtered subset can't say "swap with the next item" meaningfully).
   const fullQueue = [...episodes]
     .filter((e) => e.bucket === "queue")
     .sort((a, b) => (a.queueRank ?? 0) - (b.queueRank ?? 0));
-  const inboxEpisodes = visibleEpisodes
-    .filter((e) => e.bucket === "inbox")
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  // `inbox` is retired (see savedEpisodesRepo). New saves go straight to the
+  // queue, so this only ever sees rows created before that change — promote
+  // them once, on load, rather than stranding them in a bucket nothing
+  // renders any more. Guarded by a ref so a refetch can't re-fire it.
+  const legacyInbox = episodes.filter((e) => e.bucket === "inbox");
+  const promotedRef = useRef(false);
+  useEffect(() => {
+    if (promotedRef.current || legacyInbox.length === 0) return;
+    promotedRef.current = true;
+    const ranks = fullQueue.map((e) => e.queueRank ?? 0);
+    void Promise.all(
+      legacyInbox.map((e, i) =>
+        setEpisodeBucket(e.episodeId, "queue", rankForIndex(ranks, fullQueue.length + i)),
+      ),
+    ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot migration
+  }, [legacyInbox.length]);
+
   const queueEpisodes = tag
     ? visibleEpisodes
         .filter((e) => e.bucket === "queue")
@@ -156,9 +171,12 @@ export default function LibraryPage() {
         </div>
       </div>
       <p className="mb-4 text-zinc-500">
-        Shows you follow and episodes queued for later — synced when signed in.
-        Tag them right on their card to sort your Library.
+        Shows you follow and episodes saved for later — synced when signed in.
       </p>
+
+      {/* Answering "what do I play?" comes before any of the management
+          chrome — that's the job the Library actually gets opened for. */}
+      <RightNow episodes={episodes} />
 
       <FeedSyncPanel signedIn={signedIn} />
       <SharePanel signedIn={signedIn} />
@@ -166,13 +184,11 @@ export default function LibraryPage() {
 
       <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
 
-      {/* Episodes lead — Inbox and Queue side by side (the working area,
-          triage in one glance) with Archived tucked below; Shows (the long
-          reference list) sits in its own section underneath. */}
+      {/* One list of saved episodes (Archived tucked below), then Shows —
+          the long reference list — in its own section underneath. */}
       <section>
-        <ColumnHeading count={visibleEpisodes.length}>Episodes</ColumnHeading>
+        <ColumnHeading count={visibleEpisodes.length}>Saved episodes</ColumnHeading>
         <EpisodesColumn
-          inbox={inboxEpisodes}
           queue={queueEpisodes}
           archived={archivedEpisodes}
           tagMap={episodeTagMap}
@@ -193,8 +209,6 @@ export default function LibraryPage() {
           onTagsChanged={invalidateTags}
         />
       </section>
-
-      <FloatingSearch />
     </main>
   );
 }
@@ -551,14 +565,13 @@ function LibraryShowCard({
 }
 
 /**
- * Inbox/Queue triage (REFINEMENTS.md #1/#3): fresh saves land in an
- * untouched Inbox; one gesture commits each into a small, deliberately-
- * ordered Queue (or Archive). The Queue stays manageable precisely because
- * nothing enters it without a decision — see the design note in
- * REFINEMENTS.md §3 for the full rationale.
+ * The saved-episode list: one ordered list, drag to reorder, Archive as the
+ * opt-out. The old Inbox/Queue split is gone — a triage step that demanded
+ * a gesture per episode was filing work the user never did, so the pile
+ * stayed a pile. Finding something to play is handled above by RightNow,
+ * which needs no filing; this list is now just the collection itself.
  */
 function EpisodesColumn({
-  inbox,
   queue,
   archived,
   tagMap,
@@ -567,7 +580,6 @@ function EpisodesColumn({
   onTagsChanged,
   showFeedById,
 }: {
-  inbox: SavedEpisode[];
   queue: SavedEpisode[];
   archived: SavedEpisode[];
   tagMap: EpisodeTagMap;
@@ -595,7 +607,6 @@ function EpisodesColumn({
   // Synced from the real data whenever it changes, except mid-drag (a
   // background refetch landing between dragstart/dragend shouldn't yank a
   // card out from under the pointer).
-  const [localInboxIds, setLocalInboxIds] = useState<string[]>(() => inbox.map((e) => e.episodeId));
   const [localQueueIds, setLocalQueueIds] = useState<string[]>(() => queue.map((e) => e.episodeId));
   const draggingRef = useRef(false);
   // Magnetic snap: a per-id counter bumped each time a reorder actually
@@ -606,14 +617,12 @@ function EpisodesColumn({
     haptic("tick");
     setSnapPulses((p) => ({ ...p, [id]: (p[id] ?? 0) + 1 }));
   }
-  const inboxSignal = inbox.map((e) => e.episodeId).join(",");
   const queueSignal = queue.map((e) => e.episodeId).join(",");
   useEffect(() => {
     if (draggingRef.current) return;
-    setLocalInboxIds(inbox.map((e) => e.episodeId));
     setLocalQueueIds(queue.map((e) => e.episodeId));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- signals are the intentional trigger
-  }, [inboxSignal, queueSignal]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- signal is the intentional trigger
+  }, [queueSignal]);
 
   // A delay (not distance) activation — the whole card is now both the
   // play target AND the drag source (no separate grip handle), so a quick
@@ -626,20 +635,17 @@ function EpisodesColumn({
   );
 
   if (loading) return <p className="text-zinc-500">Loading…</p>;
-  if (inbox.length === 0 && queue.length === 0 && archived.length === 0) {
+  if (queue.length === 0 && archived.length === 0) {
     return (
       <p className="text-zinc-500">
         {filtered
           ? "No episodes with this tag."
-          : "No episodes queued — tap “+ Later” on any episode."}
+          : "Nothing saved yet — tap “+ Later” on any episode."}
       </p>
     );
   }
 
-  const episodeById = new Map([...inbox, ...queue].map((e) => [e.episodeId, e]));
-  const localInbox = localInboxIds
-    .map((id) => episodeById.get(id))
-    .filter((e): e is SavedEpisode => Boolean(e));
+  const episodeById = new Map(queue.map((e) => [e.episodeId, e]));
   const localQueue = localQueueIds
     .map((id) => episodeById.get(id))
     .filter((e): e is SavedEpisode => Boolean(e));
@@ -658,10 +664,8 @@ function EpisodesColumn({
 
   const activeEpisode = activeId ? episodeById.get(activeId) : undefined;
 
-  function containerOf(id: string): "inbox" | "queue" | null {
-    if (localInboxIds.includes(id)) return "inbox";
-    if (localQueueIds.includes(id)) return "queue";
-    return null;
+  function containerOf(id: string): "queue" | null {
+    return localQueueIds.includes(id) ? "queue" : null;
   }
 
   /** Keeps local order in sync AS the drag moves — see the state doc above. */
@@ -670,32 +674,16 @@ function EpisodesColumn({
     if (!over || filtered) return;
     const draggedId = String(active.id);
     const overId = String(over.id);
-    const activeContainer = containerOf(draggedId);
     const overContainer =
-      (over.data.current as { bucket?: "inbox" | "queue" } | undefined)?.bucket ??
-      containerOf(overId);
-    if (!activeContainer || overContainer !== "queue") return; // only the Queue accepts drops
+      (over.data.current as { bucket?: "queue" } | undefined)?.bucket ?? containerOf(overId);
+    if (!containerOf(draggedId) || overContainer !== "queue") return;
 
-    if (activeContainer === "queue") {
-      setLocalQueueIds((ids) => {
-        const oldIndex = ids.indexOf(draggedId);
-        const newIndex = ids.indexOf(overId);
-        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return ids;
-        snapTo(overId);
-        return arrayMove(ids, oldIndex, newIndex);
-      });
-      return;
-    }
-
-    // Inbox -> Queue: remove from Inbox, insert into Queue at the hovered spot.
-    setLocalInboxIds((ids) => ids.filter((id) => id !== draggedId));
     setLocalQueueIds((ids) => {
-      if (ids.includes(draggedId)) return ids;
+      const oldIndex = ids.indexOf(draggedId);
+      const newIndex = ids.indexOf(overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return ids;
       snapTo(overId);
-      const overIndex = ids.indexOf(overId);
-      const next = [...ids];
-      next.splice(overIndex === -1 ? next.length : overIndex, 0, draggedId);
-      return next;
+      return arrayMove(ids, oldIndex, newIndex);
     });
   }
 
@@ -725,7 +713,6 @@ function EpisodesColumn({
   function handleDragCancel() {
     draggingRef.current = false;
     setActiveId(null);
-    setLocalInboxIds(inbox.map((e) => e.episodeId));
     setLocalQueueIds(queue.map((e) => e.episodeId));
   }
 
@@ -742,72 +729,31 @@ function EpisodesColumn({
       onDragCancel={handleDragCancel}
     >
       <div className="flex flex-col gap-6">
-        <div className="grid items-start gap-6 md:grid-cols-2">
-          <div>
-            <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Inbox <span className="text-muted-foreground">— new, not yet sorted</span>
-            </h3>
-            {localInbox.length === 0 ? (
-              <p className="text-sm text-zinc-500">{"Nothing new — you're caught up."}</p>
-            ) : (
-              <SortableContext items={localInboxIds} strategy={verticalListSortingStrategy}>
-                <ul className="flex flex-col gap-3">
-                  <AnimatePresence initial={false}>
-                    {localInbox.map((e) => (
-                      <EpisodeCard
-                        key={e.episodeId}
-                        episode={e}
-                        bucket="inbox"
-                        tags={tagMap[e.episodeId] ?? []}
-                        feedUrl={e.showId ? showFeedById.get(e.showId) : undefined}
-                        onChanged={refresh}
-                        onTagsChanged={onTagsChanged}
-                        onArchive={() => archive(e.episodeId)}
-                        disabled={filtered}
-                        jiggle={activeId !== null && activeId !== e.episodeId}
-                        snapPulseKey={snapPulses[e.episodeId]}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </ul>
-              </SortableContext>
-            )}
-          </div>
-
-          <div>
-            <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Queue
-            </h3>
-            <QueueDropZone>
-              {localQueue.length === 0 && (
-                <li className="list-none text-sm text-zinc-500">
-                  {filtered
-                    ? "No queued episodes with this tag."
-                    : "Drag something over from your Inbox."}
-                </li>
-              )}
-              <SortableContext items={localQueueIds} strategy={verticalListSortingStrategy}>
-                <AnimatePresence initial={false}>
-                  {localQueue.map((e) => (
-                    <EpisodeCard
-                      key={e.episodeId}
-                      episode={e}
-                      bucket="queue"
-                      tags={tagMap[e.episodeId] ?? []}
-                      feedUrl={e.showId ? showFeedById.get(e.showId) : undefined}
-                      onChanged={refresh}
-                      onTagsChanged={onTagsChanged}
-                      onArchive={() => archive(e.episodeId)}
-                      disabled={filtered}
-                      jiggle={activeId !== null && activeId !== e.episodeId}
-                      snapPulseKey={snapPulses[e.episodeId]}
-                    />
-                  ))}
-                </AnimatePresence>
-              </SortableContext>
-            </QueueDropZone>
-          </div>
-        </div>
+        <QueueDropZone>
+          {localQueue.length === 0 && (
+            <li className="list-none text-sm text-zinc-500">
+              {filtered ? "No saved episodes with this tag." : "Nothing saved yet."}
+            </li>
+          )}
+          <SortableContext items={localQueueIds} strategy={verticalListSortingStrategy}>
+            <AnimatePresence initial={false}>
+              {localQueue.map((e) => (
+                <EpisodeCard
+                  key={e.episodeId}
+                  episode={e}
+                  tags={tagMap[e.episodeId] ?? []}
+                  feedUrl={e.showId ? showFeedById.get(e.showId) : undefined}
+                  onChanged={refresh}
+                  onTagsChanged={onTagsChanged}
+                  onArchive={() => archive(e.episodeId)}
+                  disabled={filtered}
+                  jiggle={activeId !== null && activeId !== e.episodeId}
+                  snapPulseKey={snapPulses[e.episodeId]}
+                />
+              ))}
+            </AnimatePresence>
+          </SortableContext>
+        </QueueDropZone>
 
         {archived.length > 0 && (
           <div>

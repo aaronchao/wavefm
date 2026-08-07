@@ -5,7 +5,6 @@ import { useState, type FormEvent } from "react";
 import { getPrefs, setInterests } from "@/src/data/repos/prefsRepo";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
 import { getSupabase } from "@/src/data/supabase/client";
-import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { useSession } from "@/src/state/useSession";
 import { LiquidBackdrop } from "@/src/ui";
 import { Charts } from "./Charts";
@@ -152,8 +151,6 @@ export function DiscoverPage() {
       <div className="mb-12">
         <XyzrankBoard />
       </div>
-
-      <FloatingSearch />
     </main>
   );
 }

@@ -14,11 +14,16 @@ const LOCAL_KEY = "wavr.savedEpisodes.v1";
 export type EpisodeStatus = "queued" | "in_progress" | "finished";
 
 /**
- * Inbox/Queue triage (REFINEMENTS.md #1/#3): fresh saves land in `inbox`
- * untouched; a one-gesture triage commits them into the ordered `queue`
- * (ranked by `queueRank`, fractional — see src/core/queue/rank.ts) or
- * `archived`. Existing rows from before this model was added were
- * backfilled into `queue` by the migration, not dumped into `inbox`.
+ * Buckets. Fresh saves land straight in `queue` (ranked by `queueRank`,
+ * fractional — see src/core/queue/rank.ts); `archived` is the opt-out.
+ *
+ * `inbox` is RETIRED and no longer written to. It was a triage step —
+ * saves landed untouched and needed a gesture each to commit — but that is
+ * inbox-zero chores on a leisure app: the filing work never got done, so
+ * the pile stayed a pile. Finding something to play is now handled by
+ * surfacing (src/core/library/rightNow.ts), which needs no filing at all.
+ * The value stays in the union so pre-existing rows still parse; the
+ * Library promotes any it finds into `queue` on load.
  */
 export type Bucket = "inbox" | "queue" | "archived";
 
@@ -53,8 +58,11 @@ export function episodeToSaved(e: CatalogEpisode): SavedEpisode {
     durationSec: e.durationSec,
     status: "queued",
     positionSec: 0,
-    bucket: "inbox",
-    queueRank: null,
+    bucket: "queue",
+    // Newest save sorts to the top: real drag-assigned ranks cluster around
+    // 0 (rankAtTop/rankBetween), so a large negative epoch-seconds rank
+    // always lands above them, and decreases with each later save.
+    queueRank: -Math.floor(Date.now() / 1000),
     savedAt: now,
     updatedAt: now,
   };

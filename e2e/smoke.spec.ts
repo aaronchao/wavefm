@@ -133,8 +133,13 @@ test("queue an episode for later, then it appears in the Library", async ({ page
   ).toBeVisible();
 
   await page.goto("/library");
-  // Episodes now sit in their own column (no tab) — visible immediately
-  await expect(page.getByText("Ep 12: Attachment styles")).toBeVisible();
+  // The saved episode shows up twice, by design: once as Right Now's pick
+  // for the current slot, and once in the saved-episodes list below it.
+  await expect(
+    page.getByRole("link", { name: "Ep 12: Attachment styles" }),
+  ).toBeVisible();
+  const rightNow = page.getByRole("region").filter({ hasText: "Right now" });
+  await expect(rightNow.getByText("Ep 12: Attachment styles")).toBeVisible();
 });
 
 test("degraded Top Picks hides the section but the home page still renders", async ({ page }) => {
@@ -413,10 +418,13 @@ test("the tab bar is Discovery / Wavr / Library, with Search in the header", asy
   await page.goto("/");
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav.getByRole("link")).toHaveText([/Discovery/, /Wavr/, /Library/]);
-  // Search moved out of the bar but must stay reachable from every screen
+  // Search moved out of the bar but must stay reachable from every screen.
+  // It opens an overlay in place rather than navigating, so the page you
+  // were on survives the search.
   await expect(nav.getByRole("link", { name: /Search/ })).toHaveCount(0);
-  await page.getByRole("link", { name: "Search" }).click();
-  await expect(page).toHaveURL(/\/search$/);
+  await page.getByRole("button", { name: "Search" }).click();
+  await expect(page.getByRole("textbox", { name: "Search podcasts" })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("the Wavr tab opens the route and marks itself current", async ({ page }) => {

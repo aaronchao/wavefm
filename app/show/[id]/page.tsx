@@ -14,7 +14,6 @@ import { GlobeBackdrop } from "@/src/features/show/GlobeBackdrop";
 import { SimilarContent } from "@/src/features/show/SimilarContent";
 import { TagEditor } from "@/src/features/show/TagEditor";
 import { TopEpisodes } from "@/src/features/show/TopEpisodes";
-import { FloatingSearch } from "@/src/features/search/FloatingSearch";
 import { CoverTile, NothingToggle, SettleIn } from "@/src/ui";
 
 export default function ShowPage() {
@@ -33,7 +32,6 @@ export default function ShowPage() {
         </p>
       )}
       {show && <ShowDetail show={show} />}
-      <FloatingSearch />
     </main>
   );
 }

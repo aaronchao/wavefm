@@ -34,7 +34,6 @@ function jiggleDelayMs(id: string): number {
 
 export function EpisodeCard({
   episode,
-  bucket,
   tags,
   feedUrl,
   onChanged,
@@ -45,7 +44,6 @@ export function EpisodeCard({
   snapPulseKey,
 }: {
   episode: SavedEpisode;
-  bucket: "inbox" | "queue";
   tags: string[];
   /** The parent show's feed URL, if known — episodes carry no feed of their own. */
   feedUrl?: string;
@@ -66,7 +64,7 @@ export function EpisodeCard({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: episode.episodeId,
-    data: { bucket },
+    data: { bucket: "queue" as const },
     disabled,
   });
 
@@ -88,14 +86,11 @@ export function EpisodeCard({
     episode.positionSec > 0 && !finished
       ? `resume at ${Math.floor(episode.positionSec / 60)}:${String(episode.positionSec % 60).padStart(2, "0")}`
       : null;
-  const statusLabel =
-    bucket === "inbox"
-      ? "New"
-      : finished
-        ? "Finished"
-        : episode.status === "in_progress"
-          ? "In progress"
-          : "Queued";
+  const statusLabel = finished
+    ? "Finished"
+    : episode.status === "in_progress"
+      ? "In progress"
+      : "Saved";
 
   const play = () =>
     previewEpisode({
