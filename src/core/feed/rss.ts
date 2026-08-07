@@ -33,6 +33,12 @@ export type FeedMeta = {
   description: string;
   /** The feed's own URL (RSS <link>/<atom:link>). */
   selfUrl: string;
+  /**
+   * Absolute URL of the feed's own cover art. Without one the channel image
+   * falls back to whichever episode happens to be first, so the feed shows
+   * some unrelated show's artwork — see the channel-image note below.
+   */
+  imageUrl?: string;
 };
 
 function escapeXml(s: string): string {
@@ -68,13 +74,15 @@ export function buildListenLaterRss(episodes: FeedEpisode[], meta: FeedMeta): st
     .join("\n");
   // A channel-level itunes:image is required by Apple's podcast spec and
   // several clients (e.g. Pocket Casts) enforce similarly strict minimums
-  // when validating an add-by-URL feed — there's no single canonical show
-  // image for a personal cross-show queue, so the first playable episode's
-  // real cover art stands in rather than fabricating one. The plain RSS 2.0
-  // <image> block is added alongside itunes:image (not a substitute for
-  // it) — some clients' artwork resolution only engages once this
-  // "vanilla" tag is present too, itunes:image alone isn't always enough.
-  const channelImage = playable.find((e) => e.coverUrl)?.coverUrl;
+  // when validating an add-by-URL feed. Prefer the feed's OWN cover
+  // (`meta.imageUrl` — WaveFM's 3000x3000 art): this is one personal
+  // playlist, not a show, so borrowing an episode's artwork made it look
+  // like whichever podcast happened to sort first. That borrowed cover is
+  // kept only as a fallback, since a feed with no channel image at all is
+  // rejected outright by some clients. The plain RSS 2.0 <image> block is
+  // added alongside itunes:image (not a substitute for it) — some clients'
+  // artwork resolution only engages once this "vanilla" tag is present too.
+  const channelImage = meta.imageUrl ?? playable.find((e) => e.coverUrl)?.coverUrl;
   const channelImageTag = channelImage
     ? `\n    <itunes:image href="${escapeXml(channelImage)}" />\n    <image>\n      <url>${escapeXml(channelImage)}</url>\n      <title>${escapeXml(meta.title)}</title>\n      <link>${escapeXml(meta.selfUrl)}</link>\n    </image>`
     : "";

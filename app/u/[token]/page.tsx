@@ -93,6 +93,7 @@ function SharedEpisodeRow({ episode }: { episode: SharedQueueEpisode }) {
             title={episode.showTitle ? `${episode.showTitle} ${episode.title}` : episode.title}
             showTitle={episode.showTitle}
             appleUrl={episode.appleUrl}
+            audioUrl={episode.audioUrl}
             showId={episode.showId}
             className="relative z-10 mt-1.5"
           />

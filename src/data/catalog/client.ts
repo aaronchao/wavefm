@@ -166,6 +166,28 @@ export async function getCommunityRecs(
   }
 }
 
+/**
+ * Apple Podcasts deep link for a SPECIFIC episode, or null — never throws.
+ * Only worth calling for episodes with no `appleUrl` of their own (those
+ * came from RSS/Podcast Index); iTunes-sourced episodes already have one.
+ */
+export async function getAppleEpisodeLink(
+  showId: string,
+  title: string,
+  audioUrl?: string,
+): Promise<string | null> {
+  try {
+    const qs = new URLSearchParams({ showId, title });
+    if (audioUrl) qs.set("audioUrl", audioUrl);
+    const res = await fetch(`/api/catalog/episode-link?${qs.toString()}`);
+    if (!res.ok) return null;
+    const json = (await res.json()) as { url?: string | null };
+    return json.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Real Spotify show URL for a title (REFINEMENTS.md #5), or null — never throws. */
 export async function getSpotifyLink(title: string): Promise<string | null> {
   try {

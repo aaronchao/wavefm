@@ -270,6 +270,7 @@ export function PreviewPlayer() {
                   title={s.meta.searchTitle}
                   showTitle={s.meta.showTitle}
                   appleUrl={s.meta.appleUrl}
+                  audioUrl={s.audioUrl ?? undefined}
                   feedUrl={s.meta.feedUrl}
                   stored={s.meta.platformLinks}
                   showId={s.meta.showId}

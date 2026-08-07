@@ -145,6 +145,53 @@ upkeep will rot.** Prefer deriving from data already present.
     what to do with it" event, so one triage surface should handle both
     instead of shipping two half-solutions. Replaces the best-effort
     20-show badge. → §3.
+### §4a. One-click to the EXACT episode (2026-08-08)
+
+The complaint: "open in Pocket Casts" landed on the show page, not the
+episode. Findings, both verified against the live services rather than
+assumed:
+
+- **Not a Pocket Casts limitation.** `pca.st/episode/<uuid>` is real and
+  resolves (302). But the uuid takes two undocumented hops —
+  `pca.st/itunes/<id>` redirect for the podcast uuid, then
+  `podcast-api.pocketcasts.com/podcast/full/<uuid>` for episode uuids.
+  Unsupported surface; it would break silently. Not used.
+- **Apple is the better route, and was already in the stack.**
+  `itunes.apple.com/lookup?id=<showId>&entity=podcastEpisode&limit=200`
+  returns per-episode `trackViewUrl` (the real `?i=<trackId>` deep link)
+  *and* `episodeUrl` — the audio enclosure URL, which is the same value
+  we already store as `audio_url`. So matching is an **exact string
+  compare**, not fuzzy title/date guessing. Free, keyless, documented.
+
+iTunes-sourced episodes already carried `appleUrl` (`mapItunesEpisode`);
+the gap was RSS/Podcast-Index episodes. `/api/catalog/episode-link`
+resolves those lazily, cached a week. Matching lives in
+`src/core/appleEpisode.ts` (pure, 11 tests): enclosure URLs are normalised
+first, because Apple's copy and the feed's differ by redirect wrappers
+(podtrac/pscrb/chartable) and tracking query strings. **A title match only
+counts when exactly one episode has it** — titles get reused across seasons
+("Episode 1"), and a wrong deep link is worse than none: it silently sends
+the listener to a different episode. No confident match returns null and
+the show-level link stays the fallback.
+
+Still open: the same treatment for Spotify / YouTube Music / 小宇宙.
+
+### §4b. Feed cover art (2026-08-08)
+
+The Listen-Later feed had no artwork of its own, so `rss.ts` fell back to
+whichever episode sorted first — meaning the playlist wore a random
+podcast's cover in Pocket Casts. It now carries `public/cover-3000.png`
+(3000×3000, Nothing-style: the five-bar waveform mark from `TabBar.tsx` in
+Signal Red on a dot-matrix grid, `WAVEFM` set in Doto). Generated from
+`scripts/brand/cover.html` via headless Chrome at deviceScaleFactor 3 —
+the Doto webfont is embedded as a data URI, because a network font silently
+fell back to a plain sans on the first render. The episode-cover fallback is
+kept: a feed with no channel image at all is rejected outright by some
+clients. Feed also renamed "My WaveFM Queue" -> "WaveFM".
+
+**Expect a lag:** podcast clients cache channel metadata hard. The new name
+and art may need a refresh, or removing and re-adding the feed URL.
+
 14. **[protect discovery] Source health-check dashboard.** Douban,
     Xiaoyuzhou, PTT, LIHKG, Dcard, Apple-reviews are all scrapers; adding
     Zhihu/Bilibili/Podchaser (#8–10) grows that fragile surface further. A
@@ -294,7 +341,8 @@ rather than guessing:
 - [ ] **P2 — Ratings scrapers are fragile.** Douban/Xiaoyuzhou rating
   adapters parse public pages; selectors rot. Add a tiny "did any rung
   return a number this week?" health signal so silent breakage is visible.
-- [ ] **P3 — Direct platform deep-links.** Spotify / YouTube Music / 小宇宙
+- [x] **P3 — Direct platform deep-links (Apple episodes).** Done 2026-08-08
+  for Apple; Spotify / YouTube Music / 小宇宙 still open. Original: Spotify / YouTube Music / 小宇宙
   chips are *search* URLs. Resolve real show URLs when possible (Spotify
   API, YouTube search API, 小宇宙 id) and store them in
   `shows.platformLinks`; keep search as the fallback.
@@ -310,7 +358,8 @@ rather than guessing:
   a Range-capable CDN plays the random offset and a no-Range CDN plays a
   clean 0:00–0:30 clip labelled "30s preview from the start". Verified in
   headless Chromium against both a Range-serving and a no-Range fixture.
-- [ ] **P1 — Inbox/Queue split for the Library.** Castro-style triage:
+- [x] **P1 — Inbox/Queue split for the Library.** Built, then REMOVED
+  2026-08-07 — superseded by "Right Now" (see §3a). Original text: Castro-style triage:
   Discovery saves (and new episodes of saved shows — see the merged item
   below) land in an untouched **Inbox**; one gesture ("top of queue" /
   "bottom of queue" / archive) commits each into a small, ordered **Queue**.
@@ -318,14 +367,17 @@ rather than guessing:
   (`inbox | queue | archived`, default `inbox`) alongside the new
   `queue_rank` below. This is the actual fix for "unmanageable as it grows"
   — see the ranked-priorities note above for the full rationale.
-- [ ] **P1 — Resequence saved episodes.** No ordering field exists today
+- [x] **P1 — Resequence saved episodes.** Done — `queue_rank` (fractional,
+  src/core/queue/rank.ts) with drag-to-reorder in the Library. Original: No ordering field exists today
   (`status`/`position_sec` are playback state, not queue position). Add
   `saved_episodes.queue_rank` (float8, nullable — only Queue items are
   ranked). Reordering = update one row's rank to the average of its new
   neighbors (fractional-rank pattern, same as Trello/Notion) — never a
   full-list reindex. Drag-and-drop in the Library UI; ties directly into
   the feed-sync item below.
-- [ ] **P1 — Personal "Listen Later" RSS feed, synced to any podcast app.**
+- [x] **P1 — Personal "Listen Later" RSS feed, synced to any podcast app.**
+  Done — `/api/feed/listen-later/[token]`. Titled "WaveFM" and carrying its
+  own cover art as of 2026-08-08. Original:
   New route `app/api/feed/listen-later/[token]/route.ts`: build an RSS
   document from the signed-in user's Queue, one `<item>` per saved episode
   with its real `audio_url` as the `<enclosure>` (no rehosting — same

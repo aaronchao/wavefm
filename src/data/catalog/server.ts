@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { AppleEpisodeCandidate } from "@/src/core/appleEpisode";
 import type { CatalogEpisode, CatalogShow } from "./types";
 
 /**
@@ -123,6 +124,32 @@ export async function itunesEpisodeSearch(
   return results
     .map(mapItunesEpisode)
     .filter((e): e is CatalogEpisode => e !== null);
+}
+
+/**
+ * Every episode Apple lists for a show, as raw match candidates
+ * (REFINEMENTS.md #4 follow-up). Used to resolve a one-click episode deep
+ * link for episodes that came from RSS/Podcast Index and so carry no
+ * `appleUrl` of their own — iTunes-sourced episodes already have one.
+ *
+ * `limit=200` is Apple's ceiling; the first result is the collection
+ * itself, not an episode, and is dropped by the `trackViewUrl` filter in
+ * `matchAppleEpisode`. Returns [] (never throws) so a failed lookup just
+ * means "no deep link", never a broken page.
+ */
+export async function itunesShowEpisodes(
+  itunesShowId: string,
+): Promise<AppleEpisodeCandidate[]> {
+  const url =
+    `https://itunes.apple.com/lookup?id=${encodeURIComponent(itunesShowId)}` +
+    `&entity=podcastEpisode&limit=200`;
+  const results = await itunesFetch(url);
+  if (!results) return [];
+  return results.map((r) => ({
+    trackViewUrl: r.trackViewUrl,
+    episodeUrl: r.episodeUrl,
+    trackName: r.trackName,
+  }));
 }
 
 const CHART_REVALIDATE_SECONDS = 6 * 60 * 60; // charts move slowly

@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { itunesId, platformLinks, type PlatformId } from "@/src/core/links";
-import { getSpotifyLink, getYoutubeLink } from "@/src/data/catalog/client";
+import { getAppleEpisodeLink, getSpotifyLink, getYoutubeLink } from "@/src/data/catalog/client";
 import type { PlatformLinks } from "@/src/data/catalog/types";
 
 /**
@@ -34,6 +34,7 @@ export function OpenInLinks({
   title,
   showTitle,
   appleUrl,
+  audioUrl,
   feedUrl,
   stored,
   showId,
@@ -54,6 +55,12 @@ export function OpenInLinks({
    */
   showTitle?: string;
   appleUrl?: string;
+  /**
+   * The episode's own audio enclosure URL. Used only to resolve a
+   * one-click Apple EPISODE deep link when `appleUrl` is missing — it's the
+   * exact match key against Apple's `episodeUrl` (src/core/appleEpisode.ts).
+   */
+  audioUrl?: string;
   /** Raw RSS feed URL — enables the copy-to-clipboard RSS icon. */
   feedUrl?: string;
   /** Stored player deep-links from the payload (brand-coloured when present). */
@@ -103,10 +110,22 @@ export function OpenInLinks({
     staleTime: Infinity,
   });
 
+  // Apple EPISODE deep link. An episode from RSS/Podcast Index has no
+  // appleUrl of its own, so "open in Apple" fell back to the SHOW page —
+  // the "still landing on the show page" complaint. Only runs for episodes
+  // (showTitle present) under a numeric iTunes show id, and resolves to
+  // null rather than guess, so the show-level link stays the fallback.
+  const appleEpisodeQ = useQuery({
+    queryKey: ["appleEpisodeLink", showId, title, audioUrl ?? null],
+    queryFn: () => getAppleEpisodeLink(showId!, title, audioUrl),
+    enabled: resolveMissing && !appleUrl && Boolean(showTitle) && Boolean(itunesId(showId)),
+    staleTime: Infinity,
+  });
+
   const links = platformLinks(
     title,
     {
-      apple: appleUrl,
+      apple: appleUrl ?? appleEpisodeQ.data ?? undefined,
       spotify: spotifyQ.data ?? undefined,
       youtubeMusic: youtubeQ.data ?? undefined,
       ...stored,

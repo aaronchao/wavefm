@@ -190,6 +190,7 @@ export function EpisodeCard({
             title={episode.showTitle ? `${episode.showTitle} ${episode.title}` : episode.title}
             showTitle={episode.showTitle}
             appleUrl={episode.appleUrl}
+            audioUrl={episode.audioUrl}
             feedUrl={feedUrl}
             showId={episode.showId}
             className="relative z-10"

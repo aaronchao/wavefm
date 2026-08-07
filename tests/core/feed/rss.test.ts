@@ -91,4 +91,24 @@ describe("buildListenLaterRss", () => {
     );
     expect(xml).toContain("<description>Ep One</description>");
   });
+
+  it("prefers the feed's own cover over an episode's — this is one personal playlist, not a show", () => {
+    const xml = buildListenLaterRss(
+      [{ episodeId: "1", title: "Ep", audioUrl: "https://cdn/1.mp3", coverUrl: "https://cdn/some-show.jpg" }],
+      { ...meta, imageUrl: "https://wavr.example/cover-3000.png" },
+    );
+    // channel art is WaveFM's own...
+    expect(xml).toContain('<itunes:image href="https://wavr.example/cover-3000.png" />');
+    expect(xml).toContain("<url>https://wavr.example/cover-3000.png</url>");
+    // ...while the episode keeps its own artwork on the item
+    expect(xml).toContain('<media:thumbnail url="https://cdn/some-show.jpg" />');
+  });
+
+  it("still falls back to an episode cover when no feed cover is given — a feed with no channel image at all is rejected by some clients", () => {
+    const xml = buildListenLaterRss(
+      [{ episodeId: "1", title: "Ep", audioUrl: "https://cdn/1.mp3", coverUrl: "https://cdn/fallback.jpg" }],
+      meta,
+    );
+    expect(xml).toContain('<itunes:image href="https://cdn/fallback.jpg" />');
+  });
 });

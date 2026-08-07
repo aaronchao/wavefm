@@ -43,10 +43,15 @@ export async function GET(
     coverUrl: (r.cover_url as string | null) ?? undefined,
   }));
 
+  // Absolute URL — RSS artwork is fetched by the podcast client, not the
+  // browser, so a root-relative path would never resolve for it.
+  const imageUrl = new URL("/cover-3000.png", request.url).toString();
+
   const xml = buildListenLaterRss(episodes, {
     title: "WaveFM",
     description: "Your personal Listen-Later queue, synced from WaveFM.",
     selfUrl: request.url,
+    imageUrl,
   });
 
   return new Response(xml, {
