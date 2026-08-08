@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
 } from "@dnd-kit/core";
-import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { arrayMove, rectSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
@@ -101,6 +101,7 @@ export default function LibraryPage() {
     void queryClient.invalidateQueries({ queryKey: ["episodeTags"] });
   };
 
+  const [syncOpen, setSyncOpen] = useState(false);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   // a filter for a tag that no longer exists falls back to "All"
   const tag = activeTag && allTags.includes(activeTag) ? activeTag : null;
@@ -207,9 +208,35 @@ export default function LibraryPage() {
           rail, the episode list — used to sit open above them, which is
           screens of text to scroll past before reaching your own content.
           They're all still here, one tap away, just not shouting. */}
+      {/* Sync sits top-right rather than as a section at the bottom: it's a
+          tool you reach for occasionally and deliberately, not something to
+          scroll past. Collapsed by default, and remembers its state. */}
       <div className="mb-1 flex items-center justify-between gap-3">
         <h1 className="font-brand text-2xl font-bold">Library</h1>
+        <button
+          type="button"
+          onClick={() => setSyncOpen((v) => !v)}
+          aria-expanded={syncOpen}
+          className="font-brand flex shrink-0 items-center gap-1.5 rounded-[2px] border border-surface-border px-3 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <SyncIcon className="h-3.5 w-3.5" />
+          Sync
+        </button>
       </div>
+
+      {syncOpen && (
+        <div className="mt-3 flex flex-col gap-3 rounded-[2px] border border-surface-border p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportOpmlButton />
+            <ExportOpmlButton />
+            <BulkYoutubeMusicButton />
+          </div>
+          <PocketCastsSyncPanel />
+          <FeedSyncPanel signedIn={signedIn} />
+          <SharePanel signedIn={signedIn} />
+          <GpodderSyncPanel />
+        </div>
+      )}
 
       {/* One decision, with the reason for it, before any list — a wall of
           equally-plausible episodes is what stalls the action. */}
@@ -255,19 +282,6 @@ export default function LibraryPage() {
         <ListenHistory />
       </CollapsibleSection>
 
-      <CollapsibleSection id="sync" title="Sync & export">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <ImportOpmlButton />
-            <ExportOpmlButton />
-            <BulkYoutubeMusicButton />
-          </div>
-          <PocketCastsSyncPanel />
-          <FeedSyncPanel signedIn={signedIn} />
-          <SharePanel signedIn={signedIn} />
-          <GpodderSyncPanel />
-        </div>
-      </CollapsibleSection>
     </main>
   );
 }
@@ -279,6 +293,15 @@ export default function LibraryPage() {
  * turn that chip into an inline rename input; the mutation cascades to
  * every show/episode carrying the old tag.
  */
+function SyncIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M20 11a8 8 0 0 0-14.9-3M4 13a8 8 0 0 0 14.9 3" strokeLinecap="round" />
+      <path d="M4 5v5h5M20 19v-5h-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function TagRail({
   tags,
   active,
@@ -542,7 +565,7 @@ function EpisodesColumn({
               {filtered ? "No saved episodes with this tag." : "Nothing saved yet."}
             </li>
           )}
-          <SortableContext items={localQueueIds} strategy={verticalListSortingStrategy}>
+          <SortableContext items={localQueueIds} strategy={rectSortingStrategy}>
             <AnimatePresence initial={false}>
               {localQueue.map((e) => (
                 <EpisodeCard
@@ -599,7 +622,10 @@ function EpisodesColumn({
 function QueueDropZone({ children }: { children: React.ReactNode }) {
   const { setNodeRef } = useDroppable({ id: "queue-container", data: { bucket: "queue" } });
   return (
-    <ul ref={setNodeRef} className="flex min-h-[3rem] flex-col gap-3">
+    // Two columns from md up, one on mobile: a phone needs the full width
+    // for a title to be readable, but on a desktop a single column wastes
+    // most of the row and makes a long library needlessly tall.
+    <ul ref={setNodeRef} className="grid min-h-[3rem] grid-cols-1 gap-3 md:grid-cols-2">
       {children}
     </ul>
   );

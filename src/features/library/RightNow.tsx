@@ -92,7 +92,11 @@ export function RightNow({
         How long have you got? Pick a slot and press play — no sorting required.
       </p>
 
-      <div className="-mx-1 mb-2 flex gap-2 overflow-x-auto px-1 pb-1">
+      {/* Wrap, don't scroll: there are always exactly four of these and they
+          are the primary control, so a phone clipping "Any length" mid-word
+          hides a choice behind a gesture nobody knows is there. The vibe row
+          below still scrolls — it can run to eight. */}
+      <div className="mb-2 flex flex-wrap gap-2">
         {TIME_BUCKETS.map((b) => (
           <NothingToggle
             key={b.id}

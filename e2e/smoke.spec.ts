@@ -862,19 +862,20 @@ test("/wavr: tapping a tag with no existing match fetches and jumps to fresh car
   await expect(page.getByRole("heading", { name: "Freshly fetched comedy card" })).toBeVisible();
 });
 
-test("library leads with saved shows; tools live behind collapsed sections", async ({ page }) => {
+test("library leads with content; sync is a top-right tool", async ({ page }) => {
   await stub(page);
   await page.goto("/library");
 
-  // The mobile-first point of the page: the management tools no longer sit
-  // open above the user's own content — they're one tap away, not gone.
-  // Saved episodes and the show grid are open; only the tools are collapsed.
-  await expect(page.getByRole("button", { name: "Import OPML" })).toHaveCount(0);
+  // Content is open — no tap needed to reach your own stuff.
   await expect(page.getByRole("heading", { name: /Saved episodes/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /Your shows/i })).toBeVisible();
-  const sync = page.getByRole("button", { name: /Sync & export/i });
+
+  // Sync is a deliberate, occasional tool: top-right, shut by default.
+  await expect(page.getByRole("button", { name: "Import OPML" })).toHaveCount(0);
+  const sync = page.getByRole("button", { name: /^Sync$/i });
   await expect(sync).toBeVisible();
   await sync.click();
   await expect(page.getByRole("button", { name: "Import OPML" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Export OPML" })).toBeVisible();
+  await expect(page.getByText(/Sync played status from Pocket Casts/i)).toBeVisible();
 });
