@@ -10,8 +10,8 @@ import { updateEpisodeProgress, type SavedEpisode } from "@/src/data/repos/saved
 import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode } from "@/src/features/player/preview";
 import { recordHandoff } from "@/src/data/repos/handoffRepo";
-import { markHandedOff } from "@/src/data/repos/savedEpisodesRepo";
-import { logHandoff } from "@/src/data/repos/listenHistoryRepo";
+import { markFinished, markHandedOff } from "@/src/data/repos/savedEpisodesRepo";
+import { logFinished, logHandoff } from "@/src/data/repos/listenHistoryRepo";
 import { refreshHistory } from "@/src/features/library/ListenHistory";
 import { NothingToggle, PlayableCard } from "@/src/ui";
 import { springs } from "@/src/ui/tokens";
@@ -82,9 +82,19 @@ export function EpisodeCard({
 
   const finished = episode.status === "finished";
   function toggleFinished() {
-    void updateEpisodeProgress(episode.episodeId, {
-      status: finished ? "queued" : "finished",
-    }).then(onChanged);
+    // Marking done by hand is the most certain signal there is, so it goes
+    // to History like every other finish route — auto-retire's guesses and
+    // Pocket Casts' synced flags both land there, and a manual tick that
+    // silently didn't would make History look unreliable.
+    if (finished) {
+      void updateEpisodeProgress(episode.episodeId, { status: "queued" }).then(onChanged);
+      return;
+    }
+    void markFinished(episode.episodeId, false).then(() => {
+      logFinished(episode.episodeId, false);
+      refreshHistory();
+      onChanged();
+    });
   }
   const resume =
     episode.positionSec > 0 && !finished
@@ -128,7 +138,7 @@ export function EpisodeCard({
         playLabel={`Preview ${episode.title}`}
         dragHandleProps={disabled ? undefined : { ...attributes, ...listeners }}
         style={jiggle ? ({ "--jiggle-delay": `${jiggleDelayMs(episode.episodeId)}ms` } as CSSProperties) : undefined}
-        className={`glass-panel h-32 cursor-pointer overflow-hidden !rounded-[1.75rem] shadow-lg ${finished ? "opacity-60" : ""} ${
+        className={`glass-panel h-28 cursor-pointer overflow-hidden !rounded-[1.75rem] shadow-lg ${finished ? "opacity-60" : ""} ${
           jiggle ? "jiggle" : ""
         }`}
       >
@@ -147,7 +157,7 @@ export function EpisodeCard({
         <div className="relative z-10 flex shrink-0 flex-col items-center gap-1">
           <CoverPlay
             src={episode.coverUrl}
-            size={72}
+            size={56}
             onPlay={play}
             label={`Play a snippet of ${episode.title}`}
             className="!rounded-2xl"

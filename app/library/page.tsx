@@ -21,7 +21,6 @@ import { clearHandoff, listHandoffs } from "@/src/data/repos/handoffRepo";
 import { logFinished } from "@/src/data/repos/listenHistoryRepo";
 import {
   listSavedEpisodes,
-  removeEpisode,
   setEpisodeBucket,
   markFinished,
   syncFromGpodder,
@@ -105,6 +104,7 @@ export default function LibraryPage() {
   };
 
   const [syncOpen, setSyncOpen] = useState(false);
+  const [rightNowOpen, setRightNowOpen] = useState(false);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   // a filter for a tag that no longer exists falls back to "All"
   const tag = activeTag && allTags.includes(activeTag) ? activeTag : null;
@@ -216,6 +216,15 @@ export default function LibraryPage() {
           scroll past. Collapsed by default, and remembers its state. */}
       <div className="mb-1 flex items-center justify-between gap-3">
         <h1 className="font-brand text-2xl font-bold">Library</h1>
+        <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setRightNowOpen((v) => !v)}
+          aria-expanded={rightNowOpen}
+          className="font-brand flex shrink-0 items-center gap-1.5 rounded-[2px] border border-surface-border px-3 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Right now
+        </button>
         <button
           type="button"
           onClick={() => setSyncOpen((v) => !v)}
@@ -225,6 +234,7 @@ export default function LibraryPage() {
           <SyncIcon className="h-3.5 w-3.5" />
           Sync
         </button>
+        </div>
       </div>
 
       {syncOpen && (
@@ -243,9 +253,9 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {/* One decision, with the reason for it, before any list — a wall of
-          equally-plausible episodes is what stalls the action. */}
-      <RightNow episodes={episodes} savedShows={visibleSaved.map((s) => s.show.title)} />
+      {rightNowOpen && (
+        <RightNow episodes={episodes} savedShows={visibleSaved.map((s) => s.show.title)} />
+      )}
 
       {/* Open, not collapsed: this is the content, not a tool. */}
       <section className="mt-6">
@@ -283,8 +293,14 @@ export default function LibraryPage() {
         <ShowGrid saved={visibleSaved} loading={savedQ.isLoading} filtered={Boolean(tag)} />
       </section>
 
-      <CollapsibleSection id="history" title="Listen history">
-        <ListenHistory />
+      {/* One "done with it" list. Archived and finished were two different
+          axes (a bucket vs a status) surfaced as two sections, which is a
+          distinction the user has no reason to hold — both mean "not in my
+          queue any more". History now shows why each one left. */}
+      <CollapsibleSection id="history" title="History" count={archivedEpisodes.length}>
+        <ListenHistory archived={archivedEpisodes} onChanged={() => {
+          void queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
+        }} />
       </CollapsibleSection>
 
     </main>
@@ -428,7 +444,6 @@ function EpisodesColumn({
 }) {
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
-  const [showArchived, setShowArchived] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // Live local order for drag visuals — dnd-kit only animates a card's
@@ -487,15 +502,6 @@ function EpisodesColumn({
 
   const archive = (episodeId: string) =>
     void setEpisodeBucket(episodeId, "archived").then(refresh);
-  const restore = (episodeId: string) =>
-    void setEpisodeBucket(
-      episodeId,
-      "queue",
-      rankForIndex(
-        queue.map((e) => e.queueRank ?? 0),
-        queue.length,
-      ),
-    ).then(refresh);
 
   const activeEpisode = activeId ? episodeById.get(activeId) : undefined;
 
@@ -590,29 +596,6 @@ function EpisodesColumn({
           </SortableContext>
         </QueueDropZone>
 
-        {archived.length > 0 && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowArchived((v) => !v)}
-              className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500 hover:text-foreground"
-            >
-              {showArchived ? "▾" : "▸"} Archived ({archived.length})
-            </button>
-            {showArchived && (
-              <ul className="flex flex-col gap-3">
-                {archived.map((e) => (
-                  <ArchivedRow
-                    key={e.episodeId}
-                    episode={e}
-                    onRestore={() => restore(e.episodeId)}
-                    onRemove={() => void removeEpisode(e.episodeId).then(refresh)}
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
       </div>
 
       <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
@@ -657,38 +640,6 @@ function DragPreviewCard({ episode }: { episode: SavedEpisode }) {
   );
 }
 
-/** Archived — out of the way, restorable. Deliberately terse: title only. */
-function ArchivedRow({
-  episode,
-  onRestore,
-  onRemove,
-}: {
-  episode: SavedEpisode;
-  onRestore: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <li className="flex items-center gap-3 rounded-[2px] border border-surface-border px-3 py-2 opacity-70">
-      <p className="line-clamp-1 min-w-0 flex-1 text-sm">{episode.title}</p>
-      <button
-        type="button"
-        onClick={onRestore}
-        aria-label={`Restore ${episode.title} to queue`}
-        className="nothing-toggle shrink-0 px-2 py-1 text-[11px]"
-      >
-        Restore
-      </button>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${episode.title}`}
-        className="shrink-0 rounded-full px-2 py-1 text-muted-foreground hover:text-foreground"
-      >
-        ✕
-      </button>
-    </li>
-  );
-}
 
 /**
  * The sync mechanic itself (REFINEMENTS.md #2): a private per-user feed

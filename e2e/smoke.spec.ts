@@ -133,8 +133,9 @@ test("queue an episode for later, then it appears in the Library", async ({ page
   ).toBeVisible();
 
   await page.goto("/library");
-  // Right Now stays open — it answers "what do I play?", which is why the
-  // Library gets opened — so the saved episode surfaces there immediately.
+  // Right Now is a top-right toggle now, shut by default — opening it
+  // surfaces the saved episode as its pick.
+  await page.getByRole("button", { name: /^Right now$/i }).click();
   const rightNow = page.getByRole("region").filter({ hasText: "Right now" });
   await expect(rightNow.getByText("Ep 12: Attachment styles")).toBeVisible();
 
