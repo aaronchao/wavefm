@@ -53,8 +53,11 @@ export function ShowGrid({
           <Link href={`/show/${show.id}`} className="group block" title={show.title}>
             {/* CoverTile takes fixed pixel dimensions, which can't fill a
                 responsive grid cell — so the image is inline here rather
-                than reshaping a primitive every other call site depends on. */}
-            <div className="glass-card glass-card-interactive aspect-square w-full overflow-hidden rounded-tile">
+                than reshaping a primitive every other call site depends on.
+                Deliberately NOT a glass surface: cover art is opaque, so
+                glass behind it is invisible and only the rim would show.
+                It gets the squircle + edge highlight as a frame instead. */}
+            <div className="cover-frame glass-card-interactive aspect-square w-full overflow-hidden rounded-tile">
               {show.coverUrl ? (
                 // arbitrary external art hosts; skip Vercel image optimization
                 // eslint-disable-next-line @next/next/no-img-element

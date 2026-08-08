@@ -12,19 +12,16 @@ import {
   type DragOverEvent,
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { CatalogShow } from "@/src/data/catalog/types";
-import { getRankedEpisodes, getShow } from "@/src/data/catalog/client";
 import { listEpisodeTags, type EpisodeTagMap } from "@/src/data/repos/episodeTagsRepo";
 import { episodesToRetire } from "@/src/core/library/autoRetire";
 import { clearHandoff, listHandoffs } from "@/src/data/repos/handoffRepo";
+import { logFinished } from "@/src/data/repos/listenHistoryRepo";
 import {
   listSavedEpisodes,
   removeEpisode,
-  saveEpisode,
   setEpisodeBucket,
   syncFromGpodder,
   updateEpisodeProgress,
@@ -38,30 +35,25 @@ import {
   regenerateFeedToken,
   setShareSlug,
 } from "@/src/data/repos/prefsRepo";
-import { listSaved, unsaveShow } from "@/src/data/repos/savedShowsRepo";
+import { listSaved } from "@/src/data/repos/savedShowsRepo";
 import { rankForIndex } from "@/src/core/queue/rank";
-import { clusterSavedShow } from "@/src/core/recommend";
 import {
-  addShowTag,
   allTagsFrom,
   listShowTags,
-  removeShowTag,
   type ShowTagMap,
 } from "@/src/data/repos/showTagsRepo";
 import { renameTagEverywhere } from "@/src/data/repos/tagsRepo";
 import { BulkYoutubeMusicButton } from "@/src/features/library/BulkYoutubeMusicButton";
 import { CollapsibleSection } from "@/src/features/library/CollapsibleSection";
+import { ListenHistory, refreshHistory } from "@/src/features/library/ListenHistory";
+import { NewEpisodeWatcher } from "@/src/features/library/NewEpisodeWatcher";
 import { ShowGrid } from "@/src/features/library/ShowGrid";
 import { EpisodeCard, GripIcon } from "@/src/features/library/EpisodeCard";
 import { ExportOpmlButton } from "@/src/features/library/ExportOpmlButton";
 import { ImportOpmlButton } from "@/src/features/library/ImportOpmlButton";
-import { InlineTagInput } from "@/src/features/library/InlineTagInput";
-import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { RightNow } from "@/src/features/library/RightNow";
-import { CoverPlay } from "@/src/features/player/CoverPlay";
-import { previewShow } from "@/src/features/player/preview";
 import { useSession } from "@/src/state/useSession";
-import { CoverTile, haptic, LiquidBackdrop, NothingToggle, PlayableCard } from "@/src/ui";
+import { CoverTile, haptic, LiquidBackdrop, NothingToggle } from "@/src/ui";
 
 /**
  * Library: the collection system, a single 2-column grid — Shows beside
@@ -154,11 +146,17 @@ export default function LibraryPage() {
 
     void Promise.all(
       due.map((e) =>
-        updateEpisodeProgress(e.episodeId, { status: "finished" }).then(() =>
-          clearHandoff(e.episodeId),
-        ),
+        updateEpisodeProgress(e.episodeId, { status: "finished" }).then(() => {
+          clearHandoff(e.episodeId);
+          // Logged as inferred, not asserted — the History view says so, so
+          // auto-retire stays legible instead of looking like magic.
+          logFinished(e.episodeId, true);
+        }),
       ),
-    ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
+    ).then(() => {
+      refreshHistory();
+      return queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one pass per mount
   }, [episodes.length]);
 
@@ -194,6 +192,10 @@ export default function LibraryPage() {
   return (
     <main className="mx-auto w-full max-w-5xl p-4 pb-[calc(14rem+env(safe-area-inset-bottom))] sm:p-8 sm:pb-[calc(14rem+env(safe-area-inset-bottom))]">
       <LiquidBackdrop />
+      {/* Background job, renders nothing — pulls new episodes of saved shows
+          in. Previously lived inside the shows list, so replacing that list
+          would have taken the feature with it. */}
+      <NewEpisodeWatcher saved={saved} />
       {/* Saved shows lead, and on a phone they're the only thing above the
           fold. Everything else — the copy, the three sync panels, the tag
           rail, the episode list — used to sit open above them, which is
@@ -203,16 +205,18 @@ export default function LibraryPage() {
         <h1 className="font-brand text-2xl font-bold">Library</h1>
       </div>
 
-      <section className="mt-3">
-        <ShowGrid saved={visibleSaved} loading={savedQ.isLoading} filtered={Boolean(tag)} />
-      </section>
+      {/* One decision, with the reason for it, before any list — a wall of
+          equally-plausible episodes is what stalls the action. */}
+      <RightNow episodes={episodes} savedShows={visibleSaved.map((s) => s.show.title)} />
 
-      {/* Answering "what do I play?" is the other reason the Library gets
-          opened, so it sits directly under the covers — open by default,
-          unlike the management tools below it. */}
-      <RightNow episodes={episodes} />
-
-      <CollapsibleSection id="episodes" title="Saved episodes" count={visibleEpisodes.length}>
+      {/* Open, not collapsed: this is the content, not a tool. */}
+      <section className="mt-6">
+        <h2 className="font-brand mb-2 flex items-baseline gap-2 py-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
+          Saved episodes
+          <span className="text-[11px] tracking-[0.2em] text-muted-foreground">
+            {visibleEpisodes.length}
+          </span>
+        </h2>
         <EpisodesColumn
           queue={queueEpisodes}
           archived={archivedEpisodes}
@@ -222,17 +226,27 @@ export default function LibraryPage() {
           onTagsChanged={invalidateTags}
           showFeedById={showFeedById}
         />
-      </CollapsibleSection>
+      </section>
 
-      <CollapsibleSection id="tags" title="Tags & show details" count={visibleSaved.length}>
-        <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
-        <ShowsColumn
-          saved={visibleSaved}
-          tagMap={showTagMap}
-          loading={savedQ.isLoading}
-          filtered={Boolean(tag)}
-          onTagsChanged={invalidateTags}
-        />
+      {/* The cover grid replaces the old "Tags & show details" section —
+          artwork is how shows get recognised, so the metadata list it used
+          to sit above was redundant chrome. Tag filtering rides along with
+          it, since that's the thing tags are actually for here. */}
+      <section className="mt-8">
+        <h2 className="font-brand mb-2 flex items-baseline gap-2 py-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-800 dark:text-zinc-100">
+          Your shows
+          <span className="text-[11px] tracking-[0.2em] text-muted-foreground">
+            {visibleSaved.length}
+          </span>
+        </h2>
+        {allTags.length > 0 && (
+          <TagRail tags={allTags} active={tag} onPick={setActiveTag} onRename={renameTag} />
+        )}
+        <ShowGrid saved={visibleSaved} loading={savedQ.isLoading} filtered={Boolean(tag)} />
+      </section>
+
+      <CollapsibleSection id="history" title="Listen history">
+        <ListenHistory />
       </CollapsibleSection>
 
       <CollapsibleSection id="sync" title="Sync & export">
@@ -348,245 +362,7 @@ function RenameInput({
   );
 }
 
-function ShowsColumn({
-  saved,
-  tagMap,
-  loading,
-  filtered,
-  onTagsChanged,
-}: {
-  saved: { show: CatalogShow; savedAt: string }[];
-  tagMap: ShowTagMap;
-  loading: boolean;
-  filtered: boolean;
-  onTagsChanged: () => void;
-}) {
-  const queryClient = useQueryClient();
 
-  // fresh lastEpisodeAt per saved show (cached; capped for politeness)
-  const freshQ = useQueries({
-    queries: saved.slice(0, 20).map((s) => ({
-      queryKey: ["catalog", "show", s.show.id],
-      queryFn: () => getShow(s.show.id),
-      staleTime: 60 * 60 * 1000,
-    })),
-  });
-  const freshById = new Map(
-    freshQ.filter((q) => q.data).map((q) => [q.data!.id, q.data!]),
-  );
-
-  // A new episode of a saved show is the same kind of event as a fresh
-  // Discovery save (REFINEMENTS.md #13) — route it into the same Inbox
-  // for triage instead of a second, separate mechanism. `freshSignal` is a
-  // primitive (compared by value, not reference), so this only re-runs when
-  // the fetched dates actually change, not on every render.
-  const freshSignal = freshQ.map((q) => q.data?.lastEpisodeAt ?? "").join(",");
-  const autoInboxedRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    for (const { show, savedAt } of saved.slice(0, 20)) {
-      const latest = freshById.get(show.id)?.lastEpisodeAt ?? show.lastEpisodeAt;
-      if (!latest || Date.parse(latest) <= Date.parse(savedAt)) continue;
-      const key = `${show.id}:${latest}`;
-      if (autoInboxedRef.current.has(key)) continue;
-      autoInboxedRef.current.add(key);
-      void getRankedEpisodes(show.id).then((episodes) => {
-        const newOnes = episodes.filter(
-          (e) => e.publishedAt && Date.parse(e.publishedAt) > Date.parse(savedAt),
-        );
-        if (newOnes.length === 0) return;
-        void Promise.all(
-          newOnes.map((e) =>
-            saveEpisode({
-              id: e.id,
-              title: e.title,
-              showId: show.id,
-              showTitle: show.title,
-              coverUrl: show.coverUrl,
-              appleUrl: show.appleUrl,
-              audioUrl: e.audioUrl,
-              durationSec: e.durationSec,
-              categories: [],
-            }),
-          ),
-        ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- freshSignal is the intentional trigger; saved/queryClient are stable enough here
-  }, [freshSignal]);
-
-  const remove = (id: string) =>
-    void unsaveShow(id).then(() =>
-      queryClient.invalidateQueries({ queryKey: ["saved"] }),
-    );
-
-  if (loading) return <p className="text-zinc-500">Loading…</p>;
-  if (saved.length === 0) {
-    return (
-      <p className="text-zinc-500">
-        {filtered ? "No shows with this tag." : "Nothing saved yet — search below to find your first show."}
-      </p>
-    );
-  }
-
-  const renderCards = (items: typeof saved) => (
-    <ul className="flex flex-col gap-3">
-      {items.map(({ show, savedAt }) => (
-        <LibraryShowCard
-          key={show.id}
-          show={show}
-          savedAt={savedAt}
-          tags={tagMap[show.id] ?? []}
-          fresh={freshById.get(show.id)}
-          onRemove={() => remove(show.id)}
-          onTagsChanged={onTagsChanged}
-        />
-      ))}
-    </ul>
-  );
-
-  // Auto-shelves by taste cluster (REFINEMENTS.md #11) — only once the
-  // Library has enough shows for grouping to help rather than fragment a
-  // small list into singletons, and only with no manual tag filter active
-  // (a filter is already the more specific ask). Reuses the recommendation
-  // engine's own seed-cluster match, not a new taxonomy.
-  const AUTO_SHELF_THRESHOLD = 8;
-  if (filtered || saved.length < AUTO_SHELF_THRESHOLD) {
-    return renderCards(saved);
-  }
-
-  const shelves = new Map<string, { label: string; items: typeof saved }>();
-  const unsorted: typeof saved = [];
-  for (const s of saved) {
-    const match = clusterSavedShow({
-      id: s.show.id,
-      title: s.show.title,
-      description: s.show.description,
-      categories: s.show.categories,
-    });
-    if (!match) {
-      unsorted.push(s);
-      continue;
-    }
-    const shelf = shelves.get(match.id) ?? { label: match.label, items: [] };
-    shelf.items.push(s);
-    shelves.set(match.id, shelf);
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      {[...shelves.values()].map((shelf) => (
-        <div key={shelf.label}>
-          <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-            {shelf.label}
-          </h3>
-          {renderCards(shelf.items)}
-        </div>
-      ))}
-      {unsorted.length > 0 && (
-        <div>
-          <h3 className="font-brand mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-            Unsorted
-          </h3>
-          {renderCards(unsorted)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LibraryShowCard({
-  show,
-  savedAt,
-  tags,
-  fresh,
-  onRemove,
-  onTagsChanged,
-}: {
-  show: CatalogShow;
-  savedAt: string;
-  tags: string[];
-  fresh?: CatalogShow;
-  onRemove: () => void;
-  onTagsChanged: () => void;
-}) {
-  const latest = fresh?.lastEpisodeAt ?? show.lastEpisodeAt;
-  const hasNew = Boolean(latest && Date.parse(latest) > Date.parse(savedAt));
-  // feed-only imports have no catalog page to open
-  const linkable = show.source !== "rss";
-
-  return (
-    <li>
-      <PlayableCard
-        onPlay={() => previewShow(show)}
-        playLabel={`Preview ${show.title}`}
-        // Liquid Glass card, organic curve — fixed height so every Show
-        // card in the grid reads as identical size, regardless of title
-        // length or tag count (tags/links already scroll horizontally in
-        // a single row rather than wrapping taller).
-        className="glass-panel h-32 cursor-pointer overflow-hidden !rounded-[1.75rem] shadow-lg"
-      >
-        {/* Cover + tag column — tags live under the cover, not stacked
-            inline with the title text. */}
-        <div className="relative z-10 flex shrink-0 flex-col items-center gap-1">
-          <CoverPlay
-            src={show.coverUrl}
-            size={72}
-            onPlay={() => previewShow(show)}
-            label={`Play a snippet of ${show.title}`}
-            className="!rounded-2xl"
-          />
-          <InlineTagInput
-            tags={tags}
-            onAdd={(t) => void addShowTag(show.id, t).then(onTagsChanged)}
-            onRemove={(t) => void removeShowTag(show.id, t).then(onTagsChanged)}
-            className="w-24"
-          />
-        </div>
-        {/* justify-center vertically centers this block against the
-            (taller) cover+tag column instead of pinning to the top. */}
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-          <p className="font-brand line-clamp-2 font-bold leading-snug">
-            {linkable ? (
-              <Link
-                href={`/show/${show.id}`}
-                className="relative z-10 hover:text-accent hover:underline underline-offset-2"
-              >
-                {show.title}
-              </Link>
-            ) : (
-              show.title
-            )}
-            {hasNew && (
-              <span className="ml-2 rounded-pill bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
-                New episode
-              </span>
-            )}
-          </p>
-          <p className="line-clamp-1 text-sm text-zinc-500">{show.author}</p>
-          <OpenInLinks
-            title={show.title}
-            appleUrl={show.appleUrl}
-            feedUrl={show.feedUrl}
-            stored={show.platformLinks}
-            showId={show.id}
-            className="relative z-10"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          aria-label={`Remove ${show.title}`}
-          className="relative z-10 shrink-0 rounded-full px-2 py-1 text-muted-foreground hover:text-foreground"
-        >
-          ✕
-        </button>
-      </PlayableCard>
-    </li>
-  );
-}
 
 /**
  * The saved-episode list: one ordered list, drag to reorder, Archive as the

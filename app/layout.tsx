@@ -5,6 +5,7 @@ import { TabBar } from "@/src/features/nav/TabBar";
 import { ThemeToggle } from "@/src/features/nav/ThemeToggle";
 import { PreviewPlayer } from "@/src/features/player/PreviewPlayer";
 import { SearchButton } from "@/src/features/search/SearchOverlay";
+import { GlassFilter } from "@/src/ui/GlassFilter";
 import { Providers } from "@/src/state/providers";
 import "./globals.css";
 
@@ -49,6 +50,8 @@ export default function RootLayout({
             __html: `try{var t=localStorage.getItem("wavefm.theme");document.documentElement.dataset.theme=t==="dark"||t==="light"?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){document.documentElement.dataset.theme="light"}`,
           }}
         />
+        {/* Displacement filter for .glass-clear — defined once, referenced by id. */}
+        <GlassFilter />
         <Providers>
           <header className="flex items-center justify-between border-b border-surface-border px-4 py-3 sm:px-8">
             <Link href="/" className="flex items-center gap-2">

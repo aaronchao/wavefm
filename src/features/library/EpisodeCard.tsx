@@ -10,6 +10,8 @@ import { updateEpisodeProgress, type SavedEpisode } from "@/src/data/repos/saved
 import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode } from "@/src/features/player/preview";
 import { recordHandoff } from "@/src/data/repos/handoffRepo";
+import { logHandoff } from "@/src/data/repos/listenHistoryRepo";
+import { refreshHistory } from "@/src/features/library/ListenHistory";
 import { NothingToggle, PlayableCard } from "@/src/ui";
 import { springs } from "@/src/ui/tokens";
 import { InlineTagInput } from "./InlineTagInput";
@@ -196,7 +198,17 @@ export function EpisodeCard({
             appleUrl={episode.appleUrl}
             audioUrl={episode.audioUrl}
             feedUrl={feedUrl}
-            onOpen={() => recordHandoff(episode.episodeId)}
+            onOpen={() => {
+              recordHandoff(episode.episodeId);
+              logHandoff({
+                episodeId: episode.episodeId,
+                title: episode.title,
+                showTitle: episode.showTitle,
+                coverUrl: episode.coverUrl,
+                openedAt: new Date().toISOString(),
+              });
+              refreshHistory();
+            }}
             showId={episode.showId}
             className="relative z-10"
           />

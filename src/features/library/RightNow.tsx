@@ -9,6 +9,7 @@ import {
   type NowEpisode,
   type TimeBucket,
 } from "@/src/core/library/rightNow";
+import { whyThis } from "@/src/core/library/whyThis";
 import { previewEpisode } from "@/src/features/player/preview";
 import { CoverPlay } from "@/src/features/player/CoverPlay";
 import type { SavedEpisode } from "@/src/data/repos/savedEpisodesRepo";
@@ -25,7 +26,15 @@ import { haptic, NothingToggle } from "@/src/ui";
  * vibe from `vibeOf()` — so it works on an existing library immediately.
  * See `src/core/library/rightNow.ts` for the (pure, tested) selection rules.
  */
-export function RightNow({ episodes }: { episodes: SavedEpisode[] }) {
+export function RightNow({
+  episodes,
+  savedShows = [],
+}: {
+  episodes: SavedEpisode[];
+  /** Titles of shows the user saved — a stated preference, so it's one of
+   *  the reasons `whyThis` can give for a pick. */
+  savedShows?: string[];
+}) {
   const [bucket, setBucket] = useState<TimeBucket>(TIME_BUCKETS[1]);
   const [vibeId, setVibeId] = useState<string | null>(null);
   // Walks forward through the ranked candidates for "Something else" —
@@ -47,6 +56,16 @@ export function RightNow({ episodes }: { episodes: SavedEpisode[] }) {
 
   const pick = candidates.length ? candidates[skip % candidates.length] : null;
   const saved = pick ? (pick as SavedEpisode) : null;
+
+  // One reason, not a list — see whyThis for why stacking them turns a pick
+  // back into a comparison.
+  const reason = pick
+    ? whyThis(pick, {
+        bucket,
+        savedShowTitles: new Set(savedShows),
+        vibeCount: vibes.find((v) => v.vibe.id === vibeOfPick(pick))?.count,
+      })
+    : null;
 
   const play = () => {
     if (!saved) return;
@@ -109,7 +128,7 @@ export function RightNow({ episodes }: { episodes: SavedEpisode[] }) {
       )}
 
       {saved ? (
-        <div className="flex items-center gap-3 rounded-[2px] border border-surface-border p-3">
+        <div className="glass-clear flex items-center gap-3 p-3">
           <CoverPlay
             src={saved.coverUrl}
             size={56}
@@ -122,6 +141,9 @@ export function RightNow({ episodes }: { episodes: SavedEpisode[] }) {
               {saved.showTitle ?? "Saved episode"}
               {formatLeft(saved)}
             </p>
+            {reason && (
+              <p className="mt-0.5 truncate text-xs font-medium text-accent">{reason}</p>
+            )}
           </div>
           <div className="flex shrink-0 flex-col gap-1">
             <button
@@ -150,6 +172,10 @@ export function RightNow({ episodes }: { episodes: SavedEpisode[] }) {
       )}
     </section>
   );
+}
+
+function vibeOfPick(e: NowEpisode): string {
+  return vibesPresent([e])[0]?.vibe.id ?? "";
 }
 
 /** " · 24 min left" / " · 24 min" — omitted entirely when unknown. */

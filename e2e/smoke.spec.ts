@@ -138,9 +138,9 @@ test("queue an episode for later, then it appears in the Library", async ({ page
   const rightNow = page.getByRole("region").filter({ hasText: "Right now" });
   await expect(rightNow.getByText("Ep 12: Attachment styles")).toBeVisible();
 
-  // The full list is collapsed by default now; expanding it shows the same
-  // episode again, this time as a link into its show.
-  await page.getByRole("button", { name: /Saved episodes/i }).click();
+  // Saved episodes is open, not collapsed — it's the content, not a tool,
+  // so it must be reachable without a tap. The same episode appears there
+  // too, this time as a link into its show.
   await expect(
     page.getByRole("link", { name: "Ep 12: Attachment styles" }),
   ).toBeVisible();
@@ -868,7 +868,10 @@ test("library leads with saved shows; tools live behind collapsed sections", asy
 
   // The mobile-first point of the page: the management tools no longer sit
   // open above the user's own content — they're one tap away, not gone.
+  // Saved episodes and the show grid are open; only the tools are collapsed.
   await expect(page.getByRole("button", { name: "Import OPML" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /Saved episodes/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Your shows/i })).toBeVisible();
   const sync = page.getByRole("button", { name: /Sync & export/i });
   await expect(sync).toBeVisible();
   await sync.click();

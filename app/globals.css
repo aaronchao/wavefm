@@ -195,7 +195,6 @@ body {
     linear-gradient(135deg, rgb(255 255 255 / 0.35), rgb(255 255 255 / 0.05) 45%, rgb(255 255 255 / 0.18) 100%),
     rgb(255 255 255 / 0.16) !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   box-shadow:
     inset 0 1px 1px rgb(255 255 255 / 0.6),
     inset 0 -1px 1px rgb(255 255 255 / 0.12),
@@ -245,7 +244,6 @@ body {
     linear-gradient(135deg, rgb(255 255 255 / 0.30), rgb(255 255 255 / 0.04) 48%, rgb(255 255 255 / 0.14) 100%),
     rgb(255 255 255 / 0.10);
   backdrop-filter: blur(18px) saturate(185%);
-  -webkit-backdrop-filter: blur(18px) saturate(185%);
   box-shadow:
     /* specular top edge, then the shaded underside */
     inset 0 1px 0.5px rgb(255 255 255 / 0.65),
@@ -304,7 +302,6 @@ body {
   z-index: 0;
   border-radius: inherit;
   backdrop-filter: blur(7px) brightness(1.08) saturate(120%);
-  -webkit-backdrop-filter: blur(7px) brightness(1.08) saturate(120%);
   -webkit-mask: radial-gradient(115% 115% at 50% 50%, transparent 52%, #000 94%);
   mask: radial-gradient(115% 115% at 50% 50%, transparent 52%, #000 94%);
   pointer-events: none;
@@ -360,6 +357,102 @@ body {
     transition: none;
     transform: none;
   }
+}
+
+/* A squircle frame for opaque artwork. Glass can't work here — you can't
+   see through a cover image — so this is only the geometry and the edge
+   highlight, which is the part that survives over an opaque child. */
+.cover-frame {
+  position: relative;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.14),
+    0 4px 14px -8px rgb(0 0 0 / 0.5);
+}
+@supports (corner-shape: superellipse(4)) {
+  .cover-frame {
+    corner-shape: superellipse(4);
+  }
+}
+
+/* ---------------------------------------------------------------------
+   .glass-clear — Liquid Glass with NO blur.
+
+   `.glass-card` frosts the backdrop. That reads as glass, but it also hides
+   whatever is behind it. Real glass mostly BENDS light rather than
+   scattering it, so a clear pane stays see-through and only distorts —
+   which is the look master.dev's write-up calls "no blur at all":
+   displacement fully on, frosting reduced to a very light translucent
+   white.
+
+   Refraction comes from an SVG displacement map (src/ui/GlassFilter.tsx)
+   applied through backdrop-filter, not from blur. Chrome supports SVG
+   filters in backdrop-filter; Safari does not — so the effect is gated
+   behind @supports and anything that can't do it keeps the frosted card,
+   which is a different look but never a broken one.
+   --------------------------------------------------------------------- */
+.glass-clear {
+  position: relative;
+  isolation: isolate;
+  border-radius: 22px;
+  /* Only a whisper of white — the transparency IS the design here. */
+  background: rgb(255 255 255 / 0.06);
+  backdrop-filter: saturate(150%);
+  box-shadow:
+    inset 0 1px 0.5px rgb(255 255 255 / 0.55),
+    inset 0 -1px 0.5px rgb(0 0 0 / 0.12),
+    0 6px 20px -10px rgb(0 0 0 / 0.35);
+}
+:root[data-theme="dark"] .glass-clear {
+  background: rgb(255 255 255 / 0.05);
+  box-shadow:
+    inset 0 1px 0.5px rgb(255 255 255 / 0.18),
+    inset 0 -1px 0.5px rgb(0 0 0 / 0.4),
+    0 6px 20px -10px rgb(0 0 0 / 0.6);
+}
+
+@supports (backdrop-filter: url(#wavr-glass)) {
+  .glass-clear {
+    backdrop-filter: url(#wavr-glass) saturate(150%);
+  }
+}
+
+@supports (corner-shape: superellipse(4)) {
+  .glass-clear,
+  .glass-clear::before {
+    corner-shape: superellipse(4);
+  }
+}
+
+/* Same directional rim as .glass-card — with no blur to sell the material,
+   the edge is doing even more of the work here. */
+.glass-clear::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 1.1px;
+  background: conic-gradient(
+    from 200deg,
+    rgb(255 255 255 / 0) 0deg,
+    rgb(255 255 255 / 0.75) 55deg,
+    rgb(255 255 255 / 0.12) 150deg,
+    rgb(255 255 255 / 0.5) 250deg,
+    rgb(255 255 255 / 0) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.glass-clear > * {
+  position: relative;
+  z-index: 2;
 }
 
 /* The vibrant, multi-color blurred wash a Liquid Glass surface needs
