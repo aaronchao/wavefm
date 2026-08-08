@@ -43,14 +43,20 @@ export async function GET(
     coverUrl: (r.cover_url as string | null) ?? undefined,
   }));
 
-  // Absolute URL — RSS artwork is fetched by the podcast client, not the
-  // browser, so a root-relative path would never resolve for it.
-  const imageUrl = new URL("/cover-3000.png", request.url).toString();
+  // Absolute URLs, built from the PUBLIC origin — a podcast client fetches
+  // these from the outside world, so a root-relative path is useless to it
+  // and `request.url` alone is unreliable: behind Vercel's proxy it can
+  // carry the internal invocation host rather than the deployed domain,
+  // which would point the artwork and the self-link at somewhere Pocket
+  // Casts can't reach. The forwarded headers are the real origin.
+  const origin = publicOrigin(request);
+  const imageUrl = new URL("/cover-3000.png", origin).toString();
+  const selfUrl = new URL(new URL(request.url).pathname, origin).toString();
 
   const xml = buildListenLaterRss(episodes, {
     title: "WaveFM",
     description: "Your personal Listen-Later queue, synced from WaveFM.",
-    selfUrl: request.url,
+    selfUrl,
     imageUrl,
   });
 
@@ -60,4 +66,13 @@ export async function GET(
       "cache-control": "no-store",
     },
   });
+}
+
+/** The externally-reachable origin, preferring the proxy's forwarded headers. */
+function publicOrigin(request: Request): string {
+  const h = request.headers;
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  if (host) return `${proto}://${host}`;
+  return new URL(request.url).origin;
 }

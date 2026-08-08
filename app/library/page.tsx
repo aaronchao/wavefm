@@ -922,9 +922,12 @@ function PocketCastsSyncPanel() {
         Sync played status from Pocket Casts
       </span>
       <p className="text-[11px] leading-relaxed">
-        Optional. Marks episodes you finished in Pocket Casts as finished here, instead of waiting
-        for the time-based guess. Your login is used for this one request only — never saved, never
-        logged. Uses Pocket Casts&apos; unofficial API, so it can stop working without warning.
+        Optional. Reads your Pocket Casts play history and applies it here: episodes you finished
+        there are marked finished (so they stop being suggested), and part-played ones get their
+        real resume position. The count afterwards is how many of your saved episodes it matched
+        and changed — episodes Pocket Casts hasn&apos;t seen are left alone. Your login is used for
+        this one request only, never saved and never logged. Uses Pocket Casts&apos; unofficial API,
+        so it can stop working without warning.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input
@@ -951,8 +954,12 @@ function PocketCastsSyncPanel() {
         >
           {status === "syncing" ? "Syncing…" : "Sync"}
         </button>
-        {status === "done" && <span className="text-accent">Updated {count}</span>}
-        {status === "none" && <span>Nothing to update</span>}
+        {status === "done" && (
+          <span className="text-accent">
+            {count} episode{count === 1 ? "" : "s"} updated from Pocket Casts
+          </span>
+        )}
+        {status === "none" && <span>No matching episodes — nothing changed</span>}
       </div>
     </div>
   );
