@@ -31,6 +31,64 @@ export type PocketCastsEpisode = {
   duration?: number;
 };
 
+/** A subscribed podcast from Pocket Casts' own list. */
+export type PocketCastsPodcast = {
+  uuid?: string;
+  title?: string;
+  author?: string;
+  /** Their web page for the show. */
+  url?: string;
+  /** The RSS feed — the only field that reliably identifies a show for us. */
+  feedUrl?: string;
+};
+
+/** A show already in the library, for deciding what's genuinely new. */
+export type MatchableShow = {
+  feedUrl?: string;
+  title?: string;
+};
+
+export type NewSubscription = {
+  title: string;
+  feedUrl: string;
+  author?: string;
+};
+
+/**
+ * Subscriptions in Pocket Casts that aren't in the library yet.
+ *
+ * ADDITIVE AND ONE-WAY, deliberately: this never reports removals, so
+ * unsubscribing in Pocket Casts can't delete a saved show here. "Saved in
+ * WaveFM" and "subscribed in Pocket Casts" aren't the same statement, and
+ * silently deleting a library on the say-so of an unofficial API is the
+ * kind of bug that's unforgivable when it misfires.
+ *
+ * Matched on feed URL — titles drift and get localised, whereas the feed is
+ * the show's actual identity. Anything without one is skipped rather than
+ * guessed at.
+ */
+export function newSubscriptions(
+  podcasts: PocketCastsPodcast[],
+  existing: MatchableShow[],
+): NewSubscription[] {
+  const have = new Set(
+    existing
+      .map((s) => s.feedUrl)
+      .filter((u): u is string => Boolean(u))
+      .map((u) => normalizeAudioUrl(u)),
+  );
+  const seen = new Set<string>();
+  const out: NewSubscription[] = [];
+  for (const p of podcasts) {
+    if (!p.feedUrl || !p.title) continue;
+    const key = normalizeAudioUrl(p.feedUrl);
+    if (have.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ title: p.title, feedUrl: p.feedUrl, author: p.author });
+  }
+  return out;
+}
+
 export type MatchableEpisode = {
   episodeId: string;
   audioUrl?: string;

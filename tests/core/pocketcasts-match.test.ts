@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   matchPocketCastsHistory,
+  newSubscriptions,
   statusForPocketCasts,
   type PocketCastsEpisode,
 } from "@/src/core/sync/pocketCastsMatch";
@@ -81,5 +82,61 @@ describe("matchPocketCastsHistory", () => {
       { url: "https://cdn.example.com/a.mp3", playingStatus: 3, playedUpTo: -5 },
     ];
     expect(matchPocketCastsHistory(history, saved)[0].positionSec).toBe(0);
+  });
+});
+
+describe("newSubscriptions", () => {
+  const existing = [
+    { feedUrl: "https://feeds.example.com/daily.xml", title: "The Daily" },
+    { feedUrl: undefined, title: "Imported by hand" },
+  ];
+
+  it("returns only shows not already saved", () => {
+    const out = newSubscriptions(
+      [
+        { title: "The Daily", feedUrl: "https://feeds.example.com/daily.xml" },
+        { title: "Darknet Diaries", feedUrl: "https://feeds.example.com/dd.xml", author: "JC" },
+      ],
+      existing,
+    );
+    expect(out).toEqual([
+      { title: "Darknet Diaries", feedUrl: "https://feeds.example.com/dd.xml", author: "JC" },
+    ]);
+  });
+
+  it("matches on feed URL despite tracking params and scheme differences", () => {
+    const out = newSubscriptions(
+      [{ title: "The Daily", feedUrl: "http://feeds.example.com/daily.xml?src=pocketcasts" }],
+      existing,
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("never reports removals — unsubscribing there can't delete a saved show", () => {
+    // Pocket Casts returns nothing; the library still has The Daily.
+    expect(newSubscriptions([], existing)).toEqual([]);
+  });
+
+  it("skips entries with no feed URL or no title rather than guessing", () => {
+    const out = newSubscriptions(
+      [
+        { title: "No feed" },
+        { feedUrl: "https://feeds.example.com/x.xml" },
+        { title: "Good", feedUrl: "https://feeds.example.com/good.xml" },
+      ],
+      existing,
+    );
+    expect(out.map((s) => s.title)).toEqual(["Good"]);
+  });
+
+  it("dedupes a feed listed twice", () => {
+    const out = newSubscriptions(
+      [
+        { title: "Dup", feedUrl: "https://feeds.example.com/d.xml" },
+        { title: "Dup again", feedUrl: "https://feeds.example.com/d.xml" },
+      ],
+      [],
+    );
+    expect(out).toHaveLength(1);
   });
 });

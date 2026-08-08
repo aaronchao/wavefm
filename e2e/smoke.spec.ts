@@ -877,5 +877,10 @@ test("library leads with content; sync is a top-right tool", async ({ page }) =>
   await sync.click();
   await expect(page.getByRole("button", { name: "Import OPML" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Export OPML" })).toBeVisible();
-  await expect(page.getByText(/Sync played status from Pocket Casts/i)).toBeVisible();
+  // Pocket Casts sits in the Sync panel, asking for credentials only while
+  // not yet connected — once a token is stored it shows Connected instead.
+  await expect(page.getByText(/Pulls your play history and your subscriptions/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Connect$/ })).toBeVisible();
+  // Signing in lives here now, not on Discover.
+  await expect(page.getByPlaceholder(/sync your picks/i)).toBeVisible();
 });

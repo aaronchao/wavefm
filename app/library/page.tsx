@@ -30,6 +30,8 @@ import {
 } from "@/src/data/repos/savedEpisodesRepo";
 import {
   disableSharing,
+  getPocketCastsToken,
+  setPocketCastsToken,
   enableSharing,
   getFeedToken,
   getShareInfo,
@@ -45,6 +47,7 @@ import {
 } from "@/src/data/repos/showTagsRepo";
 import { renameTagEverywhere } from "@/src/data/repos/tagsRepo";
 import { BulkYoutubeMusicButton } from "@/src/features/library/BulkYoutubeMusicButton";
+import { AccountSync } from "@/src/features/library/AccountSync";
 import { CollapsibleSection } from "@/src/features/library/CollapsibleSection";
 import { ListenHistory, refreshHistory } from "@/src/features/library/ListenHistory";
 import { NewEpisodeWatcher } from "@/src/features/library/NewEpisodeWatcher";
@@ -226,6 +229,8 @@ export default function LibraryPage() {
 
       {syncOpen && (
         <div className="mt-3 flex flex-col gap-3 rounded-[2px] border border-surface-border p-3">
+          {/* Account first: everything below only syncs once you're signed in. */}
+          <AccountSync />
           <div className="flex flex-wrap items-center gap-2">
             <ImportOpmlButton />
             <ExportOpmlButton />
@@ -889,78 +894,128 @@ function SharePanel({ signedIn }: { signedIn: boolean }) {
  * across a re-render beyond what's needed for the one request in flight).
  */
 /**
- * Opt-in accurate listen-status sync from Pocket Casts.
+ * Pocket Casts sync — played status and subscriptions, in one action.
  *
- * Auto-retire guesses from elapsed time and never needs a password. This is
- * the accurate alternative, and it needs one — so it's deliberately opt-in,
- * entered here per sync, cleared the moment the request is sent, and never
- * stored. The copy says so, because asking for a password without saying
- * where it goes is how you train people into bad habits.
+ * Signing in once was the ask: the first sync exchanges email+password for a
+ * bearer token, and only the TOKEN is kept (in `prefs`, per-user and RLS'd,
+ * so it follows you across devices). The password is never stored anywhere,
+ * and the token can be revoked by changing the Pocket Casts password —
+ * which a stored password could not be.
+ *
+ * Subscriptions are pulled ADDITIVELY and one-way: nothing is written back
+ * to Pocket Casts, and unsubscribing there never removes a saved show here.
  */
 function PocketCastsSyncPanel() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [status, setStatus] = useState<"idle" | "syncing" | "done" | "none" | "error">("idle");
-  const [count, setCount] = useState(0);
+  const [status, setStatus] = useState<"idle" | "syncing" | "done" | "none" | "expired">("idle");
+  const [result, setResult] = useState<{ episodes: number; shows: number }>({
+    episodes: 0,
+    shows: 0,
+  });
   const queryClient = useQueryClient();
+
+  const tokenQ = useQuery({ queryKey: ["pocketCastsToken"], queryFn: getPocketCastsToken });
+  const connected = Boolean(tokenQ.data);
 
   async function sync() {
     setStatus("syncing");
-    const updated = await syncFromPocketCasts(email, password);
+    const token = tokenQ.data;
+    const out = await syncFromPocketCasts(token ? { token } : { email, password });
     setPassword(""); // gone as soon as the one request has it
-    setCount(updated);
-    setStatus(updated > 0 ? "done" : "none");
-    if (updated > 0) {
+    setResult(out);
+    if (out.expired) {
+      setStatus("expired");
+    } else {
+      setStatus(out.episodes + out.shows > 0 ? "done" : "none");
+    }
+    await queryClient.invalidateQueries({ queryKey: ["pocketCastsToken"] });
+    if (out.episodes + out.shows > 0) {
       refreshHistory();
       await queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
+      await queryClient.invalidateQueries({ queryKey: ["saved"] });
     }
+  }
+
+  async function disconnect() {
+    await setPocketCastsToken(null);
+    setStatus("idle");
+    await queryClient.invalidateQueries({ queryKey: ["pocketCastsToken"] });
   }
 
   return (
     <div className="mb-4 flex flex-col gap-2 rounded-[2px] border border-dashed border-surface-border px-3 py-2 text-xs text-zinc-500">
       <span className="font-brand uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
-        Sync played status from Pocket Casts
+        Pocket Casts
       </span>
       <p className="text-[11px] leading-relaxed">
-        Optional. Reads your Pocket Casts play history and applies it here: episodes you finished
-        there are marked finished (so they stop being suggested), and part-played ones get their
-        real resume position. The count afterwards is how many of your saved episodes it matched
-        and changed — episodes Pocket Casts hasn&apos;t seen are left alone. Your login is used for
-        this one request only, never saved and never logged. Uses Pocket Casts&apos; unofficial API,
-        so it can stop working without warning.
+        Pulls your play history and your subscriptions. Episodes you finished there are marked
+        finished here (so they stop being suggested), part-played ones get their real resume
+        position, and shows you follow are added to your library. Adding only — unsubscribing in
+        Pocket Casts never removes anything here. Your password is never stored; connecting keeps
+        only a revocable access token.
       </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="pocket casts email"
-          autoComplete="off"
-          className="w-40 rounded-[2px] border border-surface-border bg-background px-2 py-1 text-xs"
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="password"
-          autoComplete="off"
-          className="w-32 rounded-[2px] border border-surface-border bg-background px-2 py-1 text-xs"
-        />
-        <button
-          type="button"
-          onClick={() => void sync()}
-          disabled={!email || !password || status === "syncing"}
-          className="font-brand rounded-[2px] border border-foreground px-3 py-1 text-[11px] uppercase tracking-wider text-foreground disabled:opacity-40"
-        >
-          {status === "syncing" ? "Syncing…" : "Sync"}
-        </button>
-        {status === "done" && (
-          <span className="text-accent">
-            {count} episode{count === 1 ? "" : "s"} updated from Pocket Casts
-          </span>
-        )}
-        {status === "none" && <span>No matching episodes — nothing changed</span>}
-      </div>
+
+      {connected ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-accent">Connected</span>
+          <button
+            type="button"
+            onClick={() => void sync()}
+            disabled={status === "syncing"}
+            className="font-brand rounded-[2px] border border-foreground px-3 py-1 text-[11px] uppercase tracking-wider text-foreground disabled:opacity-40"
+          >
+            {status === "syncing" ? "Syncing…" : "Sync now"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void disconnect()}
+            className="font-brand rounded-[2px] border border-surface-border px-3 py-1 text-[11px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+          >
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="pocket casts email"
+            autoComplete="off"
+            className="w-40 rounded-[2px] border border-surface-border bg-background px-2 py-1 text-xs"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="password"
+            autoComplete="off"
+            className="w-32 rounded-[2px] border border-surface-border bg-background px-2 py-1 text-xs"
+          />
+          <button
+            type="button"
+            onClick={() => void sync()}
+            disabled={!email || !password || status === "syncing"}
+            className="font-brand rounded-[2px] border border-foreground px-3 py-1 text-[11px] uppercase tracking-wider text-foreground disabled:opacity-40"
+          >
+            {status === "syncing" ? "Connecting…" : "Connect"}
+          </button>
+        </div>
+      )}
+
+      {status === "done" && (
+        <span className="text-accent">
+          {result.episodes} episode{result.episodes === 1 ? "" : "s"} updated
+          {result.shows > 0 && `, ${result.shows} show${result.shows === 1 ? "" : "s"} added`}
+        </span>
+      )}
+      {status === "none" && <span>Already up to date — nothing changed</span>}
+      {status === "expired" && (
+        <span className="text-accent">
+          Pocket Casts rejected the saved login — sign in again to reconnect.
+        </span>
+      )}
     </div>
   );
 }

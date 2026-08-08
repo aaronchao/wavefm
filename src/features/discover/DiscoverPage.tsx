@@ -1,10 +1,9 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { getPrefs, setInterests } from "@/src/data/repos/prefsRepo";
 import { listSaved } from "@/src/data/repos/savedShowsRepo";
-import { getSupabase } from "@/src/data/supabase/client";
 import { useSession } from "@/src/state/useSession";
 import { LiquidBackdrop } from "@/src/ui";
 import { Charts } from "./Charts";
@@ -40,7 +39,7 @@ const FALLBACK_INTERESTS = ["墨尔本", "奥德赛", "claude"];
  * accent, dot-matrix marks.
  */
 export function DiscoverPage() {
-  const { session, configured } = useSession();
+  const { session } = useSession();
   const scope = session?.user.id ?? "local";
   const queryClient = useQueryClient();
   const savedQ = useQuery({ queryKey: ["saved", scope], queryFn: listSaved });
@@ -83,11 +82,6 @@ export function DiscoverPage() {
         <h1 className="font-brand text-xl font-bold tracking-tight sm:text-2xl">
           Your next favorite show is hiding in here.
         </h1>
-        {configured && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <InlineSync />
-          </div>
-        )}
       </div>
 
       {/* For You — your own interests drive everything below; Wavr Mini
@@ -155,61 +149,6 @@ export function DiscoverPage() {
   );
 }
 
-/** Inline magic-link sync — Settings' account section, merged into Discover. */
-function InlineSync() {
-  const { session } = useSession();
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
-
-  if (session) {
-    return (
-      <button
-        type="button"
-        onClick={() => void getSupabase()?.auth.signOut()}
-        className="font-brand rounded-pill border border-surface-border px-3 py-1.5 text-xs uppercase tracking-wider text-zinc-500 hover:text-foreground"
-      >
-        Synced as {session.user.email} · Sign out
-      </button>
-    );
-  }
-  if (status === "sent") {
-    return (
-      <span className="text-xs text-zinc-500">Check {email} for your link ✓</span>
-    );
-  }
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    const sb = getSupabase();
-    if (!sb || !email.trim()) return;
-    setStatus("sending");
-    const { error } = await sb.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
-    });
-    setStatus(error ? "error" : "sent");
-  }
-
-  return (
-    <form onSubmit={onSubmit} className="flex items-center gap-1.5">
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@email.com — sync your picks"
-        className="font-brand w-48 rounded-pill border border-surface-border bg-surface px-3 py-1.5 text-xs outline-none focus:border-accent"
-      />
-      <button
-        type="submit"
-        disabled={status === "sending"}
-        className="nothing-toggle px-3 py-1.5 text-[11px]"
-      >
-        {status === "sending" ? "…" : "Sync"}
-      </button>
-      {status === "error" && <span className="text-xs text-red-500">Failed</span>}
-    </form>
-  );
-}
 
 /** Low-friction inline add for a new "For You" interest — always one tap
  *  (type + Enter), no extra click to reveal the field. */

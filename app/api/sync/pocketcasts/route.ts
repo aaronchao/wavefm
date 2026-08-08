@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import type { PocketCastsEpisode } from "@/src/core/sync/pocketCastsMatch";
+import type {
+  PocketCastsEpisode,
+  PocketCastsPodcast,
+} from "@/src/core/sync/pocketCastsMatch";
 
 /**
  * Proxy: one-shot pull sync of listening progress from Pocket Casts.
@@ -25,63 +28,108 @@ import type { PocketCastsEpisode } from "@/src/core/sync/pocketCastsMatch";
 
 const LOGIN_URL = "https://api.pocketcasts.com/user/login";
 const HISTORY_URL = "https://api.pocketcasts.com/user/history";
+const PODCAST_LIST_URL = "https://api.pocketcasts.com/user/podcast/list";
+
+/** Their login payload has used both spellings across versions. */
+type LoginResponse = { token?: string; accessToken?: string };
+
+async function login(email: string, password: string): Promise<string | null | "auth"> {
+  const res = await fetch(LOGIN_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password, scope: "webplayer" }),
+  });
+  if (res.status === 401 || res.status === 403) return "auth";
+  if (!res.ok) return null;
+  const json = (await res.json()) as LoginResponse;
+  return json.token ?? json.accessToken ?? null;
+}
+
+async function post(url: string, token: string): Promise<unknown | null> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({}),
+  });
+  // A stale stored token shows up here, not at login.
+  if (res.status === 401 || res.status === 403) return "auth";
+  if (!res.ok) return null;
+  return res.json();
+}
 
 export async function POST(request: Request) {
-  let body: { email?: unknown; password?: unknown };
+  let body: { email?: unknown; password?: unknown; token?: unknown };
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ episodes: [] }, { status: 400 });
+    return NextResponse.json({ episodes: [], podcasts: [] }, { status: 400 });
   }
 
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
-  if (!email || !password) {
-    return NextResponse.json({ episodes: [] }, { status: 400 });
+  const existingToken = typeof body.token === "string" ? body.token : "";
+  if (!existingToken && (!email || !password)) {
+    return NextResponse.json({ episodes: [], podcasts: [] }, { status: 400 });
   }
 
   try {
-    const loginRes = await fetch(LOGIN_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password, scope: "webplayer" }),
-    });
-
-    if (loginRes.status === 401 || loginRes.status === 403) {
-      return NextResponse.json({ episodes: [], reason: "auth" }, { status: 401 });
+    // A stored token skips the password entirely — that's the whole point of
+    // keeping it. Only fall back to credentials when there isn't one.
+    let token = existingToken;
+    let minted = false;
+    if (!token) {
+      const result = await login(email, password);
+      if (result === "auth") {
+        return NextResponse.json({ episodes: [], podcasts: [], reason: "auth" }, { status: 401 });
+      }
+      if (!result) return NextResponse.json({ episodes: [], podcasts: [] });
+      token = result;
+      minted = true;
     }
-    if (!loginRes.ok) {
-      return NextResponse.json({ episodes: [] });
+
+    const history = await post(HISTORY_URL, token);
+    if (history === "auth") {
+      // The stored token expired or was revoked (changing the Pocket Casts
+      // password does this). Say so specifically so the UI can ask for
+      // credentials again rather than reporting a mystery empty sync.
+      return NextResponse.json(
+        { episodes: [], podcasts: [], reason: "expired" },
+        { status: 401 },
+      );
     }
 
-    const login = (await loginRes.json()) as { token?: string; accessToken?: string };
-    // Their payload has used both spellings across versions.
-    const token = login.token ?? login.accessToken;
-    if (!token) return NextResponse.json({ episodes: [] });
+    const episodes = ((history as { episodes?: PocketCastsEpisode[] } | null)?.episodes ?? []).map(
+      (e) => ({
+        url: typeof e.url === "string" ? e.url : undefined,
+        playingStatus: typeof e.playingStatus === "number" ? e.playingStatus : undefined,
+        playedUpTo: typeof e.playedUpTo === "number" ? e.playedUpTo : undefined,
+        duration: typeof e.duration === "number" ? e.duration : undefined,
+      }),
+    );
 
-    const historyRes = await fetch(HISTORY_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({}),
-    });
-    if (!historyRes.ok) return NextResponse.json({ episodes: [] });
+    // Subscriptions, so subscribing in Pocket Casts flows into saved shows.
+    // Strictly additive and one-way on the client side — nothing is ever
+    // written back to Pocket Casts, and an unsubscribe there never removes
+    // a saved show here.
+    const listed = await post(PODCAST_LIST_URL, token);
+    const podcasts =
+      listed === "auth"
+        ? []
+        : ((listed as { podcasts?: PocketCastsPodcast[] } | null)?.podcasts ?? []).map((p) => ({
+            uuid: typeof p.uuid === "string" ? p.uuid : undefined,
+            title: typeof p.title === "string" ? p.title : undefined,
+            author: typeof p.author === "string" ? p.author : undefined,
+            url: typeof p.url === "string" ? p.url : undefined,
+            feedUrl: typeof p.feedUrl === "string" ? p.feedUrl : undefined,
+          }));
 
-    const data = (await historyRes.json()) as { episodes?: PocketCastsEpisode[] };
-    const episodes = (data.episodes ?? []).map((e) => ({
-      url: typeof e.url === "string" ? e.url : undefined,
-      playingStatus: typeof e.playingStatus === "number" ? e.playingStatus : undefined,
-      playedUpTo: typeof e.playedUpTo === "number" ? e.playedUpTo : undefined,
-      duration: typeof e.duration === "number" ? e.duration : undefined,
-    }));
-
-    // Matching happens on the client, where the saved episodes live — the
+    // Matching happens on the client, where the saved library lives — the
     // same split as the gpodder route, and it keeps this endpoint from
-    // needing to see the user's library at all.
-    return NextResponse.json({ episodes });
+    // needing to see the user's library at all. The token is returned only
+    // when freshly minted, so the client can store it and stop asking for
+    // a password.
+    return NextResponse.json({ episodes, podcasts, ...(minted ? { token } : {}) });
   } catch {
-    return NextResponse.json({ episodes: [] });
+    return NextResponse.json({ episodes: [], podcasts: [] });
   }
 }

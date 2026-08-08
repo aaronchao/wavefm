@@ -1,3 +1,5 @@
+import { normalizeAudioUrl } from "@/src/core/appleEpisode";
+
 /**
  * gpodder.net progress-sync (REFINEMENTS.md #3, "External player progress
  * sync"): the pure matching/decision piece of a one-shot pull sync. Given
@@ -40,8 +42,8 @@ export function statusForGpodderPosition(
 }
 
 /**
- * Matches gpodder.net "play" actions to saved episodes by exact audio-URL
- * equality, and decides the resulting status per matched episode. Later
+ * Matches gpodder.net "play" actions to saved episodes by NORMALISED
+ * audio-URL equality, and decides the resulting status per matched episode. Later
  * actions for the same episode win (gpodder.net's `actions` array is
  * chronological, oldest first) so the caller gets the most recent position.
  */
@@ -52,13 +54,17 @@ export function matchGpodderActions(
   const byUrl = new Map<string, GpodderAction>();
   for (const action of actions) {
     if (!action.audioUrl) continue;
-    byUrl.set(action.audioUrl, action); // last write wins -> most recent action per URL
+    // Normalised, not raw. Feeds serve the same episode through different
+    // redirect wrappers (podtrac, pscrb) and tracking query strings
+    // depending on who fetched it, so exact equality silently missed
+    // episodes the Pocket Casts path catches. Both matchers now agree.
+    byUrl.set(normalizeAudioUrl(action.audioUrl), action); // last write wins
   }
 
   const updates: GpodderProgressUpdate[] = [];
   for (const episode of episodes) {
     if (!episode.audioUrl) continue;
-    const action = byUrl.get(episode.audioUrl);
+    const action = byUrl.get(normalizeAudioUrl(episode.audioUrl));
     if (!action) continue;
     updates.push({
       episodeId: episode.episodeId,

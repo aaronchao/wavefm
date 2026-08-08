@@ -1,7 +1,15 @@
 import { matchGpodderActions } from "@/src/core/sync/gpodderMatch";
-import { matchPocketCastsHistory, type PocketCastsEpisode } from "@/src/core/sync/pocketCastsMatch";
+import {
+  matchPocketCastsHistory,
+  newSubscriptions,
+  type PocketCastsEpisode,
+  type PocketCastsPodcast,
+} from "@/src/core/sync/pocketCastsMatch";
 import type { CatalogEpisode } from "@/src/data/catalog/types";
 import { getSupabase } from "@/src/data/supabase/client";
+import { setPocketCastsToken } from "@/src/data/repos/prefsRepo";
+import { listSaved, saveShow } from "@/src/data/repos/savedShowsRepo";
+import { stableFeedId } from "@/src/core/opml";
 
 /**
  * Listen-later collection: episodes the user liked, with playback status
@@ -404,20 +412,47 @@ export async function migrateLocalEpisodes(): Promise<void> {
  * fact and the heuristic is an inference. `finished` is recorded as
  * NOT inferred, so history shows it as known rather than assumed.
  */
-export async function syncFromPocketCasts(email: string, password: string): Promise<number> {
+export type PocketCastsSyncResult = {
+  /** Saved episodes whose status/position changed. */
+  episodes: number;
+  /** Subscriptions added to the library. */
+  shows: number;
+  /** A stored token was rejected — the UI must ask for credentials again. */
+  expired?: boolean;
+};
+
+export async function syncFromPocketCasts(
+  creds: { email: string; password: string } | { token: string },
+): Promise<PocketCastsSyncResult> {
   try {
     const res = await fetch("/api/sync/pocketcasts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(creds),
     });
-    if (!res.ok) return 0;
-    const json = (await res.json()) as { episodes?: PocketCastsEpisode[] };
-    const history = json.episodes ?? [];
-    if (history.length === 0) return 0;
+
+    if (res.status === 401) {
+      const why = (await res.json().catch(() => ({}))) as { reason?: string };
+      if (why.reason === "expired") {
+        // Forget it, or every later sync silently fails the same way.
+        await setPocketCastsToken(null);
+        return { episodes: 0, shows: 0, expired: true };
+      }
+      return { episodes: 0, shows: 0 };
+    }
+    if (!res.ok) return { episodes: 0, shows: 0 };
+
+    const json = (await res.json()) as {
+      episodes?: PocketCastsEpisode[];
+      podcasts?: PocketCastsPodcast[];
+      token?: string;
+    };
+
+    // Freshly minted — keep it so the password isn't needed again.
+    if (json.token) await setPocketCastsToken(json.token);
 
     const episodes = await listSavedEpisodes();
-    const updates = matchPocketCastsHistory(history, episodes);
+    const updates = matchPocketCastsHistory(json.episodes ?? [], episodes);
     for (const u of updates) {
       if (u.status === "finished") {
         await markFinished(u.episodeId, false);
@@ -428,9 +463,35 @@ export async function syncFromPocketCasts(email: string, password: string): Prom
         });
       }
     }
-    return updates.length;
+
+    // Subscriptions: additive only. Nothing is removed here, ever — see
+    // newSubscriptions for why an unsubscribe there mustn't delete a show.
+    let shows = 0;
+    const podcasts = json.podcasts ?? [];
+    if (podcasts.length > 0) {
+      const saved = await listSaved();
+      const fresh = newSubscriptions(
+        podcasts,
+        saved.map((s) => ({ feedUrl: s.show.feedUrl, title: s.show.title })),
+      );
+      for (const sub of fresh) {
+        await saveShow({
+          // No catalog id for a feed we've only seen in Pocket Casts, so use
+          // the same stable rss- id scheme OPML import uses.
+          id: `rss-${stableFeedId(sub.feedUrl)}`,
+          source: "rss",
+          title: sub.title,
+          author: sub.author ?? "",
+          feedUrl: sub.feedUrl,
+          categories: [],
+        });
+      }
+      shows = fresh.length;
+    }
+
+    return { episodes: updates.length, shows };
   } catch {
-    return 0;
+    return { episodes: 0, shows: 0 };
   }
 }
 
