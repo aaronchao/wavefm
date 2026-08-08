@@ -1,0 +1,130 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`recommendation golden fixtures > ranks a saved-shows taste profile stably 1`] = `
+[
+  {
+    "items": [
+      "tc1@0.587",
+      "tc2@0.302",
+    ],
+    "label": "Nightfall Cases",
+    "why": "Because you saved Nightfall Cases",
+  },
+  {
+    "items": [
+      "sci1@0.328",
+      "stale@0.221",
+    ],
+    "label": "science",
+    "why": "More science",
+  },
+  {
+    "items": [
+      "sci2@0.205",
+    ],
+    "label": "technology",
+    "why": "More technology",
+  },
+  {
+    "items": [
+      "biz1@0.100",
+      "biz2@0.050",
+    ],
+    "label": "business & finance",
+    "why": "More business & finance",
+  },
+  {
+    "items": [
+      "com1@0.100",
+    ],
+    "label": "comedy",
+    "why": "More comedy",
+  },
+]
+`;
+
+exports[`recommendation golden fixtures > ranks stably when interests are supplied instead of history 1`] = `
+[
+  {
+    "items": [
+      "com1@0.516",
+    ],
+    "label": "comedy",
+    "why": "More comedy",
+  },
+  {
+    "items": [
+      "biz1@0.504",
+      "biz2@0.384",
+    ],
+    "label": "business & finance",
+    "why": "More business & finance",
+  },
+  {
+    "items": [
+      "sci1@0.100",
+      "stale@0.000",
+    ],
+    "label": "science",
+    "why": "More science",
+  },
+  {
+    "items": [
+      "tc1@0.100",
+      "tc2@0.050",
+    ],
+    "label": "true crime",
+    "why": "More true crime",
+  },
+  {
+    "items": [
+      "sci2@0.000",
+    ],
+    "label": "technology",
+    "why": "More technology",
+  },
+]
+`;
+
+exports[`recommendation golden fixtures > reflects ratings and fatigue in the ranking 1`] = `
+[
+  {
+    "items": [
+      "tc1@0.679",
+      "tc2@0.302",
+    ],
+    "label": "Nightfall Cases",
+    "why": "Because you saved Nightfall Cases",
+  },
+  {
+    "items": [
+      "sci2@0.346",
+    ],
+    "label": "technology",
+    "why": "More technology",
+  },
+  {
+    "items": [
+      "stale@0.221",
+      "sci1@0.078",
+    ],
+    "label": "science",
+    "why": "More science",
+  },
+  {
+    "items": [
+      "biz1@0.100",
+      "biz2@0.050",
+    ],
+    "label": "business & finance",
+    "why": "More business & finance",
+  },
+  {
+    "items": [
+      "com1@0.100",
+    ],
+    "label": "comedy",
+    "why": "More comedy",
+  },
+]
+`;

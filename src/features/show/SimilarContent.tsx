@@ -12,7 +12,7 @@ import {
 } from "@/src/data/repos/savedEpisodesRepo";
 import { previewEpisode } from "@/src/features/player/preview";
 import { ShowRowCompact } from "@/src/features/discover/ShowRowCompact";
-import { CoverTile } from "@/src/ui";
+import { CoverTile, DegradedHint } from "@/src/ui";
 
 /**
  * "More like this" — similar Shows and Episodes side by side, matching the
@@ -48,6 +48,10 @@ export function SimilarContent({
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
         {seedTitle ? `More like ${seedTitle}` : "More like this"}
       </h2>
+      {/* Thin-but-not-empty: some providers failed while others answered, so
+          say so rather than letting a short list read as "that's all there
+          is". The empty case above still exits silently. */}
+      {data.degraded && <DegradedHint className="mb-2" />}
       <div className="grid items-start gap-8 md:grid-cols-2">
         <section>
           <ColumnLabel>Shows</ColumnLabel>

@@ -459,7 +459,14 @@ rather than guessing:
   `json.show ?? null`; the list parsers now coerce arrays. Audit any other
   spot that trusts an upstream body shape (ratings client, repos) the same
   way, so a malformed 200 can never crash render.
-- [ ] **P2 — Surface "degraded" honestly.** Several routes return
+- [x] **P2 — Surface "degraded" honestly.** Done — `DegradedHint`
+  (src/ui/primitives) renders a non-blocking "some sources are unavailable"
+  line whenever a route reports `degraded` *alongside* real results, so a
+  partial feed doesn't read as "that's all there is". Wired into Discover,
+  Charts, Xyzrank, EpisodeCharts, the search overlay, and (2026-08-08)
+  SimilarContent, which was the last surface still showing partial results
+  silently. The zero-results case is still owned by each surface's own
+  empty state. Original: Several routes return
   `degraded: true` but the UI mostly just shows empty. A subtle "some
   sources are unavailable right now" hint (non-blocking) would explain thin
   results without alarming.
@@ -479,7 +486,17 @@ rather than guessing:
   `tests/data/buzz-providers.test.ts` fetch-mocks Listen Notes, xyzrank,
   小宇宙 (incl. refresh-first), and Reddit: happy-path parse + null-on-
   failure. Catalog server mappers still uncovered — follow-up.
-- [ ] **P3 — Golden recommendation fixtures.** Snapshot the ranked output
+- [x] **P3 — Golden recommendation fixtures.** Done 2026-08-08 —
+  `tests/core/recommend/golden.test.ts` snapshots the whole pipeline for a
+  fixed corpus (3 scenarios: saved-history taste, interests-only, and
+  ratings+fatigue). The per-stage unit tests each check one stage in
+  isolation, which is precisely what a weight change slips between; these
+  catch the reshaped ranking. `now` is pinned, or freshness decay would rot
+  them on its own. **Verified they actually bite:** changing
+  `WEIGHTS.rating` 0.15 → 0.45 fails the snapshot, restoring it passes. A
+  diff here is a prompt to look, not proof of a bug — if the new ordering
+  is intended, update the snapshot and the diff documents the change.
+  Original: Snapshot the ranked output
   for a fixed engagement + candidate set so weight/scoring changes show a
   visible, reviewable diff.
 
