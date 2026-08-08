@@ -23,8 +23,9 @@ import {
   listSavedEpisodes,
   removeEpisode,
   setEpisodeBucket,
+  markFinished,
   syncFromGpodder,
-  updateEpisodeProgress,
+  syncFromPocketCasts,
   type SavedEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
 import {
@@ -136,20 +137,25 @@ export default function LibraryPage() {
   const retiredRef = useRef(false);
   useEffect(() => {
     if (retiredRef.current || episodes.length === 0) return;
-    const handoffs = listHandoffs();
-    if (Object.keys(handoffs).length === 0) return;
-    retiredRef.current = true;
-
-    const withHandoff = episodes.map((e) => ({ ...e, openedAt: handoffs[e.episodeId] }));
+    // `opened_at` on the row is the source of truth now, so a handoff made
+    // on another device retires here too. The localStorage map is only a
+    // fallback for rows that predate the column (or a signed-out session),
+    // and the row always wins where both exist.
+    const local = listHandoffs();
+    const withHandoff = episodes.map((e) => ({
+      ...e,
+      openedAt: e.openedAt ?? local[e.episodeId],
+    }));
     const due = episodesToRetire(withHandoff, Date.now());
     if (due.length === 0) return;
+    retiredRef.current = true;
 
     void Promise.all(
       due.map((e) =>
-        updateEpisodeProgress(e.episodeId, { status: "finished" }).then(() => {
+        // Recorded as inferred, not asserted — history says "assumed
+        // finished", so the guess never masquerades as fact.
+        markFinished(e.episodeId, true).then(() => {
           clearHandoff(e.episodeId);
-          // Logged as inferred, not asserted — the History view says so, so
-          // auto-retire stays legible instead of looking like magic.
           logFinished(e.episodeId, true);
         }),
       ),
@@ -256,6 +262,7 @@ export default function LibraryPage() {
             <ExportOpmlButton />
             <BulkYoutubeMusicButton />
           </div>
+          <PocketCastsSyncPanel />
           <FeedSyncPanel signedIn={signedIn} />
           <SharePanel signedIn={signedIn} />
           <GpodderSyncPanel />
@@ -855,6 +862,76 @@ function SharePanel({ signedIn }: { signedIn: boolean }) {
  * the password is never persisted (not even in this component's own state
  * across a re-render beyond what's needed for the one request in flight).
  */
+/**
+ * Opt-in accurate listen-status sync from Pocket Casts.
+ *
+ * Auto-retire guesses from elapsed time and never needs a password. This is
+ * the accurate alternative, and it needs one — so it's deliberately opt-in,
+ * entered here per sync, cleared the moment the request is sent, and never
+ * stored. The copy says so, because asking for a password without saying
+ * where it goes is how you train people into bad habits.
+ */
+function PocketCastsSyncPanel() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<"idle" | "syncing" | "done" | "none" | "error">("idle");
+  const [count, setCount] = useState(0);
+  const queryClient = useQueryClient();
+
+  async function sync() {
+    setStatus("syncing");
+    const updated = await syncFromPocketCasts(email, password);
+    setPassword(""); // gone as soon as the one request has it
+    setCount(updated);
+    setStatus(updated > 0 ? "done" : "none");
+    if (updated > 0) {
+      refreshHistory();
+      await queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
+    }
+  }
+
+  return (
+    <div className="mb-4 flex flex-col gap-2 rounded-[2px] border border-dashed border-surface-border px-3 py-2 text-xs text-zinc-500">
+      <span className="font-brand uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
+        Sync played status from Pocket Casts
+      </span>
+      <p className="text-[11px] leading-relaxed">
+        Optional. Marks episodes you finished in Pocket Casts as finished here, instead of waiting
+        for the time-based guess. Your login is used for this one request only — never saved, never
+        logged. Uses Pocket Casts&apos; unofficial API, so it can stop working without warning.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="pocket casts email"
+          autoComplete="off"
+          className="w-40 rounded-[2px] border border-surface-border bg-background px-2 py-1 text-xs"
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="password"
+          autoComplete="off"
+          className="w-32 rounded-[2px] border border-surface-border bg-background px-2 py-1 text-xs"
+        />
+        <button
+          type="button"
+          onClick={() => void sync()}
+          disabled={!email || !password || status === "syncing"}
+          className="font-brand rounded-[2px] border border-foreground px-3 py-1 text-[11px] uppercase tracking-wider text-foreground disabled:opacity-40"
+        >
+          {status === "syncing" ? "Syncing…" : "Sync"}
+        </button>
+        {status === "done" && <span className="text-accent">Updated {count}</span>}
+        {status === "none" && <span>Nothing to update</span>}
+      </div>
+    </div>
+  );
+}
+
 function GpodderSyncPanel() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

@@ -237,7 +237,8 @@ rather than guessing:
 
 ## 0. Open deployment follow-ups (hand-off items)
 
-- [ ] **P1 — Vercel env vars.** Add `LISTEN_NOTES_API_KEY`,
+- [x] **P1 — Vercel env vars.** Confirmed set and working 2026-08-08
+  (except 小宇宙, now dead). Original: Add `LISTEN_NOTES_API_KEY`,
   `XIAOYUZHOU_ACCESS_TOKEN`, `XIAOYUZHOU_REFRESH_TOKEN` (and optional
   `PODCAST_INDEX_API_KEY` / `PODCAST_INDEX_API_SECRET`) in Vercel →
   Production, then redeploy. Until set, those signal providers silently
@@ -249,8 +250,9 @@ rather than guessing:
   with `domains/wavr.json` (CNAME → `cname.vercel-dns.com`) and
   `domains/_vercel.wavr.json` (TXT `vc-domain-verify=…`). Domain already
   added on the Vercel project side.
-- [ ] **P2 — Rotate the pasted tokens.** The Listen Notes key and 小宇宙
-  tokens were shared in chat; rotate them once everything's confirmed.
+- [x] **P2 — Rotate the pasted tokens.** ~~Listen Notes + 小宇宙.~~ Moot
+  2026-08-08: the 小宇宙 account is banned, so those tokens are dead either
+  way. Listen Notes env vars were already set and working.
 
 ---
 
@@ -303,11 +305,16 @@ rather than guessing:
 > logs or the live app), since the pulled file can't reveal the stored
 > value.
 
-- [ ] **P1 — Reddit blocks datacenter IPs.** `reddit.com/search.json`
+- [x] **P1 — Reddit blocks datacenter IPs.** RESOLVED as won't-fix
+  2026-08-08: Reddit data is no longer obtainable on the terms this needs,
+  so the signal is retired rather than proxied. Original: `reddit.com/search.json`
   frequently 403s from Vercel's IPs, so the Reddit buzz signal may be
   quietly absent in production. Verify in prod; if blocked, either drop it
   or route through a lightweight allowed proxy / use the OAuth app API.
-- [ ] **P2 — Confirm 小宇宙 + Listen Notes resolve in prod.** Credentials
+- [x] **P2 — Confirm 小宇宙 + Listen Notes resolve in prod.** 2026-08-08:
+  Listen Notes confirmed configured and working. **小宇宙 is dead — the
+  account is banned**, so that signal is gone for good, not pending.
+  Original: Credentials
   proven valid (2026-07-17). Confirm the deployed functions actually
   return data — read Vercel runtime logs for `xiaoyuzhouBuzz` /
   `listenNotesBuzz`, or hit a prod `/api/catalog/similar` and look for a
@@ -330,7 +337,8 @@ rather than guessing:
   cached fetch (12h) serves the whole request pool. Feeds `popularityParts`
   in `recommend/buzz.ts` and a "Trending on Pocket Casts" why-string;
   wired into both `top-picks` and `charts/global` routes.
-- [ ] **P2 — Token refresh doesn't persist.** The refreshed 小宇宙 access
+- [x] **P2 — Token refresh doesn't persist.** Moot 2026-08-08 — this was
+  the 小宇宙 access token, and that account is banned. Original: The refreshed 小宇宙 access
   token is cached in module memory, so it's lost on each serverless cold
   start (re-refresh every time). Consider stashing the latest access token
   in a Supabase row (server-only) so warm + cold invocations share it.
@@ -398,12 +406,18 @@ rather than guessing:
   has `status` + `position_sec`, but only the manual "Done?" toggle writes
   them. Wire the preview player to mark an episode `in_progress` and record
   `position_sec` when the user plays it, so "resume" reflects reality.
-- [ ] **P2 — External player progress sync.** Apple/Spotify/YouTube expose
+- [x] **P2 — External player progress sync.** Done 2026-08-08 as far as
+  it can be: gpodder.net (AntennaPod etc.) plus a Pocket Casts opt-in via
+  their unofficial API, and a zero-credential time-based fallback that
+  works with any player. Apple/Spotify/YouTube still expose nothing.
+  Original:
   no progress API. Two real paths: (a) pull *played episodes* from 小宇宙
   with the user's token to reconcile finished/queued state; (b) support
   the open **gpodder.net** sync standard for players like AntennaPod.
   Both are meaningful features — scope separately.
-- [ ] **P2 — "New episode" badge is best-effort → merge into the Inbox
+- [x] **P2 — "New episode" badge → Inbox.** OBSOLETE 2026-08-08: the
+  Inbox is retired (see §3a), and new episodes now flow straight into the
+  saved list via NewEpisodeWatcher. Original:
   above.** It compares each saved show's latest `lastEpisodeAt` (capped at
   20 shows, RSS-enriched) against `savedAt` — no unread count, no
   per-episode list. Rather than building a separate "new episodes inbox,"
@@ -422,7 +436,9 @@ rather than guessing:
   rows. Verified: cover/title→play, Save→save-only, Details→navigate.
 - [x] **P2 — Custom error boundary.** Done 2026-07-17. `app/error.tsx`
   gives a friendly "Something hiccuped" fallback with Try again / Go home.
-- [ ] **P3 — Responsive audit for new surfaces.** Library, Top Picks, and
+- [x] **P3 — Responsive audit for new surfaces.** Library done 2026-08-08
+  (mobile-first pass: cover grid leads, tools collapsed). Top Picks and the
+  remaining surfaces still to check. Original:
   the preview bar were built desktop-first with `pb-40` spacing. Do a real
   mobile pass (small screens, the fixed player bar overlapping content,
   long titles/CJK wrapping).

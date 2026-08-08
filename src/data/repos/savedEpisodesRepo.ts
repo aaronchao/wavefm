@@ -1,4 +1,5 @@
 import { matchGpodderActions } from "@/src/core/sync/gpodderMatch";
+import { matchPocketCastsHistory, type PocketCastsEpisode } from "@/src/core/sync/pocketCastsMatch";
 import type { CatalogEpisode } from "@/src/data/catalog/types";
 import { getSupabase } from "@/src/data/supabase/client";
 
@@ -41,6 +42,17 @@ export type SavedEpisode = {
   bucket: Bucket;
   /** Fractional rank within the queue; null outside `queue`. */
   queueRank: number | null;
+  /**
+   * When this episode was last handed off to an external player. WaveFM
+   * can't observe playback there, so this plus `durationSec` is the entire
+   * basis of the auto-retire guess (src/core/library/autoRetire.ts).
+   */
+  openedAt?: string;
+  /**
+   * True when `finished` was inferred rather than known — surfaced in the
+   * history view as "assumed finished", so a guess never masquerades as fact.
+   */
+  finishedInferred?: boolean;
   savedAt: string;
   updatedAt: string;
 };
@@ -106,6 +118,8 @@ type Row = {
   position_sec: number;
   bucket: Bucket;
   queue_rank: number | null;
+  opened_at: string | null;
+  finished_inferred: boolean | null;
   created_at: string;
   updated_at: string;
 };
@@ -124,6 +138,8 @@ function rowToSaved(r: Row): SavedEpisode {
     positionSec: r.position_sec,
     bucket: r.bucket,
     queueRank: r.queue_rank,
+    openedAt: r.opened_at ?? undefined,
+    finishedInferred: r.finished_inferred ?? false,
     savedAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -144,6 +160,8 @@ function savedToRow(userId: string, e: SavedEpisode) {
     position_sec: e.positionSec,
     bucket: e.bucket,
     queue_rank: e.queueRank,
+    opened_at: e.openedAt ?? null,
+    finished_inferred: e.finishedInferred ?? false,
     updated_at: new Date().toISOString(),
   };
 }
@@ -259,6 +277,63 @@ export async function removeEpisode(episodeId: string): Promise<void> {
   writeLocal(readLocal().filter((e) => e.episodeId !== episodeId));
 }
 
+/**
+ * Record that this episode was just handed off to an external player.
+ *
+ * Signed in this writes `opened_at`, so auto-retire and listen history work
+ * on every device rather than only the one that did the handoff. Signed out
+ * it falls through to localStorage like everything else here.
+ */
+export async function markHandedOff(episodeId: string, at = new Date()): Promise<void> {
+  const iso = at.toISOString();
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (sb && userId) {
+    const { error } = await sb
+      .from("saved_episodes")
+      .update({ opened_at: iso, updated_at: iso })
+      .eq("user_id", userId)
+      .eq("episode_id", episodeId);
+    if (!error) return;
+  }
+  writeLocal(
+    readLocal().map((e) =>
+      e.episodeId === episodeId ? { ...e, openedAt: iso, updatedAt: iso } : e,
+    ),
+  );
+}
+
+/**
+ * Mark an episode finished, recording whether that was inferred rather than
+ * observed. `opened_at` is cleared so a re-listen starts a fresh window and
+ * the auto-retire scan doesn't keep re-examining a settled row.
+ */
+export async function markFinished(episodeId: string, inferred: boolean): Promise<void> {
+  const now = new Date().toISOString();
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (sb && userId) {
+    const { error } = await sb
+      .from("saved_episodes")
+      .update({
+        status: "finished",
+        finished_inferred: inferred,
+        opened_at: null,
+        updated_at: now,
+      })
+      .eq("user_id", userId)
+      .eq("episode_id", episodeId);
+    if (!error) return;
+  }
+  writeLocal(
+    readLocal().map((e) =>
+      e.episodeId === episodeId
+        ? { ...e, status: "finished" as const, finishedInferred: inferred, openedAt: undefined, updatedAt: now }
+        : e,
+    ),
+  );
+}
+
 /** Set status and/or resume position — one call per user action. */
 export async function updateEpisodeProgress(
   episodeId: string,
@@ -318,6 +393,47 @@ export async function migrateLocalEpisodes(): Promise<void> {
  * never throws — any failure (bad credentials, network, no matches)
  * resolves to 0.
  */
+/**
+ * Pull real listening progress from Pocket Casts. Returns how many saved
+ * episodes were updated, or 0 on any failure — a sync that can't run must
+ * never break the Library.
+ *
+ * Credentials are passed straight through to the route for one request and
+ * never stored here. Where this reports a status it OVERRIDES the
+ * time-based auto-retire guess, because a played flag from the player is a
+ * fact and the heuristic is an inference. `finished` is recorded as
+ * NOT inferred, so history shows it as known rather than assumed.
+ */
+export async function syncFromPocketCasts(email: string, password: string): Promise<number> {
+  try {
+    const res = await fetch("/api/sync/pocketcasts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) return 0;
+    const json = (await res.json()) as { episodes?: PocketCastsEpisode[] };
+    const history = json.episodes ?? [];
+    if (history.length === 0) return 0;
+
+    const episodes = await listSavedEpisodes();
+    const updates = matchPocketCastsHistory(history, episodes);
+    for (const u of updates) {
+      if (u.status === "finished") {
+        await markFinished(u.episodeId, false);
+      } else {
+        await updateEpisodeProgress(u.episodeId, {
+          status: u.status,
+          positionSec: u.positionSec,
+        });
+      }
+    }
+    return updates.length;
+  } catch {
+    return 0;
+  }
+}
+
 export async function syncFromGpodder(username: string, password: string): Promise<number> {
   try {
     const res = await fetch("/api/sync/gpodder", {

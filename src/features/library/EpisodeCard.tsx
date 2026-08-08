@@ -10,6 +10,7 @@ import { updateEpisodeProgress, type SavedEpisode } from "@/src/data/repos/saved
 import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode } from "@/src/features/player/preview";
 import { recordHandoff } from "@/src/data/repos/handoffRepo";
+import { markHandedOff } from "@/src/data/repos/savedEpisodesRepo";
 import { logHandoff } from "@/src/data/repos/listenHistoryRepo";
 import { refreshHistory } from "@/src/features/library/ListenHistory";
 import { NothingToggle, PlayableCard } from "@/src/ui";
@@ -199,6 +200,10 @@ export function EpisodeCard({
             audioUrl={episode.audioUrl}
             feedUrl={feedUrl}
             onOpen={() => {
+              // Server-side so the handoff is visible on every device;
+              // recordHandoff keeps the local fallback in step for
+              // signed-out sessions.
+              void markHandedOff(episode.episodeId);
               recordHandoff(episode.episodeId);
               logHandoff({
                 episodeId: episode.episodeId,
