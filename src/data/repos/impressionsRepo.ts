@@ -11,7 +11,20 @@ export function getImpressions(): Record<string, number> {
   if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    // Validated, not cast. This feeds the scoring pipeline as a fatigue
+    // penalty, so a non-numeric value from storage would propagate NaN
+    // through every candidate's score and silently scramble the ranking —
+    // a corrupted key here is worth dropping, never trusting.
+    const out: Record<string, number> = {};
+    for (const [id, count] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof count === "number" && Number.isFinite(count) && count > 0) {
+        out[id] = count;
+      }
+    }
+    return out;
   } catch {
     return {};
   }

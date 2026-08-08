@@ -268,7 +268,10 @@ rather than guessing:
   weights (values unchanged; tests confirm no behavior drift). Tuning is
   now a one-file edit. Still open: revisit the actual values once there's
   real engagement data.
-- [ ] **P2 — Blocked shows still cost candidate slots.** `recommend()`
+- [x] **P2 — Blocked shows still cost candidate slots.** Already done and
+  tested (verified 2026-08-08): `extraTopicsFor(blockedCount)` pulls one
+  extra topic query per 5 blocks, capped at 6, so the pool grows before the
+  filter rather than the scoring pipeline being touched. Original: `recommend()`
   filters blocked/saved after fetching; a heavily-blocked user gets a
   thinner feed. Consider over-fetching candidates proportional to the
   block count.
@@ -342,7 +345,10 @@ rather than guessing:
   token is cached in module memory, so it's lost on each serverless cold
   start (re-refresh every time). Consider stashing the latest access token
   in a Supabase row (server-only) so warm + cold invocations share it.
-- [ ] **P2 — Listen Notes free-tier quota.** Only finalists are queried
+- [x] **P2 — Listen Notes free-tier quota.** Already done — `monthlyCap()`
+  in src/data/buzz/listennotes.ts enforces a code-side kill-switch
+  (LISTEN_NOTES_MONTHLY_CAP, conservative default) independent of trusting
+  the free tier's own limit. Original: Only finalists are queried
   and cached 7 days, but the free plan is small. Add usage awareness (log
   quota headers) and a hard monthly cap / kill-switch so we never block on
   it.
@@ -402,7 +408,12 @@ rather than guessing:
   added arbitrary RSS at all (matches the existing `links.ts` caveat) — and
   any player only picks up changes on its own poll cadence, not instantly;
   say so in the UI rather than promising live sync.
-- [ ] **P2 — Auto-track listen progress from previews.** `saved_episodes`
+- [x] **P2 — Auto-track listen progress from previews.** Already done and
+  live (verified 2026-08-08 in PreviewPlayer): a preview play marks a saved
+  episode `in_progress`, and the position is written on teardown. The clip
+  anchors to the real media timeline, so `currentTime` is already the true
+  position in the full episode. Known limit: the write happens on effect
+  cleanup, so a hard tab-close mid-clip loses that position. Original: `saved_episodes`
   has `status` + `position_sec`, but only the manual "Done?" toggle writes
   them. Wire the preview player to mark an episode `in_progress` and record
   `position_sec` when the user plays it, so "resume" reflects reality.
@@ -470,7 +481,16 @@ rather than guessing:
   `degraded: true` but the UI mostly just shows empty. A subtle "some
   sources are unavailable right now" hint (non-blocking) would explain thin
   results without alarming.
-- [ ] **P3 — Impressions/fatigue are local-only.** `getImpressions()` reads
+- [~] **P3 — Impressions/fatigue are local-only.** NOT moved to Supabase,
+  deliberately — `impressionsRepo`'s own doc argues the opposite case:
+  "recently shown *on this screen*" is arguably a per-device fact, and
+  syncing it adds write volume on a free tier for a signal whose penalty is
+  already bounded by `fatigueCap`. Left local until cross-device feed
+  staleness is an observed problem rather than a hypothesis. What WAS fixed
+  (2026-08-08): `getImpressions` cast parsed JSON instead of validating it,
+  so a corrupted value would feed **NaN** into the fatigue penalty and
+  silently scramble every candidate's score. Now validated, with tests.
+  Original: `getImpressions()` reads
   localStorage; fatigue doesn't follow you across devices. Move to
   Supabase if cross-device feed freshness matters.
 
@@ -511,11 +531,15 @@ rather than guessing:
   overwrite a cached show's title/art. If abuse ever matters, move catalog
   writes server-side (service role) and drop the authenticated write
   policies. (Leaked-password advisor is moot — auth is magic-link only.)
-- [ ] **P3 — Lightweight, privacy-respecting analytics.** We have no
+- [x] **P3 — Lightweight, privacy-respecting analytics.** Already done —
+  `analyticsRepo` + `trackEvent`, backed by the `analytics_events` table
+  (migration 009) and surfaced at `/admin/usage`. Original: We have no
   visibility into whether discovery is *working* (saves per session, "not
   for me" rate, preview→open funnel). A minimal first-party events table
   would let us tune recs with data instead of guesses.
-- [ ] **P3 — Cost/quotas dashboard.** As free-tier usage grows (Supabase
+- [x] **P3 — Cost/quotas dashboard.** Already done — `/admin/usage` +
+  `/api/admin/usage`, backed by `usage_counters` (migration 008), with
+  `/admin/health` for source health alongside. Original: As free-tier usage grows (Supabase
   rows, Listen Notes calls, Vercel bandwidth from audio not being
   proxied), a simple monthly check keeps us honest about the `$0` promise.
 
