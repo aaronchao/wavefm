@@ -1,5 +1,5 @@
+import { parseEpisodes, parseShow, parseShows } from "@/src/core/catalog/validate";
 import type {
-  CatalogEpisode,
   CatalogSearchResponse,
   CatalogShow,
   CatalogShowResponse,
@@ -30,9 +30,13 @@ export async function searchShows(q: string): Promise<CatalogSearchResponse> {
     const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`);
     if (!res.ok) return { shows: [], episodes: [], degraded: true };
     const json = (await res.json()) as Partial<CatalogSearchResponse>;
+    // Validated, not cast: `asArray` guarantees an array but says nothing
+    // about what's in it, so a malformed entry still reached the UI and
+    // crashed on e.g. `categories.length`. Bad entries are dropped
+    // individually rather than failing the whole result.
     return {
-      shows: asArray<CatalogShow>(json.shows),
-      episodes: asArray<CatalogEpisode>(json.episodes),
+      shows: parseShows(json.shows),
+      episodes: parseEpisodes(json.episodes),
       degraded: Boolean(json.degraded),
     };
   } catch {
@@ -45,7 +49,10 @@ export async function getShow(id: string): Promise<CatalogShow | null> {
     const res = await fetch(`/api/catalog/show?id=${encodeURIComponent(id)}`);
     if (!res.ok) return null;
     const json = (await res.json()) as Partial<CatalogShowResponse>;
-    return json.show ?? null;
+    // REFINEMENTS "harden remaining client parsers": this returned
+    // json.show unvalidated, so a malformed payload surfaced as a crash on
+    // the Show page rather than an honest "not found".
+    return parseShow(json.show);
   } catch {
     return null;
   }

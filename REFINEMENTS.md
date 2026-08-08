@@ -447,7 +447,15 @@ rather than guessing:
 
 ## 5. Reliability & degradation
 
-- [ ] **P2 — Harden remaining client parsers.** `getShow` returns
+- [x] **P2 — Harden remaining client parsers.** Done 2026-08-08.
+  `src/core/catalog/validate.ts` (pure, 14 tests) validates at runtime
+  instead of casting — `as Partial<T>` is erased at compile time, so a
+  malformed payload used to sail through and crash later on something like
+  `categories.length`, far from the cause. Deliberately lenient: an entry
+  survives on id + title, dodgy optional fields are dropped rather than
+  trusted, and bad entries in a list are skipped individually so one glitch
+  can't empty the Library. Wired into `searchShows` and `getShow`; the
+  chart/rank endpoints still use the older `asArray` cast. Original: `getShow` returns
   `json.show ?? null`; the list parsers now coerce arrays. Audit any other
   spot that trusts an upstream body shape (ratings client, repos) the same
   way, so a malformed 200 can never crash render.
