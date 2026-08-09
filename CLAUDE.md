@@ -37,6 +37,20 @@ You are building **Wavr**: a free, browser-based, cross-device **podcast discove
 
 ---
 
+## 0c. FEEDBACK LOOP
+
+Aaron's feedback lives in **one** file:
+`~/Gdrive/NoteVerse/Efforts/wavefm/feedback.md`. Trigger: **"run wavefm"**.
+
+- Read the whole file first — later items often revise earlier ones.
+- **Verify before ticking.** A checkbox is a claim; check the code or the
+  running app. Five items here once sat "open" while already built.
+- Put reasoning in `REFINEMENTS.md` (this repo), never in his file — keep
+  that under ~60 lines, table first.
+- Anything unmarked: decide it yourself. Only `[!]` needs confirming.
+
+---
+
 ## 1. TECH STACK (fixed)
 
 | Concern | Choice | Note |
