@@ -11,8 +11,6 @@ import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode } from "@/src/features/player/preview";
 import { recordHandoff } from "@/src/data/repos/handoffRepo";
 import { markFinished, markHandedOff } from "@/src/data/repos/savedEpisodesRepo";
-import { logFinished, logHandoff } from "@/src/data/repos/listenHistoryRepo";
-import { refreshHistory } from "@/src/features/library/ListenHistory";
 import { NothingToggle, PlayableCard } from "@/src/ui";
 import { springs } from "@/src/ui/tokens";
 import { InlineTagInput } from "./InlineTagInput";
@@ -82,19 +80,15 @@ export function EpisodeCard({
 
   const finished = episode.status === "finished";
   function toggleFinished() {
-    // Marking done by hand is the most certain signal there is, so it goes
-    // to History like every other finish route — auto-retire's guesses and
-    // Pocket Casts' synced flags both land there, and a manual tick that
-    // silently didn't would make History look unreliable.
+    // Marking done by hand is the most certain signal there is, so it leaves
+    // the queue and lands in History like every other finish route —
+    // auto-retire's guesses and Pocket Casts' synced flags both land there
+    // too, via the same `status` column.
     if (finished) {
       void updateEpisodeProgress(episode.episodeId, { status: "queued" }).then(onChanged);
       return;
     }
-    void markFinished(episode.episodeId, false).then(() => {
-      logFinished(episode.episodeId, false);
-      refreshHistory();
-      onChanged();
-    });
+    void markFinished(episode.episodeId, false).then(onChanged);
   }
   const resume =
     episode.positionSec > 0 && !finished
@@ -215,14 +209,6 @@ export function EpisodeCard({
               // signed-out sessions.
               void markHandedOff(episode.episodeId);
               recordHandoff(episode.episodeId);
-              logHandoff({
-                episodeId: episode.episodeId,
-                title: episode.title,
-                showTitle: episode.showTitle,
-                coverUrl: episode.coverUrl,
-                openedAt: new Date().toISOString(),
-              });
-              refreshHistory();
             }}
             showId={episode.showId}
             className="relative z-10"

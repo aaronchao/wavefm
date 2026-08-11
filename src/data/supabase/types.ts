@@ -54,6 +54,10 @@ export type PrefsRow = {
    *  alphanumeric + hyphens (DB-enforced via a check constraint). Null
    *  until named; falls back to share_token in the URL until then. */
   share_slug?: string | null;
+  /** Revocable Pocket Casts bearer token — REFINEMENTS.md, never the password. */
+  pocketcasts_token?: string | null;
+  /** When a Pocket Casts sync (manual or auto) last ran — src/core/library/autoSync.ts. */
+  pocketcasts_synced_at?: string | null;
   updated_at: string;
 };
 

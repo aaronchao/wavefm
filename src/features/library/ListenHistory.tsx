@@ -1,146 +1,157 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-import { clearHistory, listHistory, type HistoryEntry } from "@/src/data/repos/listenHistoryRepo";
-import { setEpisodeBucket, type SavedEpisode } from "@/src/data/repos/savedEpisodesRepo";
+import {
+  setEpisodeBucket,
+  updateEpisodeProgress,
+  type SavedEpisode,
+} from "@/src/data/repos/savedEpisodesRepo";
 
 /**
- * What you've actually sent off to listen to.
+ * What's out of the queue, and why.
  *
- * Playback happens in someone else's app, so without this WaveFM has no
- * answer to "did I already deal with this?" — the gap that made the queue
- * feel untrustworthy and the retiring feel like magic. Showing the log makes
- * auto-retire legible: you can see what it decided and, importantly, that it
- * decided rather than knew (`inferred`).
+ * Both `archived` (dismissed) and `finished` (listened) episodes read straight
+ * off the synced `saved_episodes` rows passed in from the Library page —
+ * `bucket`/`status`/`updated_at` all sync across devices already, so an
+ * episode finished on the phone (by hand, or via Pocket Casts) shows up here
+ * on the laptop too, with no separate local-only log to keep in step.
+ *
+ * Finished episodes are grouped by day — a running record of what got
+ * listened to and when, not just a flat "recently done" list.
  */
 
-const listeners = new Set<() => void>();
-const EMPTY: HistoryEntry[] = [];
-// Cached so getSnapshot returns a stable reference between renders —
-// useSyncExternalStore re-renders forever if it sees a new array each call.
-let cache: HistoryEntry[] | null = null;
-
-function subscribe(cb: () => void): () => void {
-  listeners.add(cb);
-  return () => {
-    listeners.delete(cb);
-  };
-}
-
-function getSnapshot(): HistoryEntry[] {
-  if (cache === null) cache = listHistory();
-  return cache;
-}
-
-export function refreshHistory(): void {
-  cache = null;
-  for (const l of listeners) l();
-}
-
-/**
- * Absolute, formatted from the entry's own timestamp. A relative "2h ago"
- * would need Date.now() during render — impure, and it would also disagree
- * between the server's clock and the browser's on a prerendered page.
- */
-function formatWhen(iso: string): string {
+function dayLabel(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86_400_000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Splits an already-sorted (newest-first) list into consecutive same-day runs. */
+function groupByDay(items: SavedEpisode[]): { label: string; items: SavedEpisode[] }[] {
+  const groups: { label: string; items: SavedEpisode[] }[] = [];
+  for (const e of items) {
+    const label = dayLabel(e.updatedAt);
+    const current = groups[groups.length - 1];
+    if (current && current.label === label) current.items.push(e);
+    else groups.push({ label, items: [e] });
+  }
+  return groups;
 }
 
 export function ListenHistory({
   archived = [],
+  finished = [],
   onChanged,
 }: {
-  /** Episodes explicitly set aside. Merged in here rather than given their
-   *  own section: "archived" and "finished" are different mechanics but the
-   *  same user-facing fact — it's out of the queue. */
+  /** Episodes explicitly set aside (the ✕ "not interested" action). */
   archived?: SavedEpisode[];
+  /** Episodes marked finished — manual tick, Pocket Casts sync, or
+   *  auto-retire — newest (`updatedAt`) first. */
+  finished?: SavedEpisode[];
   onChanged?: () => void;
 }) {
-  const entries = useSyncExternalStore(subscribe, getSnapshot, () => EMPTY);
-
-  if (entries.length === 0 && archived.length === 0) {
+  if (archived.length === 0 && finished.length === 0) {
     return (
       <p className="text-sm text-zinc-500">
-        Nothing handed off yet. Open an episode in Apple, Spotify or Pocket Casts and it shows up
-        here.
+        Nothing here yet — finish an episode or archive one and it shows up here.
       </p>
     );
   }
 
+  const groups = groupByDay(finished);
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {archived.length > 0 && (
         <ul className="flex flex-col gap-2">
           {archived.map((e) => (
-            <li key={e.episodeId} className="flex items-center gap-3">
-              {e.coverUrl ? (
-                // arbitrary external art hosts; skip Vercel image optimization
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={e.coverUrl} alt="" loading="lazy" className="h-9 w-9 shrink-0 rounded-tile object-cover" />
-              ) : (
-                <div className="h-9 w-9 shrink-0 rounded-tile bg-surface" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm">{e.title}</p>
-                <p className="truncate text-xs text-zinc-500">
-                  {e.showTitle ? `${e.showTitle} · ` : ""}archived
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  void setEpisodeBucket(e.episodeId, "queue", 0).then(() => onChanged?.());
-                }}
-                className="font-brand shrink-0 rounded-[2px] border border-surface-border px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
-              >
-                Restore
-              </button>
-            </li>
+            <HistoryRow
+              key={e.episodeId}
+              episode={e}
+              reason="archived"
+              onRestore={() => {
+                void setEpisodeBucket(e.episodeId, "queue", 0).then(() => onChanged?.());
+              }}
+            />
           ))}
         </ul>
       )}
-      <ul className="flex flex-col gap-2">
-        {entries.map((e) => (
-          <li key={e.episodeId} className="flex items-center gap-3">
-            {e.coverUrl ? (
-              // arbitrary external art hosts; skip Vercel image optimization
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={e.coverUrl} alt="" loading="lazy" className="h-9 w-9 shrink-0 rounded-tile object-cover" />
-            ) : (
-              <div className="h-9 w-9 shrink-0 rounded-tile bg-surface" />
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm">{e.title}</p>
-              <p className="truncate text-xs text-zinc-500">
-                {e.showTitle ? `${e.showTitle} · ` : ""}
-                opened {formatWhen(e.openedAt)}
-                {e.finishedAt
-                  ? e.inferred
-                    ? " · assumed finished"
-                    : " · finished"
-                  : ""}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {groups.map((g) => (
+        <div key={g.label} className="flex flex-col gap-2">
+          <p className="font-brand text-[11px] uppercase tracking-wider text-muted-foreground">
+            {g.label}
+          </p>
+          <ul className="flex flex-col gap-2">
+            {g.items.map((e) => (
+              <HistoryRow
+                key={e.episodeId}
+                episode={e}
+                reason={e.finishedInferred ? "assumed finished" : "finished"}
+                time={formatTime(e.updatedAt)}
+                onRestore={() => {
+                  void updateEpisodeProgress(e.episodeId, { status: "queued" }).then(() =>
+                    onChanged?.(),
+                  );
+                }}
+              />
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HistoryRow({
+  episode,
+  reason,
+  time,
+  onRestore,
+}: {
+  episode: SavedEpisode;
+  reason: string;
+  /** Time-of-day, shown for finished rows (the day is already the group header). */
+  time?: string;
+  onRestore: () => void;
+}) {
+  return (
+    <li className="flex items-center gap-3">
+      {episode.coverUrl ? (
+        // arbitrary external art hosts; skip Vercel image optimization
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={episode.coverUrl}
+          alt=""
+          loading="lazy"
+          className="h-9 w-9 shrink-0 rounded-tile object-cover"
+        />
+      ) : (
+        <div className="h-9 w-9 shrink-0 rounded-tile bg-surface" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm">{episode.title}</p>
+        <p className="truncate text-xs text-zinc-500">
+          {episode.showTitle ? `${episode.showTitle} · ` : ""}
+          {reason}
+          {time ? ` · ${time}` : ""}
+        </p>
+      </div>
       <button
         type="button"
-        onClick={() => {
-          clearHistory();
-          refreshHistory();
-        }}
-        className="font-brand self-start rounded-[2px] border border-surface-border px-3 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+        onClick={onRestore}
+        className="font-brand shrink-0 rounded-[2px] border border-surface-border px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
       >
-        Clear history
+        Restore
       </button>
-    </div>
+    </li>
   );
 }

@@ -6,7 +6,6 @@ import type {
   CommunityRecsResponse,
   DiscoverTopicsResponse,
   DiscussedChartsResponse,
-  EpisodeChartsResponse,
   EpisodesRankedResponse,
   GlobalChartsResponse,
   PreviewEpisode,
@@ -104,17 +103,6 @@ export async function getDiscussedCharts(limit = 24): Promise<DiscussedChartsRes
     return { shows: asArray(json.shows), degraded: Boolean(json.degraded) };
   } catch {
     return { shows: [], degraded: true };
-  }
-}
-
-export async function getEpisodeCharts(limit = 20): Promise<EpisodeChartsResponse> {
-  try {
-    const res = await fetch(`/api/catalog/charts/episodes?limit=${limit}`);
-    if (!res.ok) return { episodes: [], degraded: true };
-    const json = (await res.json()) as Partial<EpisodeChartsResponse>;
-    return { episodes: asArray(json.episodes), degraded: Boolean(json.degraded) };
-  } catch {
-    return { episodes: [], degraded: true };
   }
 }
 

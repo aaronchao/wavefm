@@ -555,6 +555,34 @@ sharing, snapshot capture, native apps. See GitHub issues #8–#15.
 
 ## Changelog of shipped refinements
 
+- 2026-08-10 — Four inbox items closed together (474→479 tests, 26 e2e,
+  build all green):
+  - **Finished episodes now actually leave the queue.** `markFinished` set
+    `status` but never touched `bucket`, so a ticked/synced/auto-retired
+    episode just sat struck-through in Saved Episodes instead of moving to
+    History — the "goes to History" doc comment on `toggleFinished` was
+    aspirational, not wired. Library's queue query now also excludes
+    `status === "finished"`.
+  - **History rebuilt off `saved_episodes` directly**, replacing the
+    localStorage-only `listenHistoryRepo`/`ListenHistory` log (which only
+    ever recorded episodes actually opened via `OpenInLinks`, and never
+    synced cross-device). Every finish path — manual tick, Pocket Casts
+    sync, auto-retire — writes `status`+`updated_at` on the row already, so
+    History now just reads that, grouped by day (Today/Yesterday/date) for
+    a real timeline. `listenHistoryRepo.ts` deleted, now fully unused.
+  - **Pocket Casts auto-syncs on Library load** — no cron (Hobby caps that
+    at once/day anyway, and a real job needs a service-role client to loop
+    every user's token). `src/core/library/autoSync.ts` (pure, tested)
+    throttles to once per 6h via a new `prefs.pocketcasts_synced_at`
+    column (migration 012, applied live); fires the same client-side call
+    the manual "Sync now" button already makes. A manual sync also resets
+    the throttle.
+  - **Discovery: 热门单集 (`EpisodeCharts.tsx` + its API route) deleted** —
+    XyzrankBoard's own 热门单集 tab already covers it, same precedent as
+    the earlier show-level Charts/XyzrankBoard overlap. `Charts` (社区热议/
+    Hot Buzz) moved below `XyzrankBoard`, now genuinely the last section.
+  - Considered and declined: full Overcast sync (OPML export/import is
+    manual-only, never live — Aaron passed given the manual-only ceiling).
 - 2026-08-02 — Apple Podcasts ratings rung (US→TW→CN→HK storefront ladder,
   averaged recent review stars) and a Pocket Casts trending/popular signal
   (iTunes-id-mapped, feeds `popularityParts` + a "Trending on Pocket Casts"

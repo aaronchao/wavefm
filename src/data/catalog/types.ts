@@ -120,32 +120,6 @@ export type DiscussedChartsResponse = {
   degraded: boolean;
 };
 
-/** One row of the hot-EPISODES board (小宇宙 play/comment data). */
-export type ChartEpisodeItem = {
-  id: string;
-  title: string;
-  showTitle?: string;
-  /** 小宇宙 episode page, when the board provides it. */
-  url?: string;
-  why: string;
-  /** Which forum or topic this episode is being discussed under. */
-  context?: string;
-  /** Cover art, when the source provides it (the iTunes fallback does). */
-  coverUrl?: string;
-  /** Direct audio URL — lets the embedded play triangle use the real Play
-   *  Bar instead of a dead click. Absent on sources with no playable feed. */
-  audioUrl?: string;
-  durationSec?: number;
-  /** Parent show's catalog id, when known — powers "listen in full" links. */
-  showId?: string;
-};
-
-/** Response of /api/catalog/charts/episodes — ranked hot episodes. */
-export type EpisodeChartsResponse = {
-  episodes: ChartEpisodeItem[];
-  degraded: boolean;
-};
-
 /** xyzrank.com's four boards — see src/data/buzz/xyzrank.ts. */
 export type XyzrankTab = "podcasts" | "new-podcasts" | "episodes" | "new-episodes";
 

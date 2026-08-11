@@ -16,8 +16,10 @@ type Tab = "discussed" | "global";
  * playable, saveable, openable, with tappable evidence. Hidden only when
  * every board is unreachable. (小宇宙's own 中文播客榜 leaderboard used to
  * have a tab here too — superseded by the dedicated XyzrankBoard section
- * below, which shows its full boards with real per-show links instead of
- * this one blended, iTunes-fuzzy-matched row.)
+ * above, which shows its full boards with real per-show links instead of
+ * this one blended, iTunes-fuzzy-matched row. The old 热门单集 hot-episodes
+ * chart that used to sit beside this one was retired for the same reason —
+ * XyzrankBoard's own 热门单集 tab already covers it.)
  */
 const DEFAULT_VISIBLE = 10;
 

@@ -7,7 +7,6 @@ import { listSaved } from "@/src/data/repos/savedShowsRepo";
 import { useSession } from "@/src/state/useSession";
 import { LiquidBackdrop } from "@/src/ui";
 import { Charts } from "./Charts";
-import { EpisodeCharts } from "./EpisodeCharts";
 import { XyzrankBoard } from "./XyzrankBoard";
 import { RankedRecs } from "./RankedRecs";
 import { SavedRails } from "./SavedRails";
@@ -135,15 +134,15 @@ export function DiscoverPage() {
 
       <SavedRails saved={saved} />
 
-      {/* Charts — the crowd's leaderboards, at the very bottom */}
-      <div className="mb-12 grid items-start gap-10 lg:grid-cols-2">
-        <Charts />
-        <EpisodeCharts />
-      </div>
-
-      {/* xyzrank.com's own four boards, verbatim — the very bottom of Discover */}
+      {/* xyzrank.com's own four boards, verbatim — 热门单集 here already covers
+          the hot-episodes concept the old EpisodeCharts duplicated. */}
       <div className="mb-12">
         <XyzrankBoard />
+      </div>
+
+      {/* Charts — the crowd's leaderboards, genuinely the very bottom now */}
+      <div className="mb-12">
+        <Charts />
       </div>
     </main>
   );

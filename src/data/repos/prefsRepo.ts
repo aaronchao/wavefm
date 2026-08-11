@@ -72,21 +72,26 @@ export async function getFeedToken(): Promise<string | null> {
 }
 
 /**
- * The stored Pocket Casts bearer token, so a sync doesn't ask for the
- * password every time. The PASSWORD is never stored — only this token, which
- * the user can revoke by changing their Pocket Casts password. Null when
- * signed out of WaveFM (nowhere to keep it) or never connected.
+ * The stored Pocket Casts bearer token plus when a sync last ran, so a
+ * sync doesn't ask for the password every time and the Library knows
+ * whether an auto-sync is due (src/core/library/autoSync.ts). The PASSWORD
+ * is never stored — only this token, which the user can revoke by changing
+ * their Pocket Casts password. Both null when signed out of WaveFM
+ * (nowhere to keep them) or never connected.
  */
-export async function getPocketCastsToken(): Promise<string | null> {
+export type PocketCastsConnection = { token: string | null; syncedAt: string | null };
+
+export async function getPocketCastsConnection(): Promise<PocketCastsConnection> {
   const sb = getSupabase();
   const userId = await currentUserId();
-  if (!sb || !userId) return null;
+  if (!sb || !userId) return { token: null, syncedAt: null };
   const { data } = await sb
     .from("prefs")
-    .select("pocketcasts_token")
+    .select("pocketcasts_token, pocketcasts_synced_at")
     .eq("user_id", userId)
     .maybeSingle();
-  return (data as { pocketcasts_token?: string } | null)?.pocketcasts_token ?? null;
+  const row = data as { pocketcasts_token?: string | null; pocketcasts_synced_at?: string | null } | null;
+  return { token: row?.pocketcasts_token ?? null, syncedAt: row?.pocketcasts_synced_at ?? null };
 }
 
 /** Store (or, with null, forget) the Pocket Casts token. */
@@ -97,6 +102,20 @@ export async function setPocketCastsToken(token: string | null): Promise<void> {
   await sb
     .from("prefs")
     .upsert({ user_id: userId, pocketcasts_token: token }, { onConflict: "user_id" });
+}
+
+/** Records that a sync (manual or auto) just ran — resets the auto-sync
+ *  throttle window regardless of which path triggered it. */
+export async function setPocketCastsSyncedAt(at = new Date()): Promise<void> {
+  const sb = getSupabase();
+  const userId = await currentUserId();
+  if (!sb || !userId) return;
+  await sb
+    .from("prefs")
+    .upsert(
+      { user_id: userId, pocketcasts_synced_at: at.toISOString() },
+      { onConflict: "user_id" },
+    );
 }
 
 /** Regenerates the feed token (e.g. if the URL ever leaks) and returns the new one. */

@@ -7,7 +7,7 @@ import {
 } from "@/src/core/sync/pocketCastsMatch";
 import type { CatalogEpisode } from "@/src/data/catalog/types";
 import { getSupabase } from "@/src/data/supabase/client";
-import { setPocketCastsToken } from "@/src/data/repos/prefsRepo";
+import { setPocketCastsSyncedAt, setPocketCastsToken } from "@/src/data/repos/prefsRepo";
 import { listSaved, saveShow } from "@/src/data/repos/savedShowsRepo";
 import { stableFeedId } from "@/src/core/opml";
 
@@ -489,6 +489,10 @@ export async function syncFromPocketCasts(
       shows = fresh.length;
     }
 
+    // Stamped on any completed attempt (manual or auto), even "nothing
+    // changed" — that's what the auto-sync throttle (src/core/library/
+    // autoSync.ts) reads to decide whether it's due again.
+    await setPocketCastsSyncedAt();
     return { episodes: updates.length, shows };
   } catch {
     return { episodes: 0, shows: 0 };

@@ -17,8 +17,8 @@ import { AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { listEpisodeTags, type EpisodeTagMap } from "@/src/data/repos/episodeTagsRepo";
 import { episodesToRetire } from "@/src/core/library/autoRetire";
+import { shouldAutoSync } from "@/src/core/library/autoSync";
 import { clearHandoff, listHandoffs } from "@/src/data/repos/handoffRepo";
-import { logFinished } from "@/src/data/repos/listenHistoryRepo";
 import {
   listSavedEpisodes,
   setEpisodeBucket,
@@ -29,7 +29,7 @@ import {
 } from "@/src/data/repos/savedEpisodesRepo";
 import {
   disableSharing,
-  getPocketCastsToken,
+  getPocketCastsConnection,
   setPocketCastsToken,
   enableSharing,
   getFeedToken,
@@ -48,7 +48,7 @@ import { renameTagEverywhere } from "@/src/data/repos/tagsRepo";
 import { BulkYoutubeMusicButton } from "@/src/features/library/BulkYoutubeMusicButton";
 import { AccountSync } from "@/src/features/library/AccountSync";
 import { CollapsibleSection } from "@/src/features/library/CollapsibleSection";
-import { ListenHistory, refreshHistory } from "@/src/features/library/ListenHistory";
+import { ListenHistory } from "@/src/features/library/ListenHistory";
 import { NewEpisodeWatcher } from "@/src/features/library/NewEpisodeWatcher";
 import { ShowGrid } from "@/src/features/library/ShowGrid";
 import { EpisodeCard, GripIcon } from "@/src/features/library/EpisodeCard";
@@ -124,8 +124,12 @@ export default function LibraryPage() {
   // Reordering needs the TRUE queue order, so it's computed off the
   // unfiltered list and only exposed when no tag filter is narrowing the
   // view (a filtered subset can't say "swap with the next item" meaningfully).
+  // A finished episode (manual tick, Pocket Casts sync, or auto-retire) stays
+  // in bucket "queue" — status, not bucket, is what moved — but it no longer
+  // belongs among things still to listen to, so it's excluded here and
+  // surfaced in History instead (see finishedEpisodes below).
   const fullQueue = [...episodes]
-    .filter((e) => e.bucket === "queue")
+    .filter((e) => e.bucket === "queue" && e.status !== "finished")
     .sort((a, b) => (a.queueRank ?? 0) - (b.queueRank ?? 0));
 
   // `inbox` is retired (see savedEpisodesRepo). New saves go straight to the
@@ -156,19 +160,35 @@ export default function LibraryPage() {
 
     void Promise.all(
       due.map((e) =>
-        // Recorded as inferred, not asserted — history says "assumed
+        // Recorded as inferred, not asserted — History shows "assumed
         // finished", so the guess never masquerades as fact.
-        markFinished(e.episodeId, true).then(() => {
-          clearHandoff(e.episodeId);
-          logFinished(e.episodeId, true);
-        }),
+        markFinished(e.episodeId, true).then(() => clearHandoff(e.episodeId)),
       ),
-    ).then(() => {
-      refreshHistory();
-      return queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
-    });
+    ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one pass per mount
   }, [episodes.length]);
+
+  // Auto-sync Pocket Casts on open (src/core/library/autoSync.ts) — no cron,
+  // no server changes: fires the same client-side call the manual "Sync now"
+  // button makes, throttled so it can't run more than once every few hours.
+  // Runs once per mount, guarded, and only when connected and signed in
+  // (there's nowhere to keep a stored token otherwise).
+  const autoSyncRef = useRef(false);
+  useEffect(() => {
+    if (autoSyncRef.current || !signedIn) return;
+    autoSyncRef.current = true;
+    void (async () => {
+      const { token, syncedAt } = await getPocketCastsConnection();
+      if (!token || !shouldAutoSync(true, syncedAt, Date.now())) return;
+      const out = await syncFromPocketCasts({ token });
+      await queryClient.invalidateQueries({ queryKey: ["pocketCastsToken"] });
+      if (out.episodes + out.shows > 0) {
+        await queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
+        await queryClient.invalidateQueries({ queryKey: ["saved"] });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one pass per mount
+  }, [signedIn]);
 
   const legacyInbox = episodes.filter((e) => e.bucket === "inbox");
   const promotedRef = useRef(false);
@@ -186,11 +206,18 @@ export default function LibraryPage() {
 
   const queueEpisodes = tag
     ? visibleEpisodes
-        .filter((e) => e.bucket === "queue")
+        .filter((e) => e.bucket === "queue" && e.status !== "finished")
         .sort((a, b) => (a.queueRank ?? 0) - (b.queueRank ?? 0))
     : fullQueue;
   const archivedEpisodes = visibleEpisodes
     .filter((e) => e.bucket === "archived")
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  // Finished episodes read straight off the synced `saved_episodes` rows —
+  // every finish path (manual tick, Pocket Casts sync, auto-retire) writes
+  // `status`+`updated_at` there, so History is consistent across devices
+  // instead of depending on a local-only "what did I open" log.
+  const finishedEpisodes = visibleEpisodes
+    .filter((e) => e.bucket === "queue" && e.status === "finished")
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   async function renameTag(oldTag: string, newTag: string) {
@@ -297,10 +324,18 @@ export default function LibraryPage() {
           axes (a bucket vs a status) surfaced as two sections, which is a
           distinction the user has no reason to hold — both mean "not in my
           queue any more". History now shows why each one left. */}
-      <CollapsibleSection id="history" title="History" count={archivedEpisodes.length}>
-        <ListenHistory archived={archivedEpisodes} onChanged={() => {
-          void queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
-        }} />
+      <CollapsibleSection
+        id="history"
+        title="History"
+        count={archivedEpisodes.length + finishedEpisodes.length}
+      >
+        <ListenHistory
+          archived={archivedEpisodes}
+          finished={finishedEpisodes}
+          onChanged={() => {
+            void queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
+          }}
+        />
       </CollapsibleSection>
 
     </main>
@@ -856,6 +891,21 @@ function SharePanel({ signedIn }: { signedIn: boolean }) {
  * Subscriptions are pulled ADDITIVELY and one-way: nothing is written back
  * to Pocket Casts, and unsubscribing there never removes a saved show here.
  */
+/** Absolute, formatted from the stored timestamp — same reasoning as
+ *  ListenHistory's own formatter: a relative "2h ago" needs Date.now()
+ *  during render, which disagrees between a prerendered page's server
+ *  clock and the browser's. */
+function formatSyncedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function PocketCastsSyncPanel() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -866,12 +916,12 @@ function PocketCastsSyncPanel() {
   });
   const queryClient = useQueryClient();
 
-  const tokenQ = useQuery({ queryKey: ["pocketCastsToken"], queryFn: getPocketCastsToken });
-  const connected = Boolean(tokenQ.data);
+  const tokenQ = useQuery({ queryKey: ["pocketCastsToken"], queryFn: getPocketCastsConnection });
+  const connected = Boolean(tokenQ.data?.token);
 
   async function sync() {
     setStatus("syncing");
-    const token = tokenQ.data;
+    const token = tokenQ.data?.token;
     const out = await syncFromPocketCasts(token ? { token } : { email, password });
     setPassword(""); // gone as soon as the one request has it
     setResult(out);
@@ -882,7 +932,6 @@ function PocketCastsSyncPanel() {
     }
     await queryClient.invalidateQueries({ queryKey: ["pocketCastsToken"] });
     if (out.episodes + out.shows > 0) {
-      refreshHistory();
       await queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] });
       await queryClient.invalidateQueries({ queryKey: ["saved"] });
     }
@@ -910,6 +959,11 @@ function PocketCastsSyncPanel() {
       {connected ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-accent">Connected</span>
+          {tokenQ.data?.syncedAt && (
+            <span className="text-muted-foreground">
+              · auto-syncs when you open Library · last synced {formatSyncedAt(tokenQ.data.syncedAt)}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => void sync()}
