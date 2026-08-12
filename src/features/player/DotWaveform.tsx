@@ -3,8 +3,10 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Siri-style flowing waveform for the Play bar — several overlapping sine
- * waves with a centre-weighted envelope, painted on a canvas at 60fps.
+ * Nothing-brand dot-matrix waveform for the Play bar and the Wavr deck —
+ * replaced the earlier Siri-style flowing line with vertical bars built out
+ * of stacked dots, on a faint dot-grid backdrop, matching the dot-matrix
+ * language already used for the globe (GlobeBackdrop) and section labels.
  *
  * On amplitude: true audio-reactive height (louder = taller) needs the Web
  * Audio API's AnalyserNode, which only returns real samples from a
@@ -16,7 +18,7 @@ import { useEffect, useRef } from "react";
  * *reads* like speech — swelling and receding on a slow random walk — rather
  * than a literal reading of the clip. `progress` colours the travelled part.
  */
-export function SiriWaveform({
+export function DotWaveform({
   active,
   progress,
   className = "",
@@ -47,23 +49,32 @@ export function SiriWaveform({
 
     let raf = 0;
     let t = 0;
-    // Envelope eased toward a wandering target so swells feel organic, and a
-    // separate `level` that fades in/out with `active` so the line settles
-    // flat when a clip ends rather than snapping.
+    // Same wandering-envelope approach as the line it replaced: eases toward
+    // a randomly re-targeted amplitude so swells feel organic, and a
+    // separate `level` that fades in/out with `active` so the bars settle
+    // flat (a single low dot) rather than snapping when a clip starts/ends.
     let envelope = 0.4;
     let envelopeTarget = 0.6;
     let level = 0;
 
     const accent = "#ff3b30"; // Signal Red — the app's single accent
-    const dim = "rgba(148, 148, 148, 0.5)";
+    const dimDot = "rgba(148, 148, 148, 0.55)";
+    const gridDot = "rgba(148, 148, 148, 0.16)"; // faint backdrop texture
 
-    // Three sine components at different speeds/wavelengths sum into the Siri
-    // "several waves in one" look; each layer is drawn semi-transparent.
+    // Three sine components at different speeds/wavelengths sum into the same
+    // "several waves in one" shape the flowing line used — just sampled per
+    // bar column instead of drawn as a continuous stroke.
     const layers = [
       { speed: 1.0, freq: 1.3, amp: 1.0, phase: 0 },
       { speed: 1.7, freq: 2.1, amp: 0.6, phase: 2.1 },
       { speed: 0.6, freq: 0.8, amp: 0.5, phase: 4.2 },
     ];
+
+    const BAR_SPACING = 7; // px between bar columns
+    const DOT_GAP = 4.5; // px between stacked dots within a bar
+    const DOT_R = 1.3; // foreground dot radius
+    const GRID_R = 0.6; // backdrop grid dot radius
+    const GRID_SPACING = 6; // px, backdrop texture grid
 
     function resize(cv: HTMLCanvasElement, c2: CanvasRenderingContext2D) {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -72,54 +83,61 @@ export function SiriWaveform({
       c2.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
+    function barHeight(nx: number, time: number): number {
+      let h = 0;
+      for (const layer of layers) {
+        const win = Math.sin(Math.PI * nx) ** 1.5; // centre-weighted, tapers to the edges
+        h += Math.sin(nx * layer.freq * Math.PI * 2 + time * layer.speed * 2 + layer.phase) * layer.amp * win;
+      }
+      return Math.abs(h) / (1 + 0.6 + 0.5); // normalise against the summed layer amps
+    }
+
     function frame(cv: HTMLCanvasElement, c2: CanvasRenderingContext2D) {
       const w = cv.clientWidth;
       const h = cv.clientHeight;
       const mid = h / 2;
       t += 0.016;
 
-      // Ease the level toward 1 while active, 0 when idle (settles flat).
       level += ((activeRef.current ? 1 : 0) - level) * 0.06;
-
-      // Wandering amplitude envelope — re-target occasionally, ease toward it.
       if (Math.random() < 0.02) envelopeTarget = 0.35 + Math.random() * 0.6;
       envelope += (envelopeTarget - envelope) * 0.05;
 
       c2.clearRect(0, 0, w, h);
 
-      const maxAmp = mid * 0.9 * envelope * level;
-      const p = Math.min(Math.max(progressRef.current, 0), 1);
-      const step = 2;
-
-      for (const layer of layers) {
-        c2.beginPath();
-        for (let x = 0; x <= w; x += step) {
-          const nx = x / w;
-          // Centre-weighted window so the wave bulges in the middle and tapers
-          // to the edges, like the Siri line.
-          const win = Math.sin(Math.PI * nx) ** 1.5;
-          const y =
-            mid +
-            Math.sin(nx * layer.freq * Math.PI * 2 + t * layer.speed * 2 + layer.phase) *
-              maxAmp *
-              layer.amp *
-              win;
-          if (x === 0) c2.moveTo(x, y);
-          else c2.lineTo(x, y);
+      // Backdrop grid texture — the pixelated-matrix field the bars sit on.
+      c2.fillStyle = gridDot;
+      for (let gx = GRID_SPACING / 2; gx < w; gx += GRID_SPACING) {
+        for (let gy = GRID_SPACING / 2; gy < h; gy += GRID_SPACING) {
+          c2.beginPath();
+          c2.arc(gx, gy, GRID_R, 0, Math.PI * 2);
+          c2.fill();
         }
-        c2.lineWidth = 2;
-        // Travelled portion in accent, the rest dimmed — position feedback
-        // without a separate progress bar, as one gradient stroke.
-        const grad = c2.createLinearGradient(0, 0, w, 0);
-        grad.addColorStop(0, accent);
-        grad.addColorStop(Math.max(0, p - 0.001), accent);
-        grad.addColorStop(Math.min(1, p), dim);
-        grad.addColorStop(1, dim);
-        c2.strokeStyle = grad;
-        c2.globalAlpha = layer.amp;
-        c2.stroke();
       }
-      c2.globalAlpha = 1;
+
+      const maxAmp = mid * 0.92 * envelope * level;
+      const p = Math.min(Math.max(progressRef.current, 0), 1);
+      const barCount = Math.max(1, Math.floor(w / BAR_SPACING));
+
+      for (let i = 0; i < barCount; i++) {
+        const x = i * BAR_SPACING + BAR_SPACING / 2;
+        const nx = x / w;
+        const amp = Math.max(2, barHeight(nx, t) * maxAmp);
+        const dots = Math.max(1, Math.round(amp / DOT_GAP));
+        c2.fillStyle = nx <= p ? accent : dimDot;
+        for (let d = 0; d < dots; d++) {
+          const y = mid - d * DOT_GAP;
+          c2.beginPath();
+          c2.arc(x, y, DOT_R, 0, Math.PI * 2);
+          c2.fill();
+          if (d > 0) {
+            // Mirror below the midline too — a symmetric bar, like a real
+            // waveform, rather than growing only upward.
+            c2.beginPath();
+            c2.arc(x, mid + d * DOT_GAP, DOT_R, 0, Math.PI * 2);
+            c2.fill();
+          }
+        }
+      }
 
       raf = requestAnimationFrame(() => frame(cv, c2));
     }

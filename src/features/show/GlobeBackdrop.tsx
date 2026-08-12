@@ -12,6 +12,7 @@ import {
   type Camera,
   type LatLon,
 } from "@/src/core/geo/globeMath";
+import { isLand } from "@/src/core/geo/landMask";
 import { WORLD_CITIES } from "./worldCities";
 
 /**
@@ -25,6 +26,11 @@ import { WORLD_CITIES } from "./worldCities";
  * cloud that reads as scattered specks rather than the even matrix the
  * Nothing look needs. All the maths is pure and unit-tested in
  * src/core/geo/globeMath.ts; this file is only scheduling and paint.
+ *
+ * Every lattice dot is checked against a tiny embedded land/water bitmap
+ * (src/core/geo/landMask.ts) and shaded accordingly — dense and bright over
+ * continents, faint over ocean — so the sphere reads as an actual planet
+ * with recognisable coastlines, not a uniform point-cloud ball.
  *
  * Nothing styling: monochrome dots on the page background, Signal Red
  * reserved for the target alone, so the one red thing on screen is the
@@ -185,9 +191,14 @@ export function GlobeBackdrop({ target }: { target: City | null }) {
         if (d.x < -8 || d.x > w + 8 || d.y < -8 || d.y > h + 8) continue;
         // Fade toward the limb: the sphere reads as round without any
         // shading, purely from dot opacity following the facing term.
-        ctx!.globalAlpha = (0.14 + 0.6 * Math.pow(d.facing, 1.5)) * damp;
+        // Land shades in bright and slightly larger; ocean fades to a faint
+        // texture — the same lattice, just no longer uniform, so continent
+        // silhouettes emerge instead of a plain point-cloud ball.
+        const onLand = isLand(p.lat, p.lon);
+        ctx!.globalAlpha =
+          (0.14 + 0.6 * Math.pow(d.facing, 1.5)) * damp * (onLand ? 1 : 0.32);
         ctx!.beginPath();
-        ctx!.arc(d.x, d.y, dotSize, 0, Math.PI * 2);
+        ctx!.arc(d.x, d.y, onLand ? dotSize * 1.15 : dotSize * 0.75, 0, Math.PI * 2);
         ctx!.fill();
       }
 

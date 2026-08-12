@@ -49,7 +49,7 @@ import { BulkYoutubeMusicButton } from "@/src/features/library/BulkYoutubeMusicB
 import { AccountSync } from "@/src/features/library/AccountSync";
 import { CollapsibleSection } from "@/src/features/library/CollapsibleSection";
 import { ListenHistory } from "@/src/features/library/ListenHistory";
-import { NewEpisodeWatcher } from "@/src/features/library/NewEpisodeWatcher";
+import { ListenInsights } from "@/src/features/library/ListenInsights";
 import { ShowGrid } from "@/src/features/library/ShowGrid";
 import { EpisodeCard, GripIcon } from "@/src/features/library/EpisodeCard";
 import { ExportOpmlButton } from "@/src/features/library/ExportOpmlButton";
@@ -229,10 +229,6 @@ export default function LibraryPage() {
   return (
     <main className="mx-auto w-full max-w-5xl p-4 pb-[calc(14rem+env(safe-area-inset-bottom))] sm:p-8 sm:pb-[calc(14rem+env(safe-area-inset-bottom))]">
       <LiquidBackdrop />
-      {/* Background job, renders nothing — pulls new episodes of saved shows
-          in. Previously lived inside the shows list, so replacing that list
-          would have taken the feature with it. */}
-      <NewEpisodeWatcher saved={saved} />
       {/* Saved shows lead, and on a phone they're the only thing above the
           fold. Everything else — the copy, the three sync panels, the tag
           rail, the episode list — used to sit open above them, which is
@@ -329,6 +325,9 @@ export default function LibraryPage() {
         title="History"
         count={archivedEpisodes.length + finishedEpisodes.length}
       >
+        <div className="mb-3">
+          <ListenInsights finished={finishedEpisodes} />
+        </div>
         <ListenHistory
           archived={archivedEpisodes}
           finished={finishedEpisodes}

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  removeEpisode,
   setEpisodeBucket,
   updateEpisodeProgress,
   type SavedEpisode,
@@ -81,6 +82,9 @@ export function ListenHistory({
               onRestore={() => {
                 void setEpisodeBucket(e.episodeId, "queue", 0).then(() => onChanged?.());
               }}
+              onRemove={() => {
+                void removeEpisode(e.episodeId).then(() => onChanged?.());
+              }}
             />
           ))}
         </ul>
@@ -102,6 +106,9 @@ export function ListenHistory({
                     onChanged?.(),
                   );
                 }}
+                onRemove={() => {
+                  void removeEpisode(e.episodeId).then(() => onChanged?.());
+                }}
               />
             ))}
           </ul>
@@ -116,12 +123,16 @@ function HistoryRow({
   reason,
   time,
   onRestore,
+  onRemove,
 }: {
   episode: SavedEpisode;
   reason: string;
   /** Time-of-day, shown for finished rows (the day is already the group header). */
   time?: string;
   onRestore: () => void;
+  /** Deletes the row outright — unlike Restore, this can't be undone from
+   *  the UI, so it's confirmed first. */
+  onRemove: () => void;
 }) {
   return (
     <li className="flex items-center gap-3">
@@ -151,6 +162,19 @@ function HistoryRow({
         className="font-brand shrink-0 rounded-[2px] border border-surface-border px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
       >
         Restore
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm(`Remove "${episode.title}" from History? This can't be undone.`)) {
+            onRemove();
+          }
+        }}
+        aria-label={`Remove ${episode.title} from History`}
+        title="Remove from History"
+        className="shrink-0 rounded-full px-1.5 py-1 text-muted-foreground hover:text-foreground"
+      >
+        ✕
       </button>
     </li>
   );

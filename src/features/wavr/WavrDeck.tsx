@@ -14,7 +14,7 @@ import { SwipeCard, type SwipeCardHandle } from "./SwipeCard";
 import { useCardGesture } from "./useCardGesture";
 import { useDeckAudio, type DeckAudio } from "./useDeckAudio";
 import { useSwipeDeck } from "./useSwipeDeck";
-import { SiriWaveform } from "@/src/features/player/SiriWaveform";
+import { DotWaveform } from "@/src/features/player/DotWaveform";
 
 /**
  * The stack: renders top + 2 peek, owns the deck reducer and the audio ring.
@@ -73,6 +73,29 @@ export function WavrDeck({
     onAudio?.(audio);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- report on every audio identity change only
   }, [audio]);
+
+  // Warm the NEXT card's connection while the current one plays, via the
+  // browser's own <link rel="prefetch"> — not a second <audio> element.
+  // A three-slot muted hot-parking ring was tried here before and reverted
+  // (see useDeckAudio's doc comment): it gated the first play behind an
+  // autoplay-unlock round-trip and its real decode+buffer competed for
+  // bandwidth with whatever was actually playing. A prefetch tag does
+  // neither — it never touches playback or autoplay policy, and browsers
+  // schedule it at low priority behind anything active. Only ever the one
+  // card immediately ahead, so it can't balloon into fetching the whole
+  // upcoming stack.
+  const nextAudioUrl = deck.peek[0]?.audioUrl;
+  useEffect(() => {
+    if (!nextAudioUrl) return;
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.as = "audio";
+    link.href = nextAudioUrl;
+    document.head.appendChild(link);
+    return () => {
+      link.remove();
+    };
+  }, [nextAudioUrl]);
 
   // Haptics and the waveform are always on now (the settings menu is gone —
   // the card gets that space instead).
@@ -189,10 +212,10 @@ export function WavrDeck({
       <audio ref={audioElRef} preload="none" />
 
       {/* The waveform, as its own visible band ABOVE the card — animates
-          while playing, flat when not. Always on. Same Siri-style flowing
-          line as the mini player (PreviewPlayer), not the bar-style
-          WaveField this used to be — one waveform look across the app. */}
-      <SiriWaveform active={audio.playState === "playing"} progress={audio.progress} />
+          while playing, flat when not. Always on. Same dot-matrix waveform
+          as the mini player (PreviewPlayer) — one waveform look across the
+          app. */}
+      <DotWaveform active={audio.playState === "playing"} progress={audio.progress} />
 
       <div
         role="group"

@@ -21,7 +21,14 @@ import { DegradedHint, MachineLabel, NothingToggle } from "@/src/ui";
  * glance, so a row reads in one look rather than a paragraph. Links/cover
  * come straight from xyzrank's own data (each show's own creator submitted
  * them), so Save and "listen anywhere" work immediately with no guessing.
+ *
+ * Presented as four cards, each a live collage of its own top covers — tap
+ * one and it expands to a full-screen list, rather than a pill-tab row
+ * swapping one shared list underneath. All four boards' data is fetched up
+ * front (6h cache, same as before) so every card's collage preview is real,
+ * not a placeholder guessed at before you open it.
  */
+const SIX_HOURS = 6 * 60 * 60 * 1000;
 const TABS: { id: XyzrankTab; label: string; kind: "shows" | "episodes" }[] = [
   { id: "podcasts", label: "热门播客", kind: "shows" },
   { id: "new-podcasts", label: "新晋播客", kind: "shows" },
@@ -30,16 +37,39 @@ const TABS: { id: XyzrankTab; label: string; kind: "shows" | "episodes" }[] = [
 ];
 
 export function XyzrankBoard() {
-  const [tab, setTab] = useState<XyzrankTab>("podcasts");
-  const active = TABS.find((t) => t.id === tab)!;
+  const [openTab, setOpenTab] = useState<XyzrankTab | null>(null);
 
-  const q = useQuery({
-    queryKey: ["catalog", "charts", "xyzrank", tab],
-    queryFn: () => getXyzrankBoard(tab),
-    staleTime: 6 * 60 * 60 * 1000,
+  // Four explicit calls, not a loop — hooks can't be called a variable
+  // number of times, and TABS is a fixed constant anyway.
+  const podcastsQ = useQuery({
+    queryKey: ["catalog", "charts", "xyzrank", "podcasts"],
+    queryFn: () => getXyzrankBoard("podcasts"),
+    staleTime: SIX_HOURS,
+  });
+  const newPodcastsQ = useQuery({
+    queryKey: ["catalog", "charts", "xyzrank", "new-podcasts"],
+    queryFn: () => getXyzrankBoard("new-podcasts"),
+    staleTime: SIX_HOURS,
+  });
+  const episodesQ = useQuery({
+    queryKey: ["catalog", "charts", "xyzrank", "episodes"],
+    queryFn: () => getXyzrankBoard("episodes"),
+    staleTime: SIX_HOURS,
+  });
+  const newEpisodesQ = useQuery({
+    queryKey: ["catalog", "charts", "xyzrank", "new-episodes"],
+    queryFn: () => getXyzrankBoard("new-episodes"),
+    staleTime: SIX_HOURS,
   });
 
-  const rows = active.kind === "shows" ? q.data?.shows ?? [] : q.data?.episodes ?? [];
+  const queryByTab: Record<XyzrankTab, typeof podcastsQ> = {
+    podcasts: podcastsQ,
+    "new-podcasts": newPodcastsQ,
+    episodes: episodesQ,
+    "new-episodes": newEpisodesQ,
+  };
+
+  const activeTab = openTab ? TABS.find((t) => t.id === openTab)! : null;
 
   return (
     <section>
@@ -60,58 +90,144 @@ export function XyzrankBoard() {
         {", playable and saveable right here."}
       </p>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-3">
         {TABS.map((t) => (
-          <ChartTab key={t.id} label={t.label} active={tab === t.id} onClick={() => setTab(t.id)} />
+          <BoardCard
+            key={t.id}
+            tab={t}
+            query={queryByTab[t.id]}
+            onOpen={() => setOpenTab(t.id)}
+          />
         ))}
       </div>
 
-      {q.isLoading ? (
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-card bg-surface" />
-          ))}
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="rounded-card border border-surface-border bg-surface px-4 py-6 text-center text-sm text-zinc-500">
-          {"This board didn't load — xyzrank sits behind a bot filter; try another tab or check back later."}
-        </p>
-      ) : (
-        <>
-          {q.data?.degraded && <DegradedHint className="mb-2" />}
-          <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {active.kind === "shows"
-              ? (rows as XyzrankShowItem[]).map((show) => <XyzrankShowRow key={show.id} show={show} />)
-              : (rows as XyzrankEpisodeItem[]).map((ep) => <XyzrankEpisodeRow key={ep.id} ep={ep} />)}
-          </ol>
-        </>
+      {activeTab && (
+        <BoardOverlay tab={activeTab} query={queryByTab[activeTab.id]} onClose={() => setOpenTab(null)} />
       )}
     </section>
   );
 }
 
-function ChartTab({
-  label,
-  active,
-  onClick,
+type BoardQuery = ReturnType<typeof useQuery<Awaited<ReturnType<typeof getXyzrankBoard>>>>;
+
+function coversOf(tab: { kind: "shows" | "episodes" }, data: BoardQuery["data"]): (string | undefined)[] {
+  if (!data) return [];
+  return tab.kind === "shows"
+    ? data.shows.slice(0, 4).map((s) => s.coverUrl)
+    : data.episodes.slice(0, 4).map((e) => e.coverUrl);
+}
+
+/** One board, shown as a live collage of its own top covers — a real
+ *  preview of what's inside, not a plain labelled button. */
+function BoardCard({
+  tab,
+  query,
+  onOpen,
 }: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
+  tab: { id: XyzrankTab; label: string; kind: "shows" | "episodes" };
+  query: BoardQuery;
+  onOpen: () => void;
 }) {
+  const covers = coversOf(tab, query.data);
+  const count = tab.kind === "shows" ? query.data?.shows.length : query.data?.episodes.length;
+
   return (
     <button
       type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`font-brand rounded-pill border px-4 py-1.5 text-sm font-semibold transition-colors ${
-        active
-          ? "border-accent bg-accent text-white"
-          : "border-surface-border bg-surface text-zinc-500 hover:text-foreground"
-      }`}
+      onClick={onOpen}
+      disabled={query.isLoading}
+      className="group relative aspect-square overflow-hidden rounded-card border border-surface-border bg-surface text-left shadow-md transition-transform active:scale-[0.97] disabled:opacity-60"
     >
-      {label}
+      <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-px bg-surface-border">
+        {(query.isLoading ? [0, 1, 2, 3] : covers).map((src, i) => (
+          <div key={i} className="relative overflow-hidden bg-surface">
+            {typeof src === "string" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+            ) : query.isLoading ? (
+              <div className="h-full w-full animate-pulse bg-zinc-800/40" />
+            ) : null}
+          </div>
+        ))}
+      </div>
+      {/* Scrim + label, always legible over whatever covers land underneath. */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3">
+        <p className="font-brand text-sm font-bold text-white drop-shadow">{tab.label}</p>
+        {count != null && <p className="text-[11px] text-white/70">Top {count}</p>}
+      </div>
     </button>
+  );
+}
+
+/** Full-screen list for one board — same rows as before, same loading/empty/
+ *  degraded handling, just reached by opening a card instead of a tab. */
+function BoardOverlay({
+  tab,
+  query,
+  onClose,
+}: {
+  tab: { id: XyzrankTab; label: string; kind: "shows" | "episodes" };
+  query: BoardQuery;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  const rows = tab.kind === "shows" ? query.data?.shows ?? [] : query.data?.episodes ?? [];
+
+  return (
+    // Above the Play bar (z-45) and tab bar (z-40) — same layer as SearchOverlay.
+    <div className="fixed inset-0 z-[60] flex flex-col bg-background">
+      <div className="flex items-center gap-2 border-b border-surface-border px-4 py-3 sm:px-8">
+        <p className="font-brand min-w-0 flex-1 truncate text-sm font-bold uppercase tracking-wider text-foreground">
+          {tab.label}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="font-brand shrink-0 pl-2 text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-8">
+        {query.isLoading ? (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-16 animate-pulse rounded-card bg-surface" />
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="rounded-card border border-surface-border bg-surface px-4 py-6 text-center text-sm text-zinc-500">
+            {"This board didn't load — xyzrank sits behind a bot filter; try another tab or check back later."}
+          </p>
+        ) : (
+          <>
+            {query.data?.degraded && <DegradedHint className="mb-2" />}
+            <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {tab.kind === "shows"
+                ? (rows as XyzrankShowItem[]).map((show) => <XyzrankShowRow key={show.id} show={show} />)
+                : (rows as XyzrankEpisodeItem[]).map((ep) => <XyzrankEpisodeRow key={ep.id} ep={ep} />)}
+            </ol>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

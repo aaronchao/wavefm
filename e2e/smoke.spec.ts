@@ -326,7 +326,7 @@ test("show detail lists the show's own top episodes", async ({ page }) => {
   await expect(page.getByText("Attachment styles deep-dive")).toBeVisible();
 });
 
-test("discover surfaces the 中文播客榜 board (xyzrank) with its own tabs", async ({ page }) => {
+test("discover surfaces the 中文播客榜 board (xyzrank) as four cards that expand", async ({ page }) => {
   await stub(page);
   await page.route("**/api/catalog/charts/xyzrank**", (r) =>
     r.fulfill({
@@ -348,10 +348,20 @@ test("discover surfaces the 中文播客榜 board (xyzrank) with its own tabs", 
   );
 
   await page.goto("/");
-  // 热门播客 (Popular podcasts) is the default-active tab of the four.
   await expect(page.getByRole("heading", { name: "中文播客榜" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "热门播客" })).toBeVisible();
+  // All four boards render as cards up front; the list itself is not open yet.
+  const podcastsCard = page.getByRole("button", { name: /热门播客/ });
+  await expect(podcastsCard).toBeVisible();
+  await expect(page.getByRole("button", { name: /新晋播客/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /热门单集/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /新晋单集/ })).toBeVisible();
+  await expect(page.getByText("故事FM")).not.toBeVisible();
+
+  // Opening a card expands it to a full-screen list.
+  await podcastsCard.click();
   await expect(page.getByText("故事FM")).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByText("故事FM")).not.toBeVisible();
 });
 
 test("discover Global chart tab ranks by community + metrics", async ({ page }) => {

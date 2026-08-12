@@ -17,7 +17,7 @@ import { OpenInLinks } from "@/src/features/library/OpenInLinks";
 import { player, usePlayerState, type PreviewMeta } from "@/src/state/player";
 import { CoverTile, NothingToggle } from "@/src/ui";
 import { springs } from "@/src/ui/tokens";
-import { SiriWaveform } from "./SiriWaveform";
+import { DotWaveform } from "./DotWaveform";
 import { useClipWindow } from "./useClipWindow";
 
 /**
@@ -226,7 +226,7 @@ export function PreviewPlayer() {
               </div>
 
               {(s.status === "playing" || s.status === "done") && (
-                <SiriWaveform active={s.status === "playing"} progress={progress} />
+                <DotWaveform active={s.status === "playing"} progress={progress} />
               )}
 
               {/* While a clip is live: skip to another episode of this show,
