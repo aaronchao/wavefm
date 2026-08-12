@@ -555,6 +555,68 @@ sharing, snapshot capture, native apps. See GitHub issues #8–#15.
 
 ## Changelog of shipped refinements
 
+- 2026-08-13 — Overnight batch, nine inbox items (479→495 tests, 26 e2e,
+  build all green). Committed locally (`77f34bb`), **not pushed** —
+  several are real visual/interaction changes, wanted a look before going
+  live:
+  - **History: remove individual entries** (confirmed first — unlike
+    Restore, not undoable) + a new **insights strip**
+    (`src/core/library/listenStats.ts` + `ListenInsights.tsx`): episodes
+    finished, estimated time, day streak, top show, and a 6-week
+    activity heatmap. Answers the queued "listening stats view" ask.
+  - **Saved Episodes is manual-add only now** — `NewEpisodeWatcher`
+    (auto-pulled new episodes of subscribed shows into the queue)
+    deleted outright per explicit ask. Existing auto-added episodes left
+    alone: nothing in the data distinguishes them from manual saves, so
+    there was no safe way to purge them — Aaron's own call when asked.
+  - **Dot-matrix waveform** (`DotWaveform.tsx`, replaces `SiriWaveform`)
+    — vertical bars built from stacked dots on a faint dot-grid backdrop,
+    shared by the mini player and the Wavr deck, matching the globe's
+    existing dot-matrix language instead of the old flowing Siri line.
+  - **Wavr audio load time** — root cause was `preload="none"` plus zero
+    prefetch of the next card (a real hot-parking ring existed once and
+    was reverted for competing with playback bandwidth + autoplay-policy
+    bugs, see `useDeckAudio.ts`). Fix: `<link rel="prefetch">` for just
+    the next card (no second `<audio>` element, no autoplay involved) +
+    a loading-dots indicator so the wait is at least visible. "Instant"
+    isn't achievable — real CDN latency is a hard floor — but this cuts
+    both real and perceived wait meaningfully.
+  - **Card flip** (`CardFace.tsx`) — real 3D `rotateY`, not a cross-fade.
+    Back face: full "why" reasoning, untruncated quote, every matched
+    tag, "Open show page" into the existing `/show/[id]` (no new detail
+    view built — reused what's there). Caught and fixed a real bug along
+    the way: `backface-visibility: hidden` only hides a face *visually* —
+    both faces stay in the DOM and the accessibility tree, so the
+    show-name link resolved twice (broke an e2e test, and was a genuine
+    tab-order/screen-reader bug). Fixed with `aria-hidden` + `inert` on
+    whichever face isn't showing.
+  - **Globe renders real continents** — `src/core/geo/landMask.ts`, a
+    240×120 1-bit land/water bitmap (3.6KB) baked offline from NASA's
+    public-domain Blue Marble equirectangular map, no runtime fetch.
+    Every lattice dot in `GlobeBackdrop` now shades by real geography
+    (dense/bright over land, faint over ocean) instead of a uniform
+    point cloud. Verified the classification against 9 known lat/lon
+    points (Sahara, mid-Pacific, etc.) before wiring it in.
+  - **中文播客榜: four cards, not four tabs** (`XyzrankBoard.tsx`) — each
+    card is a live 2×2 collage of its own top covers; tapping one
+    expands to a full-screen list (same rows/logic as before, just
+    reached differently). All four boards fetch up front (same 6h
+    cache) so every card's preview is real data, not a guess.
+  - **Feedback-md template**: `## Inbox` now goes above `## Status` in
+    every project's feedback file that uses one — global rule, applied
+    to wavefm/18-St-Clair/Credit-Card-Application tonight.
+  - Declined (asked first): full Overcast sync — manual-file-only,
+    never live, Aaron passed given the ceiling.
+  - Found, not fixed (pre-existing, unrelated to tonight's changes):
+    `bg-white/*` Tailwind opacity utilities render as a dark colour
+    instead of white in this dev environment — confirmed on
+    already-shipped code (`ProgressScrub.tsx`'s seek-bar track), not
+    something introduced tonight. Worth a look.
+  - Two references (Dribbble videos for the card-4-cards and card-flip
+    asks) never loaded in this session's browser tooling — built from
+    the text description instead. If the result doesn't match what was
+    pictured, that's why.
+
 - 2026-08-10 — Four inbox items closed together (474→479 tests, 26 e2e,
   build all green):
   - **Finished episodes now actually leave the queue.** `markFinished` set
