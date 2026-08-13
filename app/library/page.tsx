@@ -21,12 +21,14 @@ import { shouldAutoSync } from "@/src/core/library/autoSync";
 import { clearHandoff, listHandoffs } from "@/src/data/repos/handoffRepo";
 import {
   listSavedEpisodes,
+  removeEpisode,
   setEpisodeBucket,
   markFinished,
   syncFromGpodder,
   syncFromPocketCasts,
   type SavedEpisode,
 } from "@/src/data/repos/savedEpisodesRepo";
+import { episodeIdsToRemove } from "@/src/core/library/dedupe";
 import {
   disableSharing,
   getPocketCastsConnection,
@@ -203,6 +205,25 @@ export default function LibraryPage() {
     ).then(() => queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot migration
   }, [legacyInbox.length]);
+
+  // De-dupe: the same episode can arrive via search, a Wavr card, an
+  // OPML/RSS import, and Pocket Casts sync, each minting its own id
+  // scheme — those never collide on exact id, so real duplicate rows
+  // still land (src/core/library/dedupe.ts). Keeps whichever copy has
+  // real progress/completion, or is most recently touched if neither
+  // does; removes the rest. Runs once per mount, same guard shape as the
+  // legacy-inbox promotion above.
+  const dedupedRef = useRef(false);
+  useEffect(() => {
+    if (dedupedRef.current || episodes.length === 0) return;
+    const toRemove = episodeIdsToRemove(episodes);
+    if (toRemove.length === 0) return;
+    dedupedRef.current = true;
+    void Promise.all(toRemove.map((id) => removeEpisode(id))).then(() =>
+      queryClient.invalidateQueries({ queryKey: ["savedEpisodes"] }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one pass per mount
+  }, [episodes.length]);
 
   const queueEpisodes = tag
     ? visibleEpisodes
