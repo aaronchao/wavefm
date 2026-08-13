@@ -32,7 +32,10 @@ export default function ShowPage() {
           Couldn&apos;t load this show right now — it may be unavailable.
         </p>
       )}
-      {show && <ShowDetail show={show} />}
+      {/* key resets local state (revealed, etc.) per show — otherwise a
+          client-side nav from one show to another keeps the same instance
+          and the globe reveal never re-plays for the new show. */}
+      {show && <ShowDetail key={show.id} show={show} />}
     </main>
   );
 }
@@ -69,7 +72,20 @@ function ShowDetail({ show }: { show: CatalogShow }) {
       ),
     [countryGuess, show],
   );
+  // Auto-reveals after a beat, rather than staying gated behind an episode
+  // click forever — Aaron's own ask: "start with rotating earth globe
+  // animation then zoom in", i.e. a sequence the page itself plays, not a
+  // reward waiting on an interaction that might never come if someone
+  // just reads the page. The short idle-spin window before the timer
+  // fires is what actually delivers "start with rotating" — an instant
+  // reveal on mount would skip straight to the zoom and there'd be
+  // nothing to see spinning at all. Selecting an episode still reveals it
+  // immediately too, in case that happens first.
   const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setRevealed(true), 1800);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ONE_CLICK invariant for save
   function toggleSave() {

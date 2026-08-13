@@ -22,11 +22,11 @@ import { DegradedHint, MachineLabel, NothingToggle } from "@/src/ui";
  * come straight from xyzrank's own data (each show's own creator submitted
  * them), so Save and "listen anywhere" work immediately with no guessing.
  *
- * Presented as four cards, each a live collage of its own top covers — tap
- * one and it expands to a full-screen list, rather than a pill-tab row
- * swapping one shared list underneath. All four boards' data is fetched up
- * front (6h cache, same as before) so every card's collage preview is real,
- * not a placeholder guessed at before you open it.
+ * Presented as four flat-colour cards, each showing its own count as one
+ * big number — tap one and it expands to a full-screen list, rather than a
+ * pill-tab row swapping one shared list underneath. All four boards' data
+ * is fetched up front (6h cache, same as before) so every card's count is
+ * real, not a placeholder guessed at before you open it.
  */
 const SIX_HOURS = 6 * 60 * 60 * 1000;
 const TABS: { id: XyzrankTab; label: string; kind: "shows" | "episodes" }[] = [
@@ -110,15 +110,19 @@ export function XyzrankBoard() {
 
 type BoardQuery = ReturnType<typeof useQuery<Awaited<ReturnType<typeof getXyzrankBoard>>>>;
 
-function coversOf(tab: { kind: "shows" | "episodes" }, data: BoardQuery["data"]): (string | undefined)[] {
-  if (!data) return [];
-  return tab.kind === "shows"
-    ? data.shows.slice(0, 4).map((s) => s.coverUrl)
-    : data.episodes.slice(0, 4).map((e) => e.coverUrl);
-}
+// One flat, muted colour per board — replaces the cover-art collage per
+// Aaron's own reference (a flat-color chart-list app, not photos) and his
+// explicit ask to apply it site-wide: less collage, more clean colour +
+// bold type. Desaturated rather than the reference's brighter tones, to
+// sit inside WaveFM's own dark, single-accent (Signal Red) palette rather
+// than fighting it with four new saturated hues.
+const BOARD_COLORS: Record<XyzrankTab, string> = {
+  podcasts: "#8a7550",
+  "new-podcasts": "#5f7a5f",
+  episodes: "#8a5a48",
+  "new-episodes": "#4f6478",
+};
 
-/** One board, shown as a live collage of its own top covers — a real
- *  preview of what's inside, not a plain labelled button. */
 function BoardCard({
   tab,
   query,
@@ -128,7 +132,6 @@ function BoardCard({
   query: BoardQuery;
   onOpen: () => void;
 }) {
-  const covers = coversOf(tab, query.data);
   const count = tab.kind === "shows" ? query.data?.shows.length : query.data?.episodes.length;
 
   return (
@@ -136,25 +139,25 @@ function BoardCard({
       type="button"
       onClick={onOpen}
       disabled={query.isLoading}
-      className="group relative aspect-square overflow-hidden rounded-card border border-surface-border bg-surface text-left shadow-md transition-transform active:scale-[0.97] disabled:opacity-60"
+      style={{ backgroundColor: BOARD_COLORS[tab.id] }}
+      className="group relative flex aspect-square flex-col justify-between overflow-hidden rounded-card p-3 text-left shadow-md transition-transform active:scale-[0.97] disabled:opacity-60"
     >
-      <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-px bg-surface-border">
-        {(query.isLoading ? [0, 1, 2, 3] : covers).map((src, i) => (
-          <div key={i} className="relative overflow-hidden bg-surface">
-            {typeof src === "string" ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
-            ) : query.isLoading ? (
-              <div className="h-full w-full animate-pulse bg-zinc-800/40" />
-            ) : null}
-          </div>
-        ))}
-      </div>
-      {/* Scrim + label, always legible over whatever covers land underneath. */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3">
-        <p className="font-brand text-sm font-bold text-white drop-shadow">{tab.label}</p>
-        {count != null && <p className="text-[11px] text-white/70">Top {count}</p>}
+      <p className="font-brand text-sm font-bold text-white drop-shadow">{tab.label}</p>
+      {/* A big bold number is the content now, not a collage — same
+          "one huge stat" read as the reference. */}
+      <div>
+        {query.isLoading ? (
+          <div className="h-9 w-16 animate-pulse rounded bg-white/20" />
+        ) : (
+          count != null && (
+            <p className="font-brand text-4xl font-black leading-none text-white tabular-nums">
+              {count}
+            </p>
+          )
+        )}
+        <p className="mt-1 text-[11px] uppercase tracking-wider text-white/70">
+          {tab.kind === "shows" ? "shows" : "episodes"}
+        </p>
       </div>
     </button>
   );

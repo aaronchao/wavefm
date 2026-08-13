@@ -631,11 +631,13 @@ sharing, snapshot capture, native apps. See GitHub issues #8–#15.
     to wavefm/18-St-Clair/Credit-Card-Application tonight.
   - Declined (asked first): full Overcast sync — manual-file-only,
     never live, Aaron passed given the ceiling.
-  - Found, not fixed (pre-existing, unrelated to tonight's changes):
-    `bg-white/*` Tailwind opacity utilities render as a dark colour
-    instead of white in this dev environment — confirmed on
-    already-shipped code (`ProgressScrub.tsx`'s seek-bar track), not
-    something introduced tonight. Worth a look.
+  - CORRECTION (2026-08-13, later same day): the `bg-white/*` "bug" noted
+    below was a false alarm — a browser extension in the testing session
+    (evidence: identical `rgb(24,26,27)` computed background regardless of
+    the actual color specified, confirmed against a plain inline
+    `style="background-color:#8a7550"` that had nothing to do with
+    Tailwind at all) was forcibly repainting backgrounds in that tab, not
+    an app bug. `ProgressScrub.tsx` is fine.
   - Two references (Dribbble videos for the card-4-cards and card-flip
     asks) never loaded in this session's browser tooling — built from
     the text description instead. If the result doesn't match what was
