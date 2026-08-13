@@ -555,6 +555,30 @@ sharing, snapshot capture, native apps. See GitHub issues #8–#15.
 
 ## Changelog of shipped refinements
 
+- 2026-08-13 (same day, second pass) — Aaron asked to actually review the
+  two Dribbble references before accepting the prior guess-built
+  versions. Retried in-browser: this time 2 of 3 loaded (first attempt's
+  failures were real — HTTP 200 but `readyState` stuck at 0 forever, a
+  genuine buffer failure, not just slow). Findings: the Discovery
+  4-cards reference is a flat-solid-color chart list, not cover-art
+  collages — interaction matched, visual didn't (left as-is, flagged for
+  a decision rather than guessing a palette). The Wavr card references
+  turned out to be a **fanned card-stack carousel**, not a flip-to-reveal
+  pattern — materially different from what got built overnight.
+  Rebuilt `PeekCard.tsx` with diagonal x/y/rotate offset by depth so the
+  next 1-2 cards fan out at an angle and un-furl as the front card
+  drags away, matching the reference's physical arrangement — while
+  deliberately keeping the existing cover-art + glass treatment instead
+  of the reference's arbitrary rainbow gradients (would contradict the
+  established Nothing-brand monochrome + single-accent identity
+  documented all over this file and `GlobeBackdrop.tsx`). The original
+  info-flip was restored from git history rather than deleted — it and
+  the fan-stack don't compete for the same gesture, so both are live for
+  Aaron to compare. New standing rule going forward: if a reference
+  won't actually load, stop and ask rather than build from the text
+  description alone.
+
+
 - 2026-08-13 — Overnight batch, nine inbox items (479→495 tests, 26 e2e,
   build all green). Committed locally (`77f34bb`), **not pushed** —
   several are real visual/interaction changes, wanted a look before going
