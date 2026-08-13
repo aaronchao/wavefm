@@ -6,11 +6,23 @@ import { computeListenStats, type FinishedEpisode } from "@/src/core/library/lis
 // Date.now() can't be called directly during render (react-hooks/purity), and
 // setting it from an effect trips the separate no-cascading-setState rule.
 // useSyncExternalStore's getSnapshot is the sanctioned escape hatch for
-// reading an external, non-React value like the clock — no subscription
-// needed since this only has to read "now" once, at mount.
+// reading an external, non-React value like the clock.
+//
+// BUG THIS FIXES: getSnapshot must return a STABLE reference between calls
+// unless the external store genuinely changed — passing `Date.now` directly
+// violates that (every call returns a new value), so React saw a "changed"
+// snapshot on every single render check and re-rendered forever ("Maximum
+// update depth exceeded", caught by the nearest error boundary — the whole
+// component silently died). Caching the value after the first read restores
+// the actual intent: read "now" once, at mount, and hold it.
 const noSubscription = () => () => {};
+let cachedNow: number | null = null;
+function getNow(): number {
+  if (cachedNow === null) cachedNow = Date.now();
+  return cachedNow;
+}
 function useNow(): number {
-  return useSyncExternalStore(noSubscription, Date.now, () => 0);
+  return useSyncExternalStore(noSubscription, getNow, () => 0);
 }
 
 /**

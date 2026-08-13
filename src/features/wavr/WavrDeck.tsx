@@ -249,8 +249,16 @@ export function WavrDeck({
             onClose={deck.closeOverview}
           />
         )}
-        {deck.peek[1] && <PeekCard key={deck.peek[1].id} card={deck.peek[1]} depth={2} topX={topX} />}
-        {deck.peek[0] && <PeekCard key={deck.peek[0].id} card={deck.peek[0]} depth={1} topX={topX} />}
+        {/* Clipped to the front card's own rounded silhouette — PeekCard's
+            fan is a sibling of SwipeCard, not a child, so nothing here
+            constrained it before; the fanned edges bled past the card's
+            edge and, worse, past DeckOverview's panel when it opened on
+            top. SwipeCard is deliberately OUTSIDE this wrapper — its own
+            fling-off-screen exit needs to overflow, not clip. */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px]">
+          {deck.peek[1] && <PeekCard key={deck.peek[1].id} card={deck.peek[1]} depth={2} topX={topX} />}
+          {deck.peek[0] && <PeekCard key={deck.peek[0].id} card={deck.peek[0]} depth={1} topX={topX} />}
+        </div>
         {card && (
           <SwipeCard
             key={card.id}
