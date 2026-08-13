@@ -29,7 +29,7 @@ import { DegradedHint, MachineLabel, NothingToggle } from "@/src/ui";
  * real, not a placeholder guessed at before you open it.
  */
 const SIX_HOURS = 6 * 60 * 60 * 1000;
-const TABS: { id: XyzrankTab; label: string; kind: "shows" | "episodes" }[] = [
+export const TABS: { id: XyzrankTab; label: string; kind: "shows" | "episodes" }[] = [
   { id: "podcasts", label: "热门播客", kind: "shows" },
   { id: "new-podcasts", label: "新晋播客", kind: "shows" },
   { id: "episodes", label: "热门单集", kind: "episodes" },
@@ -116,7 +116,7 @@ type BoardQuery = ReturnType<typeof useQuery<Awaited<ReturnType<typeof getXyzran
 // bold type. Desaturated rather than the reference's brighter tones, to
 // sit inside WaveFM's own dark, single-accent (Signal Red) palette rather
 // than fighting it with four new saturated hues.
-const BOARD_COLORS: Record<XyzrankTab, string> = {
+export const BOARD_COLORS: Record<XyzrankTab, string> = {
   podcasts: "#8a7550",
   "new-podcasts": "#5f7a5f",
   episodes: "#8a5a48",

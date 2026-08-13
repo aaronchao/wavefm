@@ -348,7 +348,10 @@ test("discover surfaces the 中文播客榜 board (xyzrank) as four cards that e
   );
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "中文播客榜" })).toBeVisible();
+  // Two "中文播客榜" sections exist now (the XyzrankStackV2 experiment sits
+  // above this original grid) — .last() targets this original one, which is
+  // what the rest of this test exercises.
+  await expect(page.getByRole("heading", { name: "中文播客榜" }).last()).toBeVisible();
   // All four boards render as cards up front; the list itself is not open yet.
   const podcastsCard = page.getByRole("button", { name: /热门播客/ });
   await expect(podcastsCard).toBeVisible();

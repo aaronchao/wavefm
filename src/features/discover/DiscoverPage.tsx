@@ -8,6 +8,7 @@ import { useSession } from "@/src/state/useSession";
 import { LiquidBackdrop } from "@/src/ui";
 import { Charts } from "./Charts";
 import { XyzrankBoard } from "./XyzrankBoard";
+import { XyzrankStackV2 } from "./XyzrankStackV2";
 import { RankedRecs } from "./RankedRecs";
 import { SavedRails } from "./SavedRails";
 import { SurpriseDeck } from "./SurpriseDeck";
@@ -133,6 +134,12 @@ export function DiscoverPage() {
       )}
 
       <SavedRails saved={saved} />
+
+      {/* V2 stacked-card variant, testing above the original — Aaron's own
+          "keep both for my testing" ask, not a replacement. */}
+      <div className="mb-12">
+        <XyzrankStackV2 />
+      </div>
 
       {/* xyzrank.com's own four boards, verbatim — 热门单集 here already covers
           the hot-episodes concept the old EpisodeCharts duplicated. */}
