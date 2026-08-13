@@ -68,12 +68,16 @@ export function ListenInsights({ finished }: { finished: FinishedEpisode[] }) {
 }
 
 function Stat({ value, label }: { value: string; label: string }) {
+  // One big dot-matrix number per stat — the same "huge stat, minimal
+  // decoration" read as the design references (e.g. a chart-app dashboard
+  // showing "3.5M" as its own dot-matrix numerals). font-brand is Doto,
+  // already the app's dot-matrix face, just needed the size to carry it.
   return (
-    <span className="flex items-baseline gap-1.5">
-      <span className="font-brand text-sm font-bold tabular-nums text-zinc-800 dark:text-zinc-100">
+    <span className="flex flex-col items-start">
+      <span className="font-brand text-2xl font-bold leading-none tabular-nums text-zinc-800 dark:text-zinc-100">
         {value}
       </span>
-      <span className="text-muted-foreground">{label}</span>
+      <span className="mt-0.5 text-[11px] text-muted-foreground">{label}</span>
     </span>
   );
 }
