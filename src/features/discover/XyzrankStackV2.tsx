@@ -59,7 +59,16 @@ export function XyzrankStackV2() {
     queryFn: () => getXyzrankBoard("new-episodes"),
     staleTime: SIX_HOURS,
   });
-  const queries: BoardQuery[] = [podcastsQ, newPodcastsQ, episodesQ, newEpisodesQ];
+  // Keyed by tab id, not position — TABS' own order is free to change
+  // (it did: episodes-before-podcasts per Aaron's 2026-08-14 ask) without
+  // this silently pairing the wrong query to the wrong board.
+  const queryByTab: Record<string, BoardQuery> = {
+    podcasts: podcastsQ,
+    "new-podcasts": newPodcastsQ,
+    episodes: episodesQ,
+    "new-episodes": newEpisodesQ,
+  };
+  const queries: BoardQuery[] = TABS.map((t) => queryByTab[t.id]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -336,16 +345,19 @@ function DeclutteredShowRow({ show, fallbackColor }: { show: XyzrankShowItem; fa
   }
 
   return (
+    // Natural (not forced-tall) height — an earlier minHeight + mb-auto
+    // combo padded every card out to the same tall box regardless of
+    // content, reading as "too many empty spaces" (Aaron, 2026-08-14).
     <li
-      style={{ backgroundColor: color, minHeight: 104 }}
-      className="flex flex-col justify-end gap-1 rounded-2xl p-3 shadow-md"
+      style={{ backgroundColor: color }}
+      className="flex flex-col gap-1.5 rounded-2xl p-2.5 shadow-md"
     >
-      <div className="mb-auto flex items-start justify-between">
+      <div className="flex items-start justify-between">
         {show.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={show.coverUrl} alt="" className="h-10 w-10 rounded-full object-cover grayscale" />
+          <img src={show.coverUrl} alt="" className="h-9 w-9 rounded-full object-cover grayscale" />
         ) : (
-          <div className="h-10 w-10 rounded-full bg-white/20" />
+          <div className="h-9 w-9 rounded-full bg-white/20" />
         )}
         <NothingToggle
           active={saved}
@@ -400,15 +412,15 @@ function DeclutteredEpisodeRow({ ep, fallbackColor }: { ep: XyzrankEpisodeItem; 
 
   return (
     <li
-      style={{ backgroundColor: color, minHeight: 104 }}
-      className="flex flex-col justify-end gap-1 rounded-2xl p-3 shadow-md"
+      style={{ backgroundColor: color }}
+      className="flex flex-col gap-1.5 rounded-2xl p-2.5 shadow-md"
     >
-      <div className="mb-auto flex items-start justify-between">
+      <div className="flex items-start justify-between">
         {ep.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={ep.coverUrl} alt="" className="h-10 w-10 rounded-full object-cover grayscale" />
+          <img src={ep.coverUrl} alt="" className="h-9 w-9 rounded-full object-cover grayscale" />
         ) : (
-          <div className="h-10 w-10 rounded-full bg-white/20" />
+          <div className="h-9 w-9 rounded-full bg-white/20" />
         )}
         <NothingToggle
           active={queued}

@@ -94,11 +94,10 @@ export function EpisodeCard({
     episode.positionSec > 0 && !finished
       ? `resume at ${Math.floor(episode.positionSec / 60)}:${String(episode.positionSec % 60).padStart(2, "0")}`
       : null;
-  const statusLabel = finished
-    ? "Finished"
-    : episode.status === "in_progress"
-      ? "In progress"
-      : "Saved";
+  // "Saved" on its own said nothing a card in the saved list didn't already
+  // imply — dropped per Aaron's ask (2026-08-14). "In progress"/"Finished"
+  // still carry real information, so those stay.
+  const statusLabel = finished ? "Finished" : episode.status === "in_progress" ? "In progress" : null;
 
   const play = () =>
     previewEpisode({
@@ -189,11 +188,11 @@ export function EpisodeCard({
             ) : (
               <p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">{episode.showTitle}</p>
             ))}
-          <p className="truncate text-xs text-muted-foreground">
-            {statusLabel}
-            {resume ? ` · ${resume}` : ""}
-            {episode.appleUrl ? "" : " · preview only"}
-          </p>
+          {(statusLabel || resume || !episode.appleUrl) && (
+            <p className="truncate text-xs text-muted-foreground">
+              {[statusLabel, resume, episode.appleUrl ? null : "preview only"].filter(Boolean).join(" · ")}
+            </p>
+          )}
           {/* Opening a platform link IS the handoff: from here the episode
               plays somewhere WaveFM can't observe, so onOpen's timestamp is
               all the auto-retire heuristic gets (src/core/library/autoRetire). */}

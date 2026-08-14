@@ -29,11 +29,14 @@ import { DegradedHint, MachineLabel, NothingToggle } from "@/src/ui";
  * real, not a placeholder guessed at before you open it.
  */
 const SIX_HOURS = 6 * 60 * 60 * 1000;
+// Episodes before podcasts, hot before new — Aaron's explicit ask
+// (2026-08-14): "always make the 热门单集 on top? then 新晋单集, then
+// 热门播客, lastly 新晋播客."
 export const TABS: { id: XyzrankTab; label: string; kind: "shows" | "episodes" }[] = [
-  { id: "podcasts", label: "热门播客", kind: "shows" },
-  { id: "new-podcasts", label: "新晋播客", kind: "shows" },
   { id: "episodes", label: "热门单集", kind: "episodes" },
   { id: "new-episodes", label: "新晋单集", kind: "episodes" },
+  { id: "podcasts", label: "热门播客", kind: "shows" },
+  { id: "new-podcasts", label: "新晋播客", kind: "shows" },
 ];
 
 export function XyzrankBoard() {

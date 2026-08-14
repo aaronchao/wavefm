@@ -80,9 +80,14 @@ export function episodeToSaved(e: CatalogEpisode): SavedEpisode {
     positionSec: 0,
     bucket: "queue",
     // Newest save sorts to the top: real drag-assigned ranks cluster around
-    // 0 (rankAtTop/rankBetween), so a large negative epoch-seconds rank
-    // always lands above them, and decreases with each later save.
-    queueRank: -Math.floor(Date.now() / 1000),
+    // 0 (rankAtTop/rankBetween), so a large negative epoch-ms rank always
+    // lands above them, and decreases with each later save. Millisecond
+    // (not second) precision matters here — a bulk import loop (Pocket
+    // Casts sync) calls this many times in quick succession, and
+    // second-level truncation collapsed a whole batch onto the same rank,
+    // leaving their relative order effectively arbitrary instead of
+    // reflecting true recency.
+    queueRank: -Date.now(),
     savedAt: now,
     updatedAt: now,
   };
