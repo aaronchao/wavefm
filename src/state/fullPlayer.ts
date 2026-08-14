@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { nextSpeed as nextSpeedOf } from "@/src/core/player/playerMath";
+import { nextSpeed as nextSpeedOf, type Rect } from "@/src/core/player/playerMath";
 
 /**
  * Full in-app playback state — separate from `player.ts` (the 30s preview
@@ -34,6 +34,11 @@ export type FullPlayerState = {
   /** Bumps on every open() so effects re-run for repeat opens of the same episode. */
   token: number;
   expanded: boolean;
+  /** Screen rect of whatever was tapped to expand — the card in Library,
+   *  or the mini bar itself when re-expanding. Drives the "grows from
+   *  where you tapped" open animation; null falls back to a plain
+   *  slide-up (see FullPlayer.tsx). */
+  openOriginRect: Rect | null;
 };
 
 const initial: FullPlayerState = {
@@ -44,6 +49,7 @@ const initial: FullPlayerState = {
   sleepTimerEndsAt: null,
   token: 0,
   expanded: false,
+  openOriginRect: null,
 };
 
 let state: FullPlayerState = initial;
@@ -55,7 +61,7 @@ function set(next: Partial<FullPlayerState>) {
 }
 
 export const fullPlayer = {
-  open(meta: FullPlayerMeta, startAtSec = 0) {
+  open(meta: FullPlayerMeta, startAtSec = 0, originRect: Rect | null = null) {
     set({
       status: "playing",
       meta,
@@ -63,6 +69,7 @@ export const fullPlayer = {
       sleepTimerEndsAt: null,
       token: state.token + 1,
       expanded: true,
+      openOriginRect: originRect,
     });
   },
   play() {
@@ -78,8 +85,8 @@ export const fullPlayer = {
   close() {
     set({ ...initial, token: state.token + 1 });
   },
-  setExpanded(expanded: boolean) {
-    set({ expanded });
+  setExpanded(expanded: boolean, originRect: Rect | null = null) {
+    set({ expanded, openOriginRect: expanded ? originRect : state.openOriginRect });
   },
   cycleSpeed() {
     set({ playbackRate: nextSpeedOf(state.playbackRate) });

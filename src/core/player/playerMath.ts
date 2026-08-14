@@ -22,14 +22,16 @@ export function formatTime(totalSec: number): string {
 
 /**
  * A horizontal drag across the FULL scrubber width sweeps the entire
- * episode in normal mode. Dragging your finger down past
- * FINE_SCRUB_ENGAGE_PX switches to "fine" mode — the same drag distance
- * now only sweeps a fraction of the episode, for precise positioning.
- * Mirrors the "drag down to slow the scrub speed" gesture from
- * Voice Memos / Apple Podcasts.
+ * episode in normal mode. Holding still past LONG_PRESS_MS (see
+ * PlayerWaveformScrubber.tsx) engages "fine" mode — the same drag
+ * distance now only sweeps a small fraction of the episode, for precise
+ * positioning. (Was a drag-down gesture; Aaron asked to switch the
+ * trigger to a long hold and make the zoom bigger, 2026-08-14 — see
+ * PLAYER_ZOOM_SCALE below.)
  */
-export const FINE_SCRUB_FACTOR = 1 / 6;
-export const FINE_SCRUB_ENGAGE_PX = 48;
+export const FINE_SCRUB_FACTOR = 1 / 10;
+/** Waveform scale-up while fine mode is engaged — the visual "zoom in" cue. */
+export const PLAYER_ZOOM_SCALE = 1.35;
 
 export function scrubDeltaSec(
   dxPx: number,
@@ -42,8 +44,25 @@ export function scrubDeltaSec(
   return (dxPx / containerWidthPx) * durationSec * factor;
 }
 
-/** True once a vertical drag has gone far enough down to engage fine mode.
- *  Only downward drag counts — dragging up never engages it. */
-export function isFineScrubEngaged(dyPx: number): boolean {
-  return dyPx > FINE_SCRUB_ENGAGE_PX;
+export type Rect = { x: number; y: number; width: number; height: number };
+
+/**
+ * The card-to-player "grow from where you tapped" open animation
+ * (Aaron's ask, 2026-08-14, after a Dribbble "Library" shot reference
+ * video that never loaded despite retries — this is the standard FLIP
+ * technique: compute the transform that makes the fullscreen target look
+ * like `origin`, use it as Framer Motion's `initial`, then animate to
+ * identity). Returns the collapsed-state transform relative to a
+ * `viewportWidth`x`viewportHeight` fullscreen target.
+ */
+export function originTransform(origin: Rect, viewportWidth: number, viewportHeight: number) {
+  if (viewportWidth <= 0 || viewportHeight <= 0) {
+    return { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+  }
+  return {
+    x: origin.x + origin.width / 2 - viewportWidth / 2,
+    y: origin.y + origin.height / 2 - viewportHeight / 2,
+    scaleX: origin.width / viewportWidth,
+    scaleY: origin.height / viewportHeight,
+  };
 }

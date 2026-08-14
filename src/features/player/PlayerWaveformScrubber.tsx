@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useRef, useState } from "react";
-import { formatTime, isFineScrubEngaged, scrubDeltaSec } from "@/src/core/player/playerMath";
+import { formatTime, PLAYER_ZOOM_SCALE, scrubDeltaSec } from "@/src/core/player/playerMath";
 import { DotWaveform } from "./DotWaveform";
 
 type DragState = {
@@ -13,15 +13,22 @@ type DragState = {
   previewSec: number;
 };
 
+const LONG_PRESS_MS = 400;
+/** Movement past this, before the long-press timer fires, cancels fine
+ *  mode — a held finger that's already sliding is scrubbing, not zooming. */
+const JITTER_PX = 10;
+
 /**
  * The real player's seek surface — same dot-matrix waveform component the
  * mini/preview bars already use ("the same pixel waveform animation" was
  * Aaron's own ask), wrapped in a drag handler. Dragging left/right scrubs
- * across the whole episode; dragging down while doing it engages "fine"
- * mode — a much smaller slice of the episode per pixel of horizontal
- * movement, for landing on an exact moment — with a scale-up "zoom" cue
- * and a floating time readout, mirroring the drag-down-to-slow-scrub
- * gesture from Voice Memos / Apple Podcasts.
+ * across the whole episode; holding still for LONG_PRESS_MS engages
+ * "fine" mode — a much smaller slice of the episode per pixel of
+ * horizontal movement, for landing on an exact moment — with a bigger
+ * scale-up "zoom" cue and a floating time readout. (Was a drag-down
+ * gesture; switched to a long hold and made the zoom bigger per Aaron's
+ * ask, 2026-08-14 — his reference video never loaded despite retries, so
+ * this follows his text description directly.)
  */
 export function PlayerWaveformScrubber({
   active,
@@ -36,27 +43,51 @@ export function PlayerWaveformScrubber({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const movedRef = useRef(false);
 
   const displaySec = drag ? drag.previewSec : currentTime;
   const displayProgress = duration > 0 ? displaySec / duration : 0;
 
+  function clearLongPress() {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }
+
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // A capture failure (rare, but possible — an already-released pointer,
+    // certain accessibility input methods) shouldn't take the rest of the
+    // gesture down with it; scrubbing still works without capture, just
+    // without the browser guaranteeing move/up events stay targeted here.
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignored — see above
+    }
+    movedRef.current = false;
     setDrag({ startX: e.clientX, startY: e.clientY, startSec: currentTime, fine: false, previewSec: currentTime });
+    longPressRef.current = setTimeout(() => {
+      if (!movedRef.current) setDrag((d) => (d ? { ...d, fine: true } : d));
+    }, LONG_PRESS_MS);
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!drag || !containerRef.current) return;
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
-    const fine = isFineScrubEngaged(dy);
+    if (!drag.fine && (Math.abs(dx) > JITTER_PX || Math.abs(dy) > JITTER_PX)) {
+      movedRef.current = true;
+    }
     const width = containerRef.current.clientWidth;
-    const deltaSec = scrubDeltaSec(dx, width, duration, fine);
+    const deltaSec = scrubDeltaSec(dx, width, duration, drag.fine);
     const previewSec = Math.min(Math.max(drag.startSec + deltaSec, 0), duration > 0 ? duration : Infinity);
-    setDrag({ ...drag, fine, previewSec });
+    setDrag({ ...drag, previewSec });
   }
 
   function handlePointerUp() {
+    clearLongPress();
     if (!drag) return;
     onSeek(drag.previewSec);
     setDrag(null);
@@ -66,8 +97,8 @@ export function PlayerWaveformScrubber({
     <div className="select-none">
       <motion.div
         ref={containerRef}
-        animate={{ scale: drag?.fine ? 1.08 : 1 }}
-        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+        animate={{ scale: drag?.fine ? PLAYER_ZOOM_SCALE : 1 }}
+        transition={{ type: "spring", stiffness: 300, damping: 24 }}
         className="relative touch-none py-2"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -78,11 +109,11 @@ export function PlayerWaveformScrubber({
         {drag && (
           <div
             aria-hidden
-            className="font-brand pointer-events-none absolute -top-6 -translate-x-1/2 whitespace-nowrap rounded-[2px] bg-black/80 px-2 py-0.5 text-[11px] font-bold text-white"
+            className="font-brand pointer-events-none absolute -top-7 -translate-x-1/2 whitespace-nowrap rounded-[2px] bg-black/80 px-2 py-1 text-xs font-bold text-white"
             style={{ left: `${displayProgress * 100}%` }}
           >
             {formatTime(drag.previewSec)}
-            {drag.fine && <span className="ml-1 font-normal text-white/60">fine</span>}
+            {drag.fine && <span className="ml-1 font-normal text-white/60">precise</span>}
           </div>
         )}
       </motion.div>

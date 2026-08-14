@@ -3,13 +3,16 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { formatTime } from "@/src/core/player/playerMath";
+import { formatTime, originTransform } from "@/src/core/player/playerMath";
 import { usePlayerState } from "@/src/state/player";
 import { fullPlayer, useFullPlayerState } from "@/src/state/fullPlayer";
 import { CoverTile, NothingToggle } from "@/src/ui";
 import { springs } from "@/src/ui/tokens";
 import { PlayerWaveformScrubber } from "./PlayerWaveformScrubber";
+import { RotaryEpisodePicker } from "./RotaryEpisodePicker";
 import { useFullPlayback } from "./useFullPlayback";
+import { useLongPress } from "./useLongPress";
+import { useMediaSession } from "./useMediaSession";
 
 const SKIP_BACK_SEC = 15;
 const SKIP_FORWARD_SEC = 30;
@@ -33,7 +36,11 @@ export function FullPlayer() {
   const previewState = usePlayerState();
   const audioRef = useRef<HTMLAudioElement>(null);
   const { currentTime, duration, seek } = useFullPlayback(audioRef);
+  useMediaSession(seek, currentTime, duration);
   const [sleepMenuOpen, setSleepMenuOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const miniBarRef = useRef<HTMLDivElement>(null);
+  const rotaryTrigger = useLongPress(() => setPickerOpen(true));
   // Minutes-remaining display for the sleep timer. Reading Date.now()
   // directly in render trips react-hooks/purity (the same rule
   // ListenInsights hit) — ticking it from an effect's own interval is the
@@ -80,6 +87,14 @@ export function FullPlayer() {
 
   const meta = s.meta;
   const playing = s.status === "playing";
+  // "Grows from where you tapped" open animation (Aaron's ask, 2026-08-14)
+  // — computed fresh each render, but only ever consumed by `initial`,
+  // which Framer only reads once at mount, so this doesn't fight the
+  // animation on every re-render.
+  const originT =
+    s.expanded && s.openOriginRect && typeof window !== "undefined"
+      ? originTransform(s.openOriginRect, window.innerWidth, window.innerHeight)
+      : null;
 
   return (
     <>
@@ -87,11 +102,15 @@ export function FullPlayer() {
       <AnimatePresence>
         {!s.expanded && (
           <motion.div
+            ref={miniBarRef}
             initial={{ y: 96, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 96, opacity: 0 }}
             transition={springs.press}
-            onClick={() => fullPlayer.setExpanded(true)}
+            onClick={() => {
+              const r = miniBarRef.current?.getBoundingClientRect();
+              fullPlayer.setExpanded(true, r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null);
+            }}
             role="button"
             tabIndex={0}
             // Same layer as PreviewPlayer's bar — only one of the two is
@@ -135,8 +154,13 @@ export function FullPlayer() {
       <AnimatePresence>
         {s.expanded && (
           <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
+            // Grows from the tapped card/mini-bar rect when we have one
+            // (originT), otherwise the plain slide-up. Only the OPEN
+            // animation uses the origin transform — closing always
+            // slides down, keeping the exit simple and reliable rather
+            // than needing a not-yet-mounted mini bar's future rect.
+            initial={originT ? { ...originT, borderRadius: 28, opacity: 0.5 } : { y: "100%" }}
+            animate={{ x: 0, y: 0, scaleX: 1, scaleY: 1, borderRadius: 0, opacity: 1 }}
             exit={{ y: "100%" }}
             transition={springs.settle}
             className="fixed inset-0 z-[60] flex flex-col bg-background"
@@ -160,12 +184,19 @@ export function FullPlayer() {
             </div>
 
             <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-8 px-6 pb-16">
-              <CoverTile src={meta.coverUrl} size={220} className="!rounded-[2rem] shadow-lg" />
+              {/* Long-press the cover, show name, or title to bring up the
+                  rotary episode picker (Aaron's ask, 2026-08-14). */}
+              <div {...rotaryTrigger.handlers} className="touch-none">
+                <CoverTile src={meta.coverUrl} size={220} className="!rounded-[2rem] shadow-lg" />
+              </div>
 
-              <div className="w-full text-center">
+              <div {...rotaryTrigger.handlers} className="w-full touch-none text-center">
                 {meta.showId ? (
                   <Link
                     href={`/show/${meta.showId}`}
+                    onClick={(e) => {
+                      if (rotaryTrigger.didLongPress()) e.preventDefault();
+                    }}
                     className="font-brand line-clamp-1 text-sm font-bold uppercase tracking-wide text-accent hover:underline"
                   >
                     {meta.showTitle}
@@ -269,6 +300,12 @@ export function FullPlayer() {
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pickerOpen && (
+          <RotaryEpisodePicker currentEpisodeId={meta.episodeId} onClose={() => setPickerOpen(false)} />
         )}
       </AnimatePresence>
     </>

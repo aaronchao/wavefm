@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   FINE_SCRUB_FACTOR,
   formatTime,
-  isFineScrubEngaged,
   nextSpeed,
+  originTransform,
   scrubDeltaSec,
 } from "@/src/core/player/playerMath";
 
@@ -73,17 +73,38 @@ describe("scrubDeltaSec", () => {
   });
 });
 
-describe("isFineScrubEngaged", () => {
-  it("is false below the threshold", () => {
-    expect(isFineScrubEngaged(0)).toBe(false);
-    expect(isFineScrubEngaged(47)).toBe(false);
+describe("originTransform", () => {
+  it("is identity when the origin already fills the viewport", () => {
+    expect(originTransform({ x: 0, y: 0, width: 1000, height: 800 }, 1000, 800)).toEqual({
+      x: 0,
+      y: 0,
+      scaleX: 1,
+      scaleY: 1,
+    });
   });
 
-  it("is true past the threshold", () => {
-    expect(isFineScrubEngaged(49)).toBe(true);
+  it("computes a shrink-and-offset transform for a small top-left origin", () => {
+    const t = originTransform({ x: 0, y: 0, width: 100, height: 100 }, 1000, 1000);
+    expect(t.scaleX).toBeCloseTo(0.1);
+    expect(t.scaleY).toBeCloseTo(0.1);
+    expect(t.x).toBeCloseTo(-450);
+    expect(t.y).toBeCloseTo(-450);
   });
 
-  it("is false for upward drag (negative dy)", () => {
-    expect(isFineScrubEngaged(-100)).toBe(false);
+  it("centers a same-size-but-offset origin with no scale change", () => {
+    const t = originTransform({ x: 200, y: 100, width: 1000, height: 800 }, 1000, 800);
+    expect(t.scaleX).toBe(1);
+    expect(t.scaleY).toBe(1);
+    expect(t.x).toBeCloseTo(200);
+    expect(t.y).toBeCloseTo(100);
+  });
+
+  it("falls back to identity for a degenerate (zero) viewport", () => {
+    expect(originTransform({ x: 10, y: 10, width: 50, height: 50 }, 0, 0)).toEqual({
+      x: 0,
+      y: 0,
+      scaleX: 1,
+      scaleY: 1,
+    });
   });
 });

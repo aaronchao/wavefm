@@ -4,7 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { addEpisodeTag, removeEpisodeTag } from "@/src/data/repos/episodeTagsRepo";
 import { updateEpisodeProgress, type SavedEpisode } from "@/src/data/repos/savedEpisodesRepo";
 import { CoverPlay } from "@/src/features/player/CoverPlay";
@@ -107,9 +107,11 @@ export function EpisodeCard({
   // the 30s discovery-preview snippet used everywhere else. Falls back to
   // the preview's own resolution chain when there's no direct audioUrl to
   // play (mirrors previewEpisode's own fallback for that case).
+  const coverRef = useRef<HTMLDivElement>(null);
   const play = () => {
     if (episode.audioUrl) {
       player.dismiss();
+      const r = coverRef.current?.getBoundingClientRect();
       fullPlayer.open(
         {
           episodeId: episode.episodeId,
@@ -121,6 +123,7 @@ export function EpisodeCard({
           durationSec: episode.durationSec,
         },
         episode.positionSec,
+        r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null,
       );
       return;
     }
@@ -173,13 +176,18 @@ export function EpisodeCard({
         {/* Cover + tag column — the tag row lives here, under the cover,
             instead of stacked inline with the title text. */}
         <div className="relative z-10 flex shrink-0 flex-col items-center gap-1">
-          <CoverPlay
-            src={episode.coverUrl}
-            size={56}
-            onPlay={play}
-            label={`${episode.audioUrl ? "Play" : "Preview"} ${episode.title}`}
-            className="!rounded-2xl"
-          />
+          {/* Ref used only to read a bounding rect at tap time — the
+              full player's "grows from where you tapped" open animation
+              (originTransform in playerMath.ts). */}
+          <div ref={coverRef}>
+            <CoverPlay
+              src={episode.coverUrl}
+              size={56}
+              onPlay={play}
+              label={`${episode.audioUrl ? "Play" : "Preview"} ${episode.title}`}
+              className="!rounded-2xl"
+            />
+          </div>
           <InlineTagInput
             tags={tags}
             onAdd={(t) => void addEpisodeTag(episode.episodeId, t).then(onTagsChanged)}
