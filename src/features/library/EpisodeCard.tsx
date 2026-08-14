@@ -11,6 +11,8 @@ import { CoverPlay } from "@/src/features/player/CoverPlay";
 import { previewEpisode } from "@/src/features/player/preview";
 import { recordHandoff } from "@/src/data/repos/handoffRepo";
 import { markFinished, markHandedOff } from "@/src/data/repos/savedEpisodesRepo";
+import { fullPlayer } from "@/src/state/fullPlayer";
+import { player } from "@/src/state/player";
 import { NothingToggle, PlayableCard } from "@/src/ui";
 import { springs } from "@/src/ui/tokens";
 import { InlineTagInput } from "./InlineTagInput";
@@ -99,7 +101,29 @@ export function EpisodeCard({
   // still carry real information, so those stay.
   const statusLabel = finished ? "Finished" : episode.status === "in_progress" ? "In progress" : null;
 
-  const play = () =>
+  // A saved episode is one you've already decided to listen to — real
+  // in-app playback (Aaron, 2026-08-14: "tired of keep going to other
+  // podcast player and come back, and they are not fully synced") beats
+  // the 30s discovery-preview snippet used everywhere else. Falls back to
+  // the preview's own resolution chain when there's no direct audioUrl to
+  // play (mirrors previewEpisode's own fallback for that case).
+  const play = () => {
+    if (episode.audioUrl) {
+      player.dismiss();
+      fullPlayer.open(
+        {
+          episodeId: episode.episodeId,
+          title: episode.title,
+          showId: episode.showId,
+          showTitle: episode.showTitle,
+          coverUrl: episode.coverUrl,
+          audioUrl: episode.audioUrl,
+          durationSec: episode.durationSec,
+        },
+        episode.positionSec,
+      );
+      return;
+    }
     previewEpisode({
       id: episode.episodeId,
       title: episode.title,
@@ -111,6 +135,7 @@ export function EpisodeCard({
       durationSec: episode.durationSec,
       categories: [],
     });
+  };
 
   return (
     // Only opacity is Framer-Motion-animated here — dnd-kit already owns
@@ -128,7 +153,7 @@ export function EpisodeCard({
     >
       <PlayableCard
         onPlay={play}
-        playLabel={`Preview ${episode.title}`}
+        playLabel={`${episode.audioUrl ? "Play" : "Preview"} ${episode.title}`}
         dragHandleProps={disabled ? undefined : { ...attributes, ...listeners }}
         style={jiggle ? ({ "--jiggle-delay": `${jiggleDelayMs(episode.episodeId)}ms` } as CSSProperties) : undefined}
         className={`glass-panel h-28 cursor-pointer overflow-hidden !rounded-[1.75rem] shadow-lg ${finished ? "opacity-60" : ""} ${
@@ -152,7 +177,7 @@ export function EpisodeCard({
             src={episode.coverUrl}
             size={56}
             onPlay={play}
-            label={`Play a snippet of ${episode.title}`}
+            label={`${episode.audioUrl ? "Play" : "Preview"} ${episode.title}`}
             className="!rounded-2xl"
           />
           <InlineTagInput

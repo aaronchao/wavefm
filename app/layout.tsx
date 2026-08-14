@@ -3,6 +3,7 @@ import { Doto, Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { TabBar } from "@/src/features/nav/TabBar";
 import { ThemeToggle } from "@/src/features/nav/ThemeToggle";
+import { FullPlayer } from "@/src/features/player/FullPlayer";
 import { PreviewPlayer } from "@/src/features/player/PreviewPlayer";
 import { SearchButton } from "@/src/features/search/SearchOverlay";
 import { GlassFilter } from "@/src/ui/GlassFilter";
@@ -72,6 +73,7 @@ export default function RootLayout({
           </header>
           <div className="flex-1 pb-16">{children}</div>
           <PreviewPlayer />
+          <FullPlayer />
           <TabBar />
         </Providers>
       </body>

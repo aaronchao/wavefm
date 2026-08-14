@@ -898,3 +898,57 @@ test("library leads with content; sync is a top-right tool", async ({ page }) =>
   // Signing in lives here now, not on Discover.
   await expect(page.getByPlaceholder(/sync your picks/i)).toBeVisible();
 });
+
+test("Library: tapping a saved episode opens the real in-app player", async ({ page }) => {
+  await stub(page);
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    window.localStorage.setItem(
+      "wavr.savedEpisodes.v1",
+      JSON.stringify([
+        {
+          episodeId: "full1",
+          showId: "showA",
+          title: "The Full Playback Episode",
+          showTitle: "Full Player Show",
+          audioUrl: "https://cdn/full1.mp3",
+          status: "queued",
+          positionSec: 0,
+          bucket: "queue",
+          queueRank: -Date.now(),
+          savedAt: now,
+          updatedAt: now,
+        },
+      ]),
+    );
+  });
+  await page.goto("/library");
+  await expect(page.getByText("The Full Playback Episode")).toBeVisible();
+
+  // A saved episode plays in-app now, not a 30s preview snippet.
+  await page.getByRole("button", { name: "Play The Full Playback Episode" }).first().click();
+  await expect(page.getByRole("link", { name: "Full Player Show", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+
+  // Skip controls, speed, and the sleep timer are all present and work.
+  await expect(page.getByRole("button", { name: "Back 15 seconds" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Forward 30 seconds" })).toBeVisible();
+  const speed = page.getByRole("button", { name: "Playback speed" });
+  await expect(speed).toHaveText("1×");
+  await speed.click();
+  await expect(speed).toHaveText("1.25×");
+
+  // Minimizing keeps playback alive in a mini bar rather than closing it.
+  // Both the mini bar and the expanded sheet briefly coexist during the
+  // spring-animated exit, so wait for that to settle before asserting.
+  await page.getByText("Minimize").click();
+  await page.waitForTimeout(1500);
+  await expect(page.getByRole("button", { name: "Close player", exact: true })).toBeVisible();
+  await expect(page.getByText("The Full Playback Episode").first()).toBeVisible();
+
+  // A clip finishing marks it done and closes the player on its own.
+  await page.evaluate(() =>
+    document.querySelectorAll("audio").forEach((a) => a.dispatchEvent(new Event("ended"))),
+  );
+  await expect(page.getByRole("button", { name: "Close player" })).toHaveCount(0);
+});
