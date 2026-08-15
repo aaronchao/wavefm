@@ -14,6 +14,7 @@ export function useFullPlayback(audioRef: RefObject<HTMLAudioElement | null>) {
   const s = useFullPlayerState();
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [volume, setVolumeState] = useState(1);
   const lastSavedAtRef = useRef(0);
 
   // Load a new source whenever the episode (or a repeat open of the same
@@ -122,5 +123,12 @@ export function useFullPlayback(audioRef: RefObject<HTMLAudioElement | null>) {
     setCurrentTime(clamped);
   }
 
-  return { currentTime, duration, seek };
+  function setVolume(v: number) {
+    const audio = audioRef.current;
+    const clamped = Math.min(Math.max(v, 0), 1);
+    if (audio) audio.volume = clamped;
+    setVolumeState(clamped);
+  }
+
+  return { currentTime, duration, seek, volume, setVolume };
 }

@@ -915,6 +915,19 @@ test("Library: tapping a saved episode opens the real in-app player", async ({ p
           status: "queued",
           positionSec: 0,
           bucket: "queue",
+          queueRank: -Date.now() - 1000,
+          savedAt: now,
+          updatedAt: now,
+        },
+        {
+          episodeId: "full2",
+          showId: "showB",
+          title: "The Second Playback Episode",
+          showTitle: "Second Player Show",
+          audioUrl: "https://cdn/full2.mp3",
+          status: "queued",
+          positionSec: 0,
+          bucket: "queue",
           queueRank: -Date.now(),
           savedAt: now,
           updatedAt: now,
@@ -927,24 +940,35 @@ test("Library: tapping a saved episode opens the real in-app player", async ({ p
 
   // A saved episode plays in-app now, not a 30s preview snippet.
   await page.getByRole("button", { name: "Play The Full Playback Episode" }).first().click();
-  await expect(page.getByRole("link", { name: "Full Player Show", exact: true })).toBeVisible();
+  await expect(page.getByText("Full Player Show", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
 
-  // Skip controls, speed, and the sleep timer are all present and work.
+  // Skip, save, and volume controls are all present.
   await expect(page.getByRole("button", { name: "Back 15 seconds" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Forward 30 seconds" })).toBeVisible();
-  const speed = page.getByRole("button", { name: "Playback speed" });
-  await expect(speed).toHaveText("1×");
-  await speed.click();
-  await expect(speed).toHaveText("1.25×");
+  await expect(page.getByRole("slider", { name: "Volume" })).toBeVisible();
+  const save = page.getByRole("button", { name: "Remove from saved" });
+  await expect(save).toBeVisible();
 
-  // Minimizing keeps playback alive in a mini bar rather than closing it.
-  // Both the mini bar and the expanded sheet briefly coexist during the
-  // spring-animated exit, so wait for that to settle before asserting.
-  await page.getByText("Minimize").click();
-  await page.waitForTimeout(1500);
-  await expect(page.getByRole("button", { name: "Close player", exact: true })).toBeVisible();
-  await expect(page.getByText("The Full Playback Episode").first()).toBeVisible();
+  // Long-hold-drag-release the left dial circle opens the rotary picker —
+  // one continuous real pointer session (not a synthetic dispatchEvent,
+  // which can't satisfy setPointerCapture's need for a genuine active
+  // pointer — see useRotaryDial.ts's own comment on this).
+  const dial = page.getByRole("button", { name: "Hold to choose a different saved episode" });
+  const box = (await dial.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  await expect(page.getByText("Episode", { exact: true })).toBeVisible();
+  await expect(page.getByRole("paragraph").filter({ hasText: "The Second Playback Episode" })).toBeVisible();
+
+  // Drag up to rotate to the other saved episode, then release to commit
+  // — closing the picker (its own "Second Player Show" text un-mounts
+  // with it), so check the mini widget's own text instead.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 60, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.getByText("Episode", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Second Player Show", { exact: true })).toBeVisible();
 
   // A clip finishing marks it done and closes the player on its own.
   await page.evaluate(() =>

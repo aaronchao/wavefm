@@ -33,11 +33,12 @@ export type FullPlayerState = {
   sleepTimerEndsAt: number | null;
   /** Bumps on every open() so effects re-run for repeat opens of the same episode. */
   token: number;
-  expanded: boolean;
-  /** Screen rect of whatever was tapped to expand — the card in Library,
-   *  or the mini bar itself when re-expanding. Drives the "grows from
-   *  where you tapped" open animation; null falls back to a plain
-   *  slide-up (see FullPlayer.tsx). */
+  /** Screen rect of whatever was tapped to open the player — the card in
+   *  Library. Drives the widget's one-time "grows from where you tapped"
+   *  entrance animation (mount-only, doesn't replay on a later track
+   *  switch since the widget itself doesn't unmount — see
+   *  FullPlayer.tsx). Null falls back to a plain fade/slide-up, e.g. when
+   *  opened via the rotary dial or MediaSession's next/previous. */
   openOriginRect: Rect | null;
 };
 
@@ -48,7 +49,6 @@ const initial: FullPlayerState = {
   playbackRate: 1,
   sleepTimerEndsAt: null,
   token: 0,
-  expanded: false,
   openOriginRect: null,
 };
 
@@ -68,7 +68,6 @@ export const fullPlayer = {
       startAtSec,
       sleepTimerEndsAt: null,
       token: state.token + 1,
-      expanded: true,
       openOriginRect: originRect,
     });
   },
@@ -84,9 +83,6 @@ export const fullPlayer = {
   },
   close() {
     set({ ...initial, token: state.token + 1 });
-  },
-  setExpanded(expanded: boolean, originRect: Rect | null = null) {
-    set({ expanded, openOriginRect: expanded ? originRect : state.openOriginRect });
   },
   cycleSpeed() {
     set({ playbackRate: nextSpeedOf(state.playbackRate) });
