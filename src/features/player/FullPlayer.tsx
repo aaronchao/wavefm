@@ -14,9 +14,12 @@ import {
 import { usePlayerState } from "@/src/state/player";
 import { fullPlayer, useFullPlayerState } from "@/src/state/fullPlayer";
 import { springs } from "@/src/ui/tokens";
+import { CastButton } from "./CastButton";
+import { FullscreenSeekDial } from "./FullscreenSeekDial";
 import { PlayerWaveformScrubber } from "./PlayerWaveformScrubber";
 import { TwoDialPicker } from "./TwoDialPicker";
 import { useFullPlayback } from "./useFullPlayback";
+import { useHoldSeek } from "./useHoldSeek";
 import { useMediaSession } from "./useMediaSession";
 import { useRotaryDial } from "./useRotaryDial";
 
@@ -36,14 +39,13 @@ function queueOf(episodes: SavedEpisode[] | undefined): SavedEpisode[] {
  * synced." Opened from a saved episode in the Library (see
  * EpisodeCard.tsx).
  *
- * Redesigned 2026-08-16 to follow Aaron's own reference photos: one
- * persistent widget (not a collapsed-bar/fullscreen-player two-tier
- * split like the first cut) — top row of metadata + save + volume,
- * middle the dot-matrix waveform (also the scrubber), right a 2x2 grid
- * (back/forward/save/play), left a circle showing your position in the
- * queue. Long-hold-drag-release that left circle for the rotary dial
- * page (TwoDialPicker) — a continuous single gesture per Aaron's exact
- * spec, not tap-then-separate-drag.
+ * 2026-08-16, second redesign pass: tapping the mini widget now expands
+ * it to a fullscreen player — same layout language, bigger, plus speed
+ * and sleep-timer controls that used to only live inside the rotary
+ * dial page. The rotary dial (long-hold the left circle) and the seek
+ * dial (long-hold the waveform, useHoldSeek.ts) are two genuinely
+ * separate triggers now — they used to share the same gesture, which
+ * meant using one made the other unreachable.
  */
 export function FullPlayer() {
   const s = useFullPlayerState();
@@ -56,11 +58,8 @@ export function FullPlayer() {
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [sleepRemainingMin, setSleepRemainingMin] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
-  // Off -> 15 -> 30 -> 45 -> 60 -> off. Tracked by minutes-remaining-at-tap
-  // (rounded) rather than a stored preset index, since the store only
-  // remembers an end timestamp — reading Date.now() here is fine, this
-  // runs from a click handler, not render.
   function cycleSleepTimer() {
     const remaining = s.sleepTimerEndsAt == null ? null : Math.ceil((s.sleepTimerEndsAt - Date.now()) / 60_000);
     const idx = remaining == null ? -1 : SLEEP_CYCLE_MIN.findIndex((m) => m != null && Math.abs(m - remaining) <= 2);
@@ -68,12 +67,6 @@ export function FullPlayer() {
     fullPlayer.setSleepTimer(next);
   }
 
-  // Ticks the sleep-timer display once a timer is running. setState only
-  // ever fires from inside the interval callback, never synchronously in
-  // the effect body (same react-hooks/purity rule the first player cut's
-  // clock display hit) — the "off" case is handled by reading
-  // s.sleepTimerEndsAt directly at render time instead (see sleepLabel
-  // below), not by resetting this state here.
   useEffect(() => {
     const endsAt = s.sleepTimerEndsAt;
     if (endsAt == null) return;
@@ -114,6 +107,7 @@ export function FullPlayer() {
     const chosen = queue[index];
     if (chosen && chosen.episodeId !== s.meta?.episodeId) switchTo(chosen);
   });
+  const holdSeek = useHoldSeek(currentTime, duration, (sec) => seek(sec));
 
   useEffect(() => {
     const id = s.meta?.episodeId;
@@ -153,13 +147,13 @@ export function FullPlayer() {
   }, [previewState.status]);
 
   useEffect(() => {
-    if (!rotary.active) return;
+    if (!rotary.active && !holdSeek.active && !expanded) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [rotary.active]);
+  }, [rotary.active, holdSeek.active, expanded]);
 
   if (!s.meta) return <audio ref={audioRef} preload="none" />;
 
@@ -169,6 +163,7 @@ export function FullPlayer() {
     s.openOriginRect && typeof window !== "undefined"
       ? originTransform(s.openOriginRect, window.innerWidth, window.innerHeight)
       : null;
+  const sleepLabel = s.sleepTimerEndsAt != null ? `${sleepRemainingMin ?? "…"}m` : "Timer";
 
   return (
     <>
@@ -182,20 +177,27 @@ export function FullPlayer() {
         animate={{ x: 0, y: 0, scaleX: 1, scaleY: 1, borderRadius: 24, opacity: 1 }}
         exit={{ y: 96, opacity: 0 }}
         transition={springs.settle}
-        style={{ transformOrigin: "center" }}
+        style={{ transformOrigin: "center", visibility: expanded ? "hidden" : "visible" }}
         className="fixed inset-x-3 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] z-[45] overflow-hidden border border-white/30 bg-white/40 backdrop-blur-md dark:border-white/10 dark:bg-black/50 sm:inset-x-8"
       >
-        <div className="mx-auto flex max-w-2xl flex-col gap-2 p-3">
-          {/* Top row: title/show, save, volume, close. */}
+        <div className="mx-auto flex max-w-2xl cursor-pointer flex-col gap-2 p-3" onClick={() => setExpanded(true)}>
           <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              aria-label="Expand player"
+              className="min-w-0 flex-1 text-left"
+            >
               <p className="truncate text-sm font-semibold">{meta.title}</p>
               <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{meta.showTitle}</p>
-            </div>
+            </button>
             <VolumeControl volume={volume} onChange={setVolume} />
             <button
               type="button"
-              onClick={() => fullPlayer.close()}
+              onClick={(e) => {
+                e.stopPropagation();
+                fullPlayer.close();
+              }}
               aria-label="Close player"
               className="shrink-0 rounded-full px-1.5 py-1 text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-200"
             >
@@ -203,80 +205,115 @@ export function FullPlayer() {
             </button>
           </div>
 
-          {/* Main row: left dial-trigger circle | waveform | right 2x2 icons. */}
-          <div className="flex items-center gap-3">
-            <div
-              {...rotary.handlers}
-              role="button"
-              aria-label="Hold to choose a different saved episode"
-              tabIndex={0}
-              className="nothing-circle flex h-16 w-16 shrink-0 touch-none select-none flex-col items-center justify-center"
-            >
-              <span className="font-brand text-base font-black leading-none tabular-nums">
-                {queue.length > 0 ? currentIndex + 1 : "–"}
-              </span>
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                of {queue.length || "–"}
-              </span>
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <PlayerWaveformScrubber active={playing} currentTime={currentTime} duration={duration} onSeek={seek} />
-            </div>
-
-            <div className="grid shrink-0 grid-cols-2 gap-1">
-              <button
-                type="button"
-                onClick={() => seek(currentTime - SKIP_BACK_SEC)}
-                aria-label={`Back ${SKIP_BACK_SEC} seconds`}
-                className="nothing-circle flex h-8 w-8 items-center justify-center"
-              >
-                <SkipBackIcon />
-              </button>
-              <button
-                type="button"
-                onClick={() => seek(currentTime + SKIP_FORWARD_SEC)}
-                aria-label={`Forward ${SKIP_FORWARD_SEC} seconds`}
-                className="nothing-circle flex h-8 w-8 items-center justify-center"
-              >
-                <SkipForwardIcon />
-              </button>
-              <button
-                type="button"
-                onClick={toggleSaved}
-                aria-label={saved ? "Remove from saved" : "Save"}
-                data-active={saved}
-                className="nothing-circle flex h-8 w-8 items-center justify-center"
-              >
-                {saved ? "✓" : "+"}
-              </button>
-              <button
-                type="button"
-                onClick={() => fullPlayer.toggle()}
-                aria-label={playing ? "Pause" : "Play"}
-                className="nothing-circle flex h-8 w-8 items-center justify-center"
-              >
-                {playing ? <PauseIcon /> : <PlayIcon />}
-              </button>
-            </div>
-          </div>
+          <PlayerControlsRow
+            queueLabel={queue.length > 0 ? `${currentIndex + 1}` : "–"}
+            queueTotal={queue.length || "–"}
+            rotaryHandlers={rotary.handlers}
+            playing={playing}
+            saved={saved}
+            displaySec={holdSeek.dragging ? holdSeek.previewSec : currentTime}
+            dragging={holdSeek.dragging}
+            duration={duration}
+            holdSeekHandlers={holdSeek.handlers}
+            onToggleSaved={toggleSaved}
+            onTogglePlay={() => fullPlayer.toggle()}
+            onSkipBack={() => seek(currentTime - SKIP_BACK_SEC)}
+            onSkipForward={() => seek(currentTime + SKIP_FORWARD_SEC)}
+          />
         </div>
       </motion.div>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={springs.settle}
+            className="fixed inset-0 z-[55] flex flex-col bg-background"
+          >
+            <div className="flex items-center justify-between px-4 py-3 sm:px-8">
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="font-brand text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              >
+                Minimize
+              </button>
+              <CastButton audioUrl={meta.audioUrl} title={meta.title} />
+              <button
+                type="button"
+                onClick={() => fullPlayer.close()}
+                aria-label="Close player"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-8 px-6 pb-16">
+              <div className="w-full text-center">
+                <p className="font-brand line-clamp-1 text-sm font-bold uppercase tracking-wide text-accent">
+                  {meta.showTitle}
+                </p>
+                <p className="mt-1 line-clamp-2 text-lg font-semibold leading-snug">{meta.title}</p>
+              </div>
+
+              <PlayerControlsRow
+                large
+                queueLabel={queue.length > 0 ? `${currentIndex + 1}` : "–"}
+                queueTotal={queue.length || "–"}
+                rotaryHandlers={rotary.handlers}
+                playing={playing}
+                saved={saved}
+                displaySec={holdSeek.dragging ? holdSeek.previewSec : currentTime}
+                dragging={holdSeek.dragging}
+                duration={duration}
+                holdSeekHandlers={holdSeek.handlers}
+                onToggleSaved={toggleSaved}
+                onTogglePlay={() => fullPlayer.toggle()}
+                onSkipBack={() => seek(currentTime - SKIP_BACK_SEC)}
+                onSkipForward={() => seek(currentTime + SKIP_FORWARD_SEC)}
+              />
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fullPlayer.cycleSpeed()}
+                  className="font-brand rounded-full border border-surface-border px-3 py-1.5 text-xs font-bold tabular-nums hover:border-accent hover:text-accent"
+                >
+                  {s.playbackRate}×
+                </button>
+                <button
+                  type="button"
+                  onClick={cycleSleepTimer}
+                  className="font-brand rounded-full border border-surface-border px-3 py-1.5 text-xs font-bold tabular-nums hover:border-accent hover:text-accent"
+                >
+                  {sleepLabel}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {rotary.active && (
           <TwoDialPicker
             list={queue}
             index={rotary.index}
-            currentTime={currentTime}
-            duration={duration}
-            onSeek={seek}
             playbackRate={s.playbackRate}
             onCycleSpeed={() => fullPlayer.cycleSpeed()}
             onOpenPlaylist={() => setPlaylistOpen(true)}
-            sleepLabel={s.sleepTimerEndsAt != null ? `${sleepRemainingMin ?? "…"}m` : "Timer"}
+            sleepLabel={sleepLabel}
             onCycleSleep={cycleSleepTimer}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {holdSeek.active && (
+          <FullscreenSeekDial previewSec={holdSeek.previewSec} duration={duration} fine={holdSeek.fine} />
         )}
       </AnimatePresence>
 
@@ -325,6 +362,119 @@ export function FullPlayer() {
   );
 }
 
+type PointerHandlers = {
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerMove: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  onPointerCancel: (e: React.PointerEvent) => void;
+};
+
+/**
+ * The dial circle + waveform + 2x2 icon grid row — shared between the
+ * mini widget and the fullscreen player so the two stay visually
+ * consistent (Aaron's ask: fullscreen "in the same principle as the
+ * mini player"), just bigger when `large`.
+ */
+function PlayerControlsRow({
+  large,
+  queueLabel,
+  queueTotal,
+  rotaryHandlers,
+  playing,
+  saved,
+  displaySec,
+  dragging,
+  duration,
+  holdSeekHandlers,
+  onToggleSaved,
+  onTogglePlay,
+  onSkipBack,
+  onSkipForward,
+}: {
+  large?: boolean;
+  queueLabel: string;
+  queueTotal: string | number;
+  rotaryHandlers: PointerHandlers;
+  playing: boolean;
+  saved: boolean;
+  displaySec: number;
+  dragging: boolean;
+  duration: number;
+  holdSeekHandlers: PointerHandlers;
+  onToggleSaved: () => void;
+  onTogglePlay: () => void;
+  onSkipBack: () => void;
+  onSkipForward: () => void;
+}) {
+  const dialSize = large ? "h-24 w-24" : "h-16 w-16";
+  const iconSize = large ? "h-14 w-14" : "h-11 w-11";
+  const iconGlyph = large ? 20 : 16;
+
+  return (
+    <div className="flex w-full items-center gap-3" onClick={(e) => e.stopPropagation()}>
+      <div
+        {...rotaryHandlers}
+        role="button"
+        aria-label="Hold to choose a different saved episode"
+        tabIndex={0}
+        className={`nothing-circle flex shrink-0 touch-none select-none flex-col items-center justify-center ${dialSize}`}
+      >
+        <span className={`font-brand font-black leading-none tabular-nums ${large ? "text-2xl" : "text-base"}`}>
+          {queueLabel}
+        </span>
+        <span className="text-[9px] uppercase tracking-wider text-muted-foreground">of {queueTotal}</span>
+      </div>
+
+      <div
+        {...holdSeekHandlers}
+        role="button"
+        aria-label="Drag to seek, hold still to open the precise seek dial"
+        tabIndex={0}
+        className="min-w-0 flex-1 touch-none"
+      >
+        <PlayerWaveformScrubber active={playing} displaySec={displaySec} duration={duration} dragging={dragging} />
+      </div>
+
+      <div className="grid shrink-0 grid-cols-2 gap-1.5">
+        <button
+          type="button"
+          onClick={onSkipBack}
+          aria-label={`Back ${SKIP_BACK_SEC} seconds`}
+          className={`nothing-circle flex items-center justify-center ${iconSize}`}
+        >
+          <SkipBackIcon size={iconGlyph} />
+        </button>
+        <button
+          type="button"
+          onClick={onSkipForward}
+          aria-label={`Forward ${SKIP_FORWARD_SEC} seconds`}
+          className={`nothing-circle flex items-center justify-center ${iconSize}`}
+        >
+          <SkipForwardIcon size={iconGlyph} />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleSaved}
+          aria-label={saved ? "Remove from saved" : "Save"}
+          data-active={saved}
+          className={`nothing-circle flex items-center justify-center font-bold ${iconSize}`}
+          style={{ fontSize: iconGlyph }}
+        >
+          {saved ? "✓" : "+"}
+        </button>
+        <button
+          type="button"
+          onClick={onTogglePlay}
+          aria-label={playing ? "Pause" : "Play"}
+          className={`nothing-circle flex items-center justify-center ${iconSize}`}
+        >
+          {playing ? <PauseIcon size={iconGlyph} /> : <PlayIcon size={iconGlyph} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function VolumeControl({ volume, onChange }: { volume: number; onChange: (v: number) => void }) {
   return (
     <input
@@ -333,6 +483,7 @@ function VolumeControl({ volume, onChange }: { volume: number; onChange: (v: num
       max={1}
       step={0.05}
       value={volume}
+      onClick={(e) => e.stopPropagation()}
       onChange={(e) => onChange(Number(e.target.value))}
       aria-label="Volume"
       className="h-1 w-16 shrink-0 accent-accent"
@@ -357,19 +508,19 @@ function PauseIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-function SkipBackIcon() {
+function SkipBackIcon({ size = 13 }: { size?: number }) {
   return (
-    <svg width={13} height={11} viewBox="0 0 16 14" fill="currentColor" aria-hidden>
+    <svg width={size} height={(size * 11) / 13} viewBox="0 0 16 14" fill="currentColor" aria-hidden>
       <path d="M8 0v3.2A6 6 0 1014 9.2h-1.6A4.4 4.4 0 118 4.8V8l4-4z" />
     </svg>
   );
 }
 
-function SkipForwardIcon() {
+function SkipForwardIcon({ size = 13 }: { size?: number }) {
   return (
     <svg
-      width={13}
-      height={11}
+      width={size}
+      height={(size * 11) / 13}
       viewBox="0 0 16 14"
       fill="currentColor"
       style={{ transform: "scaleX(-1)" }}

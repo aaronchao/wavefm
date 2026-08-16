@@ -960,7 +960,12 @@ test("Library: tapping a saved episode opens the real in-app player", async ({ p
   await page.mouse.down();
   await page.waitForTimeout(800);
   await expect(page.getByText("Episode", { exact: true })).toBeVisible();
-  await expect(page.getByRole("paragraph").filter({ hasText: "The Second Playback Episode" })).toBeVisible();
+  // The circular gauge dial shows only the current selection (no neighbor
+  // rows like the old vertical wheel) — still "The Full Playback Episode"
+  // until dragged. .last() targets the dial's own label, not the mini
+  // widget's "Expand player" title (also "The Full Playback Episode" text,
+  // still mounted underneath the overlay).
+  await expect(page.getByRole("paragraph").filter({ hasText: "The Full Playback Episode" }).last()).toBeVisible();
 
   // Drag up to rotate to the other saved episode, then release to commit
   // — closing the picker (its own "Second Player Show" text un-mounts
@@ -975,4 +980,104 @@ test("Library: tapping a saved episode opens the real in-app player", async ({ p
     document.querySelectorAll("audio").forEach((a) => a.dispatchEvent(new Event("ended"))),
   );
   await expect(page.getByRole("button", { name: "Close player" })).toHaveCount(0);
+});
+
+test("Library: tapping the mini player expands to a fullscreen tier with speed + sleep timer", async ({
+  page,
+}) => {
+  await stub(page);
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    window.localStorage.setItem(
+      "wavr.savedEpisodes.v1",
+      JSON.stringify([
+        {
+          episodeId: "exp1",
+          showId: "showX",
+          title: "The Expandable Episode",
+          showTitle: "Expand Show",
+          audioUrl: "https://cdn/exp1.mp3",
+          status: "queued",
+          positionSec: 0,
+          bucket: "queue",
+          queueRank: -Date.now(),
+          savedAt: now,
+          updatedAt: now,
+        },
+      ]),
+    );
+  });
+  await page.goto("/library");
+  await page.getByRole("button", { name: "Play The Expandable Episode" }).first().click();
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+
+  // Tapping the mini widget's title expands it — same layout language,
+  // bigger, plus speed/sleep-timer controls that used to only live inside
+  // the rotary dial page (Aaron's ask, 2026-08-16: "build the same
+  // transmission animation between player and selector").
+  await page.getByRole("button", { name: "Expand player" }).click();
+  await expect(page.getByRole("button", { name: "Minimize" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^1×$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Timer" })).toBeVisible();
+
+  // Cycling speed and the sleep timer both work from the fullscreen tier.
+  await page.getByRole("button", { name: /^1×$/ }).click();
+  await expect(page.getByRole("button", { name: /^1\.25×$/ })).toBeVisible();
+  await page.getByRole("button", { name: "Timer" }).click();
+  // Label shows "…m" until the 1s interval tick fills in the real minute
+  // count (see FullPlayer.tsx's sleepRemainingMin effect).
+  await expect(page.getByRole("button", { name: /^(\d+|…)m$/ })).toBeVisible();
+
+  // Minimizing returns to the mini widget without closing the player.
+  await page.getByRole("button", { name: "Minimize" }).click();
+  await expect(page.getByRole("button", { name: "Minimize" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Expand player" })).toBeVisible();
+});
+
+test("Library: holding the waveform opens a separate seek dial, not the episode dial", async ({
+  page,
+}) => {
+  await stub(page);
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    window.localStorage.setItem(
+      "wavr.savedEpisodes.v1",
+      JSON.stringify([
+        {
+          episodeId: "seek1",
+          showId: "showY",
+          title: "The Seekable Episode",
+          showTitle: "Seek Show",
+          audioUrl: "https://cdn/seek1.mp3",
+          status: "queued",
+          positionSec: 30,
+          bucket: "queue",
+          queueRank: -Date.now(),
+          savedAt: now,
+          updatedAt: now,
+        },
+      ]),
+    );
+  });
+  await page.goto("/library");
+  await page.getByRole("button", { name: "Play The Seekable Episode" }).first().click();
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+
+  // Long-holding the waveform (not the left dial circle) opens the
+  // fullscreen arc seek dial — a genuinely separate trigger from the
+  // episode/show rotary picker, per Aaron's complaint (2026-08-16) that
+  // the two used to share one gesture and so blocked each other.
+  const waveform = page.getByRole("button", { name: "Drag to seek, hold still to open the precise seek dial" });
+  const box = (await waveform.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  await expect(page.getByText("Hold and drag to seek")).toBeVisible();
+  // The episode/show rotary dial's own overlay text must NOT be showing —
+  // proof the two gestures stay independent.
+  await expect(page.getByText("Episode", { exact: true })).toHaveCount(0);
+
+  await page.mouse.up();
+  await expect(page.getByText("Hold and drag to seek")).toHaveCount(0);
 });
